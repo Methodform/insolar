@@ -38,6 +38,7 @@ export default function App() {
   const [anDiff, setAnDiff] = useState(false);
   const [anStats, setAnStats] = useState(null);
   const [showWin, setShowWin] = useState(false);
+  const [showPlot, setShowPlot] = useState(true);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const openFile = useRef(null);
 
@@ -134,6 +135,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   const insol = useMemo(() => insolationAt([0, 0], buildings, dayMs, lat, lon), [buildings, dayMs, lat, lon]);
   const reqH = normHours(lat);
   const winReport = useMemo(() => windowsReport(buildings, lat, lon, tz, y), [buildings, lat, lon, tz, y]);
+  const plotReport = useMemo(() => reportData(poly, buildings, lat, lon, tz, y), [poly, buildings, lat, lon, tz, y]);
   const shadowAz = (azDeg + 180) % 360;
   const fmtLen = L => !isFinite(L) ? '∞' : L >= 1000 ? '>1 км' : L.toFixed(1) + ' м';
 
@@ -168,7 +170,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
-          windows={pro && showWin ? winReport.rows : []} />
+          windows={pro && showWin ? winReport.rows : []}
+          plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -409,6 +412,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Stat k="Всего за день" v={fmtHours(insol.sun)} />
             <Stat k="Макс. непрерывно" v={fmtHours(insol.cont)} />
             <Stat k={`Норма ≥ ${reqH} ч`} v={<Badge color={insol.cont >= reqH ? 'grass' : 'red'}>{insol.cont >= reqH ? 'выполнена' : 'не выполнена'}</Badge>} />
+
+            <Flex justify="between" align="center" mt="3">
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>КОНТРОЛЬНЫЕ ТОЧКИ</Text>
+              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                <input type="checkbox" checked={showPlot} onChange={e => setShowPlot(e.target.checked)} /> на участке
+              </Text>
+            </Flex>
+            <Flex gap="3" align="center">
+              <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
+              <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
+            </Flex>
+            <Stat k="Соответствуют норме" v={`${plotReport.okc} из ${plotReport.n}`} color={plotReport.okc === plotReport.n ? 'var(--grass-11)' : 'var(--amber-11)'} />
 
             {(buildings.length > 0) && <>
               <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em' }}>ДЛИНА ТЕНИ (СЕЙЧАС)</Text>

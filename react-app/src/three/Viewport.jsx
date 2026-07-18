@@ -65,7 +65,7 @@ function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
     return { corners: c, normal: n }; }); }
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
-  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [] }) {
+  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [] }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
@@ -321,6 +321,20 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       m.position.set(w.e, 1.5, -w.n); grp.add(m); });
     a.scene.add(grp); a.winGroup = grp;
   }, [windows]);
+
+  // маркеры инсоляции по участку (контрольные точки территории) — зелёный/красный
+  useEffect(() => {
+    const a = api.current; if (!a.scene) return;
+    if (a.plotGroup) { a.scene.remove(a.plotGroup); a.plotGroup = null; }
+    if (!plotMarkers || !plotMarkers.length) return;
+    const grp = new THREE.Group();
+    plotMarkers.forEach(m => { const col = m.ok ? 0x1f9d45 : 0xc0392b;
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 12), new THREE.MeshBasicMaterial({ color: col, toneMapped: false }));
+      s.position.set(m.e, 0.55, -m.n); grp.add(s);
+      const ring = new THREE.Mesh(new THREE.CircleGeometry(0.75, 18), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.35, toneMapped: false, side: THREE.DoubleSide }));
+      ring.rotation.x = -Math.PI / 2; ring.position.set(m.e, 0.12, -m.n); grp.add(ring); });
+    a.scene.add(grp); a.plotGroup = grp;
+  }, [plotMarkers]);
 
   return <div ref={mount} style={{ position: 'absolute', inset: 0 }} />;
 }
