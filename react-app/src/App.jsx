@@ -37,6 +37,7 @@ export default function App() {
   const [anM2, setAnM2] = useState(9);
   const [anDiff, setAnDiff] = useState(false);
   const [anStats, setAnStats] = useState(null);
+  const [showWin, setShowWin] = useState(false);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const openFile = useRef(null);
 
@@ -166,7 +167,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
-          analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats} />
+          analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
+          windows={pro && showWin ? winReport.rows : []} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -182,7 +184,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Flex>
 
         {/* left panel */}
-        <Card size="2" style={{ position: 'absolute', left: 16, top: 64, bottom: 88, width: 320, zIndex: 20, overflowY: 'auto' }}>
+        <Card size="2" style={{ position: 'absolute', left: 16, top: 64, bottom: 88, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
           <Flex direction="column" gap="3">
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>УЧАСТОК · КООРДИНАТЫ ТОЧЕК</Text>
@@ -330,6 +332,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
                   </Dialog.Content>
                 </Dialog.Root>
+                <Button variant={showWin ? 'solid' : 'soft'} color={showWin ? 'grass' : 'gray'} mt="2" style={{ width: '100%' }}
+                  onClick={() => setShowWin(v => !v)} disabled={buildings.length === 0}>
+                  <TransparencyGridIcon /> {showWin ? 'Скрыть окна на 3D' : 'Показать окна на 3D'}
+                </Button>
 
                 <Dialog.Root>
                   <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}><SewingPinFilledIcon /> Рекомендации по зонированию</Button></Dialog.Trigger>
@@ -384,7 +390,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Card>
 
         {/* right panel */}
-        <Card size="2" style={{ position: 'absolute', right: 16, top: 64, bottom: 88, width: 300, zIndex: 20, overflowY: 'auto' }}>
+        <Card size="2" style={{ position: 'absolute', right: 16, top: 64, bottom: 88, width: 300, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
           <Flex direction="column" gap="2">
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
             <SunPath y={y} mo={mo} da={da} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} />
@@ -430,7 +436,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         )}
 
         {/* timebar */}
-        <Card size="2" style={{ position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20 }}>
+        <Card size="2" style={{ position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' }}>
           <Flex align="center" gap="4">
             <Text size="6" weight="bold" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 92 }}>{clock}</Text>
             <Text size="2" color="gray" style={{ minWidth: 150 }}>{da} {months[mo - 1]} {y} · UTC{tz >= 0 ? '+' : ''}{tz}</Text>

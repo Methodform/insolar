@@ -65,7 +65,7 @@ function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
     return { corners: c, normal: n }; }); }
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
-  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats }) {
+  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [] }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
@@ -309,6 +309,18 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.scene.add(grp); a.analyticsGroup = grp;
     onAnalyticsStats && onAnalyticsStats({ minV, maxV, m1, m2, diff: anDiff });
   }, [analytics, anM1, anM2, anDiff, buildings, poly, fenceH, lat, lon, year]);
+
+  // маркеры окон (фасады) в 3D — зелёный/красный шар по норме
+  useEffect(() => {
+    const a = api.current; if (!a.scene) return;
+    if (a.winGroup) { a.scene.remove(a.winGroup); a.winGroup = null; }
+    if (!windows || !windows.length) return;
+    const grp = new THREE.Group();
+    windows.forEach(w => { const col = w.ok ? 0x1f9d45 : 0xc0392b;
+      const m = new THREE.Mesh(new THREE.SphereGeometry(0.7, 12, 12), new THREE.MeshBasicMaterial({ color: col, toneMapped: false }));
+      m.position.set(w.e, 1.5, -w.n); grp.add(m); });
+    a.scene.add(grp); a.winGroup = grp;
+  }, [windows]);
 
   return <div ref={mount} style={{ position: 'absolute', inset: 0 }} />;
 }
