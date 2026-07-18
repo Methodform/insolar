@@ -1,16 +1,15 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Select,
-  Slider, Tabs, Badge, Separator, IconButton, Dialog } from '@radix-ui/themes';
+  Slider, Tabs, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
-  TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, TransparencyGridIcon, SewingPinFilledIcon,
+  TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
-import HeatMap from './three/HeatMap.jsx';
 import PlanEditor from './three/PlanEditor.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
-  insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
+  insolationAt, normHours, shadowLen, azToCardinal, reportData } from './engine/astronomy.js';
 
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
@@ -37,7 +36,6 @@ export default function App() {
   const [anM2, setAnM2] = useState(9);
   const [anDiff, setAnDiff] = useState(false);
   const [anStats, setAnStats] = useState(null);
-  const [showWin, setShowWin] = useState(false);
   const [showPlot, setShowPlot] = useState(true);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const openFile = useRef(null);
@@ -134,7 +132,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   const dayMs = localToUTC(y, mo - 1, da, 12, 0, tz);
   const insol = useMemo(() => insolationAt([0, 0], buildings, dayMs, lat, lon), [buildings, dayMs, lat, lon]);
   const reqH = normHours(lat);
-  const winReport = useMemo(() => windowsReport(buildings, lat, lon, tz, y), [buildings, lat, lon, tz, y]);
   const plotReport = useMemo(() => reportData(poly, buildings, lat, lon, tz, y), [poly, buildings, lat, lon, tz, y]);
   const shadowAz = (azDeg + 180) % 360;
   const fmtLen = L => !isFinite(L) ? '∞' : L >= 1000 ? '>1 км' : L.toFixed(1) + ' м';
@@ -170,7 +167,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
-          windows={pro && showWin ? winReport.rows : []}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []} />
 
         {/* header */}
@@ -180,6 +176,50 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           <Text size="2" color="gray">React + Radix · моделирование солнца</Text>
           <Box style={{ flex: 1 }} />
           <Tabs.Root defaultValue="viz"><Tabs.List><Tabs.Trigger value="viz">Визуализация</Tabs.Trigger><Tabs.Trigger value="an">Анализ</Tabs.Trigger></Tabs.List></Tabs.Root>
+          <Dialog.Root>
+            <Dialog.Trigger><Button variant="soft" color="gray"><RulerHorizontalIcon /> Отступы</Button></Dialog.Trigger>
+            <Dialog.Content maxWidth="560px">
+              <Dialog.Title><Flex align="center" gap="2"><RulerHorizontalIcon /> Нормативные отступы</Flex></Dialog.Title>
+              <Dialog.Description size="1" color="gray" mb="2">Ориентировочные минимумы (ИЖС/СНТ). Точные значения — по действующим редакциям СП и местным ПЗЗ.</Dialog.Description>
+              <Box style={{ maxHeight: '65vh', overflowY: 'auto' }}>
+                {[
+                  ['От границы соседнего участка', [['Жилой / садовый дом', '3 м'], ['Гараж (окна к соседу)', '2 м'], ['Баня, хозпостройки (сарай, беседка, теплица, навес)', '1 м'], ['Постройка для скота / птицы', '4 м'], ['Деревья высокие / среднерослые / кустарник', '3 / 2 / 1 м']]],
+                  ['От красной линии (улица / проезд)', [['Дом — от улицы', '5 м'], ['Дом — от проезда', '3 м'], ['Хозпостройки — от красной линии', '5 м']]],
+                  ['Санитарно-бытовые (внутри участка)', [['Дом → уборная', '12 м'], ['Дом → постройка для скота / птицы', '12 м'], ['Дом → душ, баня, сауна', '8 м'], ['Колодец → уборная / компост', '8 м']]],
+                  ['Противопожарные (между домами соседних участков)', [['Негорючие (камень, бетон, кирпич)', '6 м'], ['С деревянными перекрытиями', '8 м'], ['Древесина, каркас', '10–15 м']]],
+                ].map(([title, rows]) => (
+                  <Box key={title} mb="3">
+                    <Text size="2" weight="bold" style={{ display: 'block', marginBottom: 4 }}>{title}</Text>
+                    {rows.map(([k, v]) => (
+                      <Flex key={k} justify="between" gap="3" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
+                        <Text size="2" color="gray">{k}</Text><Text size="2" weight="medium">{v}</Text>
+                      </Flex>
+                    ))}
+                  </Box>
+                ))}
+                <Text size="1" color="gray">Между своими постройками в пределах одного участка противопожарные расстояния не нормируются. Источники: СП 53.13330.2019, СП 42.13330.2016, СП 4.13130.2013. Материал справочный, не заменяет проект и экспертизу.</Text>
+              </Box>
+              <Flex justify="end" mt="3"><Dialog.Close><Button>Понятно</Button></Dialog.Close></Flex>
+            </Dialog.Content>
+          </Dialog.Root>
+          <Dialog.Root>
+            <Dialog.Trigger><Button variant="soft" color="gray"><SewingPinFilledIcon /> Зонирование</Button></Dialog.Trigger>
+            <Dialog.Content maxWidth="560px">
+              <Dialog.Title><Flex align="center" gap="2"><SewingPinFilledIcon /> Рекомендации по зонированию</Flex></Dialog.Title>
+              <Dialog.Description size="1" color="gray" mb="3">Ориентация по сторонам света: где разместить огород, посадки и зону отдыха.</Dialog.Description>
+              <ZoneMap poly={poly} />
+              <Box mt="3">
+                {[
+                  ['🥕 Огород / грядки — юг', 'Максимум света для светолюбивых культур.'],
+                  ['🌳 Высокие посадки — север / края', 'Чтобы не затеняли грядки и окна дома. Отступ от границы: высокие ≥ 3 м, среднерослые ≥ 2 м, кустарник ≥ 1 м.'],
+                  ['🌿 Газон / зона отдыха — центр', 'Универсальная буферная зона между постройками и посадками.'],
+                ].map(([t, d]) => (
+                  <Box key={t} mb="2"><Text size="2" weight="bold" style={{ display: 'block' }}>{t}</Text><Text size="1" color="gray">{d}</Text></Box>
+                ))}
+              </Box>
+              <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
+            </Dialog.Content>
+          </Dialog.Root>
           <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={() => setPro(p => !p)}>{pro ? <CheckIcon /> : <LockOpen1Icon />} Pro-режим</Button>
           <Button variant="soft" color="gray" onClick={() => setAppearance(a => a === 'light' ? 'dark' : 'light')}>
             {appearance === 'light' ? <><MoonIcon /> Тёмная</> : <><SunIcon /> Светлая</>}
@@ -187,7 +227,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Flex>
 
         {/* left panel */}
-        <Card size="2" style={{ position: 'absolute', left: 16, top: 64, bottom: 88, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
+        <Card size="2" style={{ position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
           <Flex direction="column" gap="3">
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>УЧАСТОК · КООРДИНАТЫ ТОЧЕК</Text>
@@ -244,32 +284,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Button onClick={addPreset} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
                 <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
               </Flex>
-              <Dialog.Root>
-                <Dialog.Trigger><Button variant="soft" color="gray" mt="2" style={{ width: '100%' }}><RulerHorizontalIcon /> Памятка: нормативные отступы</Button></Dialog.Trigger>
-                <Dialog.Content maxWidth="560px">
-                  <Dialog.Title><Flex align="center" gap="2"><RulerHorizontalIcon /> Нормативные отступы</Flex></Dialog.Title>
-                  <Dialog.Description size="1" color="gray" mb="2">Ориентировочные минимумы (ИЖС/СНТ). Точные значения — по действующим редакциям СП и местным ПЗЗ.</Dialog.Description>
-                  <Box style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-                    {[
-                      ['От границы соседнего участка', [['Жилой / садовый дом', '3 м'], ['Гараж (окна к соседу)', '2 м'], ['Баня, хозпостройки (сарай, беседка, теплица, навес)', '1 м'], ['Постройка для скота / птицы', '4 м'], ['Деревья высокие / среднерослые / кустарник', '3 / 2 / 1 м']]],
-                      ['От красной линии (улица / проезд)', [['Дом — от улицы', '5 м'], ['Дом — от проезда', '3 м'], ['Хозпостройки — от красной линии', '5 м']]],
-                      ['Санитарно-бытовые (внутри участка)', [['Дом → уборная', '12 м'], ['Дом → постройка для скота / птицы', '12 м'], ['Дом → душ, баня, сауна', '8 м'], ['Колодец → уборная / компост', '8 м']]],
-                      ['Противопожарные (между домами соседних участков)', [['Негорючие (камень, бетон, кирпич)', '6 м'], ['С деревянными перекрытиями', '8 м'], ['Древесина, каркас', '10–15 м']]],
-                    ].map(([title, rows]) => (
-                      <Box key={title} mb="3">
-                        <Text size="2" weight="bold" style={{ display: 'block', marginBottom: 4 }}>{title}</Text>
-                        {rows.map(([k, v]) => (
-                          <Flex key={k} justify="between" gap="3" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
-                            <Text size="2" color="gray">{k}</Text><Text size="2" weight="medium">{v}</Text>
-                          </Flex>
-                        ))}
-                      </Box>
-                    ))}
-                    <Text size="1" color="gray">Между своими постройками в пределах одного участка противопожарные расстояния не нормируются. Источники: СП 53.13330.2019, СП 42.13330.2016, СП 4.13130.2013. Материал справочный, не заменяет проект и экспертизу.</Text>
-                  </Box>
-                  <Flex justify="end" mt="3"><Dialog.Close><Button>Понятно</Button></Dialog.Close></Flex>
-                </Dialog.Content>
-              </Dialog.Root>
               <Flex direction="column" gap="1" mt="2">
                 {buildings.map((b, i) => (
                   <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
@@ -284,20 +298,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             {pro ? (
               <Box>
                 <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА · PRO</Text>
-                <Dialog.Root>
-                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}><LayersIcon /> Годовая тепловая карта</Button></Dialog.Trigger>
-                  <Dialog.Content maxWidth="820px">
-                    <Dialog.Title>Годовая тепловая карта инсоляции</Dialog.Title>
-                    <Dialog.Description size="2" color="gray" mb="3">Среднесуточная инсоляция по участку за 12 контрольных дат с учётом зданий.</Dialog.Description>
-                    <HeatMap poly={poly} buildings={buildings} lat={lat} lon={lon} tz={tz} year={y} />
-                    <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
-                  </Dialog.Content>
-                </Dialog.Root>
-
-                <Box mt="2" style={{ border: '1px solid var(--gray-a5)', borderRadius: 10, padding: 10 }}>
-                  <Button variant={analytics ? 'solid' : 'soft'} color={analytics ? 'grass' : 'gray'} onClick={() => setAnalytics(v => !v)} style={{ width: '100%' }}>
-                    <LayersIcon /> {analytics ? 'Скрыть 3D-аналитику' : '3D-аналитика поверхностей'}
-                  </Button>
+                <Box mt="1" style={{ border: '1px solid var(--gray-a5)', borderRadius: 10, padding: 10 }}>
+                  <Flex align="center" justify="between" asChild>
+                    <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                      <Flex align="center" gap="2"><LayersIcon /> 3D-аналитика поверхностей</Flex>
+                      <Switch checked={analytics} onCheckedChange={setAnalytics} />
+                    </Text>
+                  </Flex>
                   {analytics && <>
                     <Flex gap="2" mt="2" align="center">
                       <Text size="1" color="gray">Месяцы</Text>
@@ -316,48 +323,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     </Text>
                   </>}
                 </Box>
-
-                <Dialog.Root>
-                  <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}><TransparencyGridIcon /> Инсоляция по окнам</Button></Dialog.Trigger>
-                  <Dialog.Content maxWidth="520px">
-                    <Dialog.Title><Flex align="center" gap="2"><TransparencyGridIcon /> Инсоляция по окнам (фасады)</Flex></Dialog.Title>
-                    <Dialog.Description size="1" color="gray" mb="3">
-                      Норматив ≥ {winReport.z.hours} ч на {winReport.z.da}.{winReport.z.mo + 1}. Каждая строка — фасад (окно) с ориентацией.
-                    </Dialog.Description>
-                    {winReport.rows.length === 0
-                      ? <Text size="2" color="gray">Добавьте хотя бы одно здание, чтобы рассчитать инсоляцию по окнам.</Text>
-                      : winReport.rows.map((w, i) => (
-                        <Flex key={i} justify="between" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
-                          <Text size="2" color="gray">{w.name} · {w.dir}</Text>
-                          <Text size="2" weight="medium" style={{ color: w.ok ? 'var(--grass-11)' : 'var(--red-11)' }}>{w.cont.toFixed(1)} ч {w.ok ? '✓' : '✗'}</Text>
-                        </Flex>
-                      ))}
-                    <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
-                  </Dialog.Content>
-                </Dialog.Root>
-                <Button variant={showWin ? 'solid' : 'soft'} color={showWin ? 'grass' : 'gray'} mt="2" style={{ width: '100%' }}
-                  onClick={() => setShowWin(v => !v)} disabled={buildings.length === 0}>
-                  <TransparencyGridIcon /> {showWin ? 'Скрыть окна на 3D' : 'Показать окна на 3D'}
-                </Button>
-
-                <Dialog.Root>
-                  <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}><SewingPinFilledIcon /> Рекомендации по зонированию</Button></Dialog.Trigger>
-                  <Dialog.Content maxWidth="560px">
-                    <Dialog.Title><Flex align="center" gap="2"><SewingPinFilledIcon /> Рекомендации по зонированию</Flex></Dialog.Title>
-                    <Dialog.Description size="1" color="gray" mb="3">Ориентация по сторонам света: где разместить огород, посадки и зону отдыха.</Dialog.Description>
-                    <ZoneMap poly={poly} />
-                    <Box mt="3">
-                      {[
-                        ['🥕 Огород / грядки — юг', 'Максимум света для светолюбивых культур.'],
-                        ['🌳 Высокие посадки — север / края', 'Чтобы не затеняли грядки и окна дома. Отступ от границы: высокие ≥ 3 м, среднерослые ≥ 2 м, кустарник ≥ 1 м.'],
-                        ['🌿 Газон / зона отдыха — центр', 'Универсальная буферная зона между постройками и посадками.'],
-                      ].map(([t, d]) => (
-                        <Box key={t} mb="2"><Text size="2" weight="bold" style={{ display: 'block' }}>{t}</Text><Text size="1" color="gray">{d}</Text></Box>
-                      ))}
-                    </Box>
-                    <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
-                  </Dialog.Content>
-                </Dialog.Root>
 
                 <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ДОКУМЕНТ</Text>
                 <Dialog.Root>
@@ -393,7 +358,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Card>
 
         {/* right panel */}
-        <Card size="2" style={{ position: 'absolute', right: 16, top: 64, bottom: 88, width: 300, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
+        <Card size="2" style={{ position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
           <Flex direction="column" gap="2">
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
             <SunPath y={y} mo={mo} da={da} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} />
