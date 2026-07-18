@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Инсоляр — сохраните солнце на своём участке</title>
+<meta name="description" content="Проверьте солнце, тени и инсоляцию участка по СанПиН до начала стройки. 3D-модель, нормативный отчёт.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#ffffff; --paper:#F6F5F1; --ink:#0f1310; --muted:#69726a;
+    --green:#1e5c3d; --line:#E7E7E1; --sun:#E8A33D;
+    --maxw:1240px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.45;-webkit-font-smoothing:antialiased;
+    font-size:17px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 32px}
+  a{color:inherit;text-decoration:none}
+  .lbl{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:500}
+  h1{font-size:clamp(2.9rem,7.5vw,6.4rem);line-height:.98;letter-spacing:-.03em;font-weight:500}
+  h2{font-size:clamp(2rem,4.6vw,3.6rem);line-height:1.02;letter-spacing:-.025em;font-weight:500}
+  h3{font-size:clamp(1.25rem,2vw,1.7rem);font-weight:500;letter-spacing:-.01em}
+  p{color:var(--muted)}
+  .big-lead{font-size:clamp(1.25rem,2.4vw,1.9rem);line-height:1.3;color:var(--ink);letter-spacing:-.01em;max-width:20ch}
+  section{padding:clamp(72px,11vw,168px) 0}
+  .pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:14px 28px;
+    font-size:15px;font-weight:500;border:1px solid var(--ink);transition:.25s;cursor:pointer}
+  .pill.solid{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .pill.solid:hover{background:var(--green);border-color:var(--green)}
+  .pill.line:hover{background:var(--ink);color:#fff}
+  .pill.green{background:var(--green);color:#fff;border-color:var(--green)}
+  .pill.green:hover{filter:brightness(1.12)}
+
+  /* header */
+  header{position:fixed;top:0;left:0;right:0;z-index:60;transition:.3s}
+  header.scrolled{background:rgba(255,255,255,.82);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;gap:26px;height:74px}
+  .logo{font-weight:600;font-size:19px;letter-spacing:-.01em}
+  .logo .d{color:var(--green)}
+  .nav .sp{flex:1}
+  .nav .lnk{font-size:14.5px;color:var(--ink)}
+  .nav .lnk:hover{color:var(--muted)}
+  .nav .pill{padding:10px 20px}
+  @media(max-width:760px){.nav .lnk{display:none}}
+
+  /* hero */
+  .hero{padding-top:150px;padding-bottom:0}
+  .hero h1{max-width:15ch}
+  .hero .sub{margin:28px 0 34px;max-width:34ch;font-size:clamp(1.05rem,1.7vw,1.25rem)}
+  .hero .cta{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .scrollcue{margin-top:56px;display:flex;align-items:center;gap:10px}
+  .scrollcue .line{width:46px;height:1px;background:var(--muted)}
+  .stage-wrap{margin-top:64px;border-radius:24px;overflow:hidden;position:relative;background:var(--paper)}
+  .stage{display:block;width:100%;height:auto}
+  .seasons{position:absolute;top:20px;left:20px;display:flex;gap:6px;background:rgba(255,255,255,.7);
+    border:1px solid var(--line);border-radius:999px;padding:5px;backdrop-filter:blur(6px)}
+  .seasons button{border:none;background:transparent;font:inherit;font-size:13px;font-weight:500;
+    padding:8px 18px;border-radius:999px;cursor:pointer;color:var(--muted)}
+  .seasons button.on{background:var(--ink);color:#fff}
+  .stage-cap{position:absolute;bottom:20px;left:24px;font-size:13px;color:var(--muted)}
+
+  /* generic */
+  .grid{display:grid;gap:1px;background:var(--line);border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+  .g3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:820px){.g3{grid-template-columns:1fr}}
+  .cell{background:var(--bg);padding:40px 34px}
+  .cell .lbl{color:var(--green)}
+  .cell h3{margin:14px 0 10px}
+  .cell p{font-size:1rem}
+
+  .split{display:grid;grid-template-columns:0.9fr 1.1fr;gap:60px;align-items:start}
+  @media(max-width:820px){.split{grid-template-columns:1fr;gap:32px}}
+
+  /* steps */
+  .step{display:grid;grid-template-columns:96px 1fr;gap:24px;padding:40px 0;border-top:1px solid var(--line)}
+  .step:last-child{border-bottom:1px solid var(--line)}
+  .step .num{font-size:clamp(2rem,4vw,3.2rem);font-weight:500;color:var(--green);letter-spacing:-.03em;line-height:1}
+  .step h3{margin-bottom:8px}
+  .step p{font-size:1.05rem;max-width:60ch}
+  @media(max-width:620px){.step{grid-template-columns:1fr;gap:8px}}
+
+  /* dark manifesto */
+  .dark{background:var(--ink);color:#F2F3EF}
+  .dark p{color:#A9B0A8}
+  .dark .lbl{color:#8FA896}
+
+  /* calc */
+  .calc{border:1px solid var(--line);border-radius:24px;padding:clamp(28px,4vw,48px);background:var(--paper)}
+  .calc-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px}
+  @media(max-width:620px){.calc-grid{grid-template-columns:1fr}}
+  .field label{display:block;font-size:13px;color:var(--muted);margin-bottom:7px}
+  .field input{width:100%;padding:14px 16px;border:1px solid var(--line);border-radius:12px;
+    font:inherit;font-size:16px;background:#fff;color:var(--ink)}
+  .field input:focus{outline:none;border-color:var(--green)}
+  .cstat{display:flex;justify-content:space-between;padding:13px 0;border-bottom:1px solid var(--line)}
+  .cstat .k{color:var(--muted);font-size:.97rem}.cstat .v{font-weight:600;font-variant-numeric:tabular-nums}
+  .chead{margin-top:26px;background:var(--green);color:#fff;border-radius:16px;padding:24px 28px;
+    font-size:clamp(1.2rem,2.6vw,1.8rem);font-weight:500;letter-spacing:-.01em;line-height:1.15}
+
+  /* pricing */
+  .prices{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+  @media(max-width:820px){.prices{grid-template-columns:1fr}}
+  .price{border:1px solid var(--line);border-radius:20px;padding:32px;display:flex;flex-direction:column}
+  .price.hot{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .price.hot p,.price.hot li{color:#AEB6AD}
+  .price .amt{font-size:2.2rem;font-weight:600;margin:14px 0 2px;letter-spacing:-.02em}
+  .price ul{list-style:none;margin:20px 0;flex:1}
+  .price li{padding:8px 0;border-top:1px solid var(--line);font-size:.95rem;color:var(--muted)}
+  .price.hot li{border-color:#2a352c}
+  .price li::before{content:'—';margin-right:10px;color:var(--green)}
+
+  /* faq */
+  .faq details{border-top:1px solid var(--line);padding:6px 0}
+  .faq details:last-child{border-bottom:1px solid var(--line)}
+  .faq summary{list-style:none;cursor:pointer;display:flex;justify-content:space-between;
+    align-items:center;gap:20px;padding:24px 0;font-size:clamp(1.05rem,1.8vw,1.35rem);font-weight:500}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary .pm{font-size:1.6rem;color:var(--green);font-weight:400;transition:.2s}
+  .faq details[open] summary .pm{transform:rotate(45deg)}
+  .faq .ans{padding:0 0 24px;color:var(--muted);max-width:70ch}
+
+  footer .big-cta{padding:clamp(80px,12vw,180px) 0;text-align:center}
+  footer .big-cta h2{max-width:16ch;margin:0 auto 30px}
+  .foot{border-top:1px solid var(--line);padding:40px 0;display:flex;justify-content:space-between;
+    gap:16px;flex-wrap:wrap;color:var(--muted);font-size:.9rem}
+
+  .reveal{opacity:0;transform:translateY(24px);transition:opacity .8s cubic-bezier(.16,1,.3,1),transform .8s cubic-bezier(.16,1,.3,1)}
+  .reveal.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+  .mt10{margin-top:10px}.mt20{margin-top:20px}.mt40{margin-top:40px}.mt64{margin-top:64px}
+  .maxw40{max-width:40ch}
+</style>
+</head>
+<body>
+
+<header id="hdr">
+  <div class="wrap nav">
+    <div class="logo">☉ Инсол<span class="d">яр</span></div>
+    <div class="sp"></div>
+    <a class="lnk" href="#how">Как работает</a>
+    <a class="lnk" href="#calc">Экономия</a>
+    <a class="lnk" href="#price">Тарифы</a>
+    <a class="pill solid" href="index.html">Открыть сервис</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <span class="lbl reveal">Солнце и инсоляция участка</span>
+    <h1 class="reveal mt20">Сохраните<br>солнце на своём<br>участке.</h1>
+    <p class="sub reveal">Проверьте солнце, тени и инсоляцию по СанПиН ещё до фундамента — и стройте там, где всегда свет.</p>
+    <div class="cta reveal">
+      <a class="pill green" href="index.html">Проверить участок</a>
+      <a class="pill line" href="#how">Как это работает</a>
+    </div>
+    <div class="scrollcue reveal"><span class="line"></span><span class="lbl">Листайте</span></div>
+
+    <div class="stage-wrap reveal">
+      <div class="seasons">
+        <button id="btnSummer" class="on" onclick="setSeason('summer')">Лето</button>
+        <button id="btnWinter" onclick="setSeason('winter')">Зима</button>
+      </div>
+      <svg id="stage" class="stage" viewBox="0 0 1180 560" xmlns="http://www.w3.org/2000/svg" aria-label="Участок, солнце и тени">
+        <defs>
+          <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
+            <stop id="skyTop" offset="0" stop-color="#cfe0f2"/>
+            <stop id="skyBot" offset="1" stop-color="#f1efe9"/>
+          </linearGradient>
+          <radialGradient id="sunG"><stop offset="0" stop-color="#ffe6a3"/><stop offset="1" stop-color="#e8a33d"/></radialGradient>
+        </defs>
+        <rect width="1180" height="560" fill="url(#skyG)"/>
+        <circle id="sun" cx="900" cy="120" r="46" fill="url(#sunG)"/>
+        <!-- участок -->
+        <polygon points="150,500 830,500 740,250 250,250" fill="#dfe6d6" stroke="#1e5c3d" stroke-width="3"/>
+        <polygon points="188,485 795,485 715,268 285,268" fill="none" stroke="#ff3b30" stroke-width="1.5" stroke-dasharray="7 5"/>
+        <!-- тень дома -->
+        <polygon id="shadow" points="470,470 640,470 720,500 520,500" fill="#0e130f18"/>
+        <!-- дом с двускатной крышей -->
+        <rect x="400" y="360" width="150" height="90" fill="#e9e6df" stroke="#c9c6bd"/>
+        <polygon points="400,360 475,318 550,360" fill="#8f4a34"/>
+        <text x="250" y="240" font-family="Inter" font-size="16" fill="#1e5c3d" font-weight="500">ваш участок</text>
+        <text id="seasonCap" x="820" y="120" font-family="Inter" font-size="14" fill="#8a6a1f">лето · солнце высоко</text>
+      </svg>
+      <div class="stage-cap">Переключите сезон — тень меняется вместе с высотой солнца.</div>
+    </div>
+  </div>
+</section>
+
+<!-- MANIFESTO -->
+<section class="dark">
+  <div class="wrap split">
+    <span class="lbl reveal">Суть</span>
+    <div>
+      <h2 class="reveal">Стройка необратима. Солнце — нет.</h2>
+      <p class="reveal mt20" style="font-size:1.15rem;max-width:52ch">Дом, поставленный в тень или с нарушением инсоляции соседей, оборачивается спорами, отказом экспертизы, а иногда и предписанием снести. Пока проект на экране — любую ошибку исправляет один клик, а не бульдозер.</p>
+    </div>
+  </div>
+</section>
+
+<!-- WHAT YOU GET -->
+<section>
+  <div class="wrap">
+    <span class="lbl reveal">Что вы получаете</span>
+    <h2 class="reveal mt10 maxw40">Три вопроса — один ответ</h2>
+  </div>
+  <div class="grid g3 mt64">
+    <div class="cell reveal"><span class="lbl">солнце.</span><h3>Где всегда свет</h3><p>Путь солнца по дню и сезонам, годовая тепловая карта участка — сразу видно лучшие и худшие по солнцу зоны.</p></div>
+    <div class="cell reveal"><span class="lbl">тени.</span><h3>Что кого затеняет</h3><p>3D-сцена с реальными тенями от дома, крыши и забора в реальном времени. Длина тени и инсоляция по точкам.</p></div>
+    <div class="cell reveal"><span class="lbl">документ.</span><h3>Норма по СанПиН</h3><p>Вердикт «норма выполнена» и готовый отчёт PDF/Word для согласования и экспертизы.</p></div>
+  </div>
+</section>
+
+<!-- HOW -->
+<section id="how">
+  <div class="wrap">
+    <span class="lbl reveal">Как это работает</span>
+    <h2 class="reveal mt10 maxw40">От координат до документа — за минуты</h2>
+    <div class="mt64">
+      <div class="step reveal"><div class="num">01</div><div><h3>Задайте участок</h3><p>Введите координаты угловых точек из документов или обведите по загруженному чертежу. Появятся красные линии отступа 1 и 3 м.</p></div></div>
+      <div class="step reveal"><div class="num">02</div><div><h3>Расставьте постройки</h3><p>Дом, баня, гараж, забор — из типовых размеров или рисованием прямоугольником с двускатной крышей. Перетаскивайте и вращайте по участку.</p></div></div>
+      <div class="step reveal"><div class="num">03</div><div><h3>Смотрите солнце и тени</h3><p>3D-сцена с реальными тенями, диаграмма пути солнца и годовая тепловая карта «где солнечнее».</p></div></div>
+      <div class="step reveal"><div class="num">04</div><div><h3>Получите отчёт</h3><p>Нормативная инсоляция по контрольным точкам и окнам, вердикт «норма выполнена», готовый PDF/Word.</p></div></div>
+    </div>
+  </div>
+</section>
+
+<!-- CALC -->
+<section id="calc">
+  <div class="wrap split">
+    <div>
+      <span class="lbl reveal">Экономия</span>
+      <h2 class="reveal mt10">Проверка стоит доли процента от цены ошибки</h2>
+      <p class="reveal mt20 maxw40" style="font-size:1.1rem">Прикиньте, чем рискуете без проверки — и сравните с ценой сервиса.</p>
+    </div>
+    <div class="calc reveal">
+      <div class="calc-grid">
+        <div class="field"><label>Стоимость постройки, ₽</label><input id="cObj" type="number" step="100000" value="5000000"></div>
+        <div class="field"><label>Энергия в год, ₽</label><input id="cEn" type="number" step="5000" value="80000"></div>
+        <div class="field"><label>Солнечные панели, кВт</label><input id="cPv" type="number" step="0.5" value="0"></div>
+        <div class="field"><label>Подписка, ₽/мес</label><input id="cSub" type="number" step="100" value="990"></div>
+      </div>
+      <div id="cOut" class="mt20"></div>
+      <div class="chead" id="cHead"></div>
+      <p class="mt10" style="font-size:.8rem">Цифры иллюстративные, зависят от региона и объекта. Не оферта.</p>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section>
+  <div class="wrap">
+    <span class="lbl reveal">Частые вопросы</span>
+    <h2 class="reveal mt10 maxw40">Коротко о главном</h2>
+    <div class="faq mt64 reveal">
+      <details open><summary>По какому нормативу считается инсоляция?<span class="pm">+</span></summary><div class="ans">По СанПиН 1.2.3685-21: непрерывная инсоляция на нормативную дату для климатической зоны участка. Зона (северная / центральная / южная) определяется по широте автоматически.</div></details>
+      <details><summary>Заменяет ли отчёт экспертизу?<span class="pm">+</span></summary><div class="ans">Нет. Расчёт модельный и помогает принять решение и подготовиться; для официальной экспертизы нужен расчёт по фактическим окнам помещений аккредитованной организацией. Сервис резко сокращает подготовку.</div></details>
+      <details><summary>Нужны ли специальные знания?<span class="pm">+</span></summary><div class="ans">Нет. Вводите координаты участка или обводите чертёж, расставляете постройки мышью — остальное сервис считает сам.</div></details>
+      <details><summary>Откуда брать координаты участка?<span class="pm">+</span></summary><div class="ans">Из выписки ЕГРН / межевого плана (широта-долгота или координаты точек), либо обведите по загруженному чертежу-подложке.</div></details>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER CTA -->
+<footer>
+  <div class="dark">
+    <div class="wrap big-cta">
+      <span class="lbl reveal">Начните бесплатно</span>
+      <h2 class="reveal mt20" style="color:#fff">Проверьте участок за 10 минут</h2>
+      <div class="reveal"><a class="pill green" href="index.html">Открыть сервис</a></div>
+    </div>
+  </div>
+  <div class="wrap foot">
+    <span>☉ Инсоляр — моделирование солнца и инсоляции участка</span>
+    <span>Демо-проект · расчёт по СанПиН 1.2.3685-21 · не заменяет экспертизу</span>
+  </div>
+</footer>
+
+<script>
+  const hdr=document.getElementById('hdr');
+  addEventListener('scroll',()=>hdr.classList.toggle('scrolled',scrollY>20));
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+
+  // сезонный переключатель — меняет высоту солнца и длину тени
+  function setSeason(s){
+    const summer = s==='summer';
+    document.getElementById('btnSummer').classList.toggle('on',summer);
+    document.getElementById('btnWinter').classList.toggle('on',!summer);
+    const sun=document.getElementById('sun'), sh=document.getElementById('shadow'),
+          cap=document.getElementById('seasonCap'),
+          top=document.getElementById('skyTop'), bot=document.getElementById('skyBot');
+    if(summer){
+      sun.setAttribute('cx',900); sun.setAttribute('cy',120);
+      sh.setAttribute('points','470,470 640,470 720,500 520,500');
+      cap.textContent='лето · солнце высоко'; cap.setAttribute('x',820); cap.setAttribute('y',120);
+      top.setAttribute('stop-color','#cfe0f2'); bot.setAttribute('stop-color','#f1efe9');
+    }else{
+      sun.setAttribute('cx',760); sun.setAttribute('cy',250);
+      sh.setAttribute('points','400,455 560,455 300,500 120,500');
+      cap.textContent='зима · солнце низко, тень длиннее'; cap.setAttribute('x',600); cap.setAttribute('y',250);
+      top.setAttribute('stop-color','#dfe6ee'); bot.setAttribute('stop-color','#eef0ea');
+    }
+  }
+
+  // калькулятор экономии
+  const $=id=>document.getElementById(id);
+  const rub=n=>Math.round(n).toLocaleString('ru-RU')+' ₽';
+  function calc(){
+    const obj=+$('cObj').value||0, en=+$('cEn').value||0, pv=+$('cPv').value||0, sub=+$('cSub').value||0;
+    const rebuild=obj, delay=obj*0.03, energy30=en*0.10*30, pv30=pv*1050*0.25*6*30, yearSub=sub*12;
+    const worst=rebuild+delay, ratio=yearSub>0?Math.round(worst/yearSub):0;
+    const row=(k,v,c)=>`<div class="cstat"><span class="k">${k}</span><span class="v" style="color:${c||'inherit'}">${v}</span></div>`;
+    let h='';
+    h+=row('Риск сноса / переделки','до '+rub(rebuild),'#c0392b');
+    h+=row('Простой согласования','~'+rub(delay),'#b7791f');
+    h+=row('Экономия энергии за 30 лет','+'+rub(energy30),'#1f9d45');
+    if(pv>0) h+=row('Панели без тени, 30 лет','+'+rub(pv30),'#1f9d45');
+    h+=row('Стоимость сервиса в год',rub(yearSub));
+    $('cOut').innerHTML=h;
+    $('cHead').textContent = ratio>0 ? `Сервис защищает от риска в ${ratio.toLocaleString('ru-RU')} раз дороже своей цены` : '';
+  }
+  ['cObj','cEn','cPv','cSub'].forEach(id=>$(id).addEventListener('input',calc));
+  calc();
+</script>
+</body>
+</html>

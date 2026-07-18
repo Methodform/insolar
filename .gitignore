@@ -1,0 +1,13 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/
+
+# личные инструкции ассистента — не публикуем
+CLAUDE.md
+
+# временные
+*.log
+node_modules/
