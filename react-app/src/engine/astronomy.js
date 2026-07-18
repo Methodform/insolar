@@ -70,6 +70,30 @@ export function insolationAt(pt, buildings, dayMs, lat, lon){
     if(lit){ sunMin+=5; run+=5; if(run>mx)mx=run; } else run=0; }
   return {sun:sunMin/60, cont:mx/60};
 }
+// окна = середины фасадов зданий, нормаль наружу
+export function facadeWindows(buildings){ const out=[];
+  (buildings||[]).forEach((b,bi)=>{ const pts=b.pts; if(!pts||pts.length<3) return;
+    let cx=0,cy=0; pts.forEach(p=>{cx+=p[0];cy+=p[1];}); cx/=pts.length; cy/=pts.length;
+    for(let i=0;i<pts.length;i++){ const a=pts[i],c=pts[(i+1)%pts.length];
+      const mx=(a[0]+c[0])/2,my=(a[1]+c[1])/2; let ex=c[0]-a[0],ey=c[1]-a[1]; const L=Math.hypot(ex,ey)||1; ex/=L; ey/=L;
+      let nx=ey,ny=-ex; if(nx*(mx-cx)+ny*(my-cy)<0){ nx=-nx; ny=-ny; }
+      out.push({ bi, name:b.name||('Здание '+(bi+1)), e:mx+nx*0.15, n:my+ny*0.15, nx, ny }); } });
+  return out; }
+// инсоляция одного окна за день (учёт стороны фасада)
+export function windowInsolation(win, buildings, dayMs, lat, lon){
+  const t=getTimes(dayMs,lat,lon); if(!isFinite(t.rise)||!isFinite(t.set)) return {sun:0,cont:0};
+  const step=5*60000; let sunMin=0,run=0,mx=0;
+  for(let ms=t.rise; ms<=t.set; ms+=step){ const p=sunPosition(ms,lat,lon); let lit=false;
+    if(p.altitude>0){ const azc=compassAz(p.azimuth), se=Math.sin(azc*RAD), sn=Math.cos(azc*RAD);
+      if(se*win.nx+sn*win.ny>0) lit=!shadedByBuildings([win.e,win.n],azc*RAD,p.altitude,buildings,1.5); }
+    if(lit){ sunMin+=5; run+=5; if(run>mx)mx=run; } else run=0; }
+  return {sun:sunMin/60, cont:mx/60}; }
+// отчёт по всем окнам на нормативную дату
+export function windowsReport(buildings, lat, lon, tz, year){
+  const z=normativeZone(lat), dayMs=localToUTC(year,z.mo,z.da,12,0,tz), wins=facadeWindows(buildings);
+  return { z, rows: wins.map(w=>{ const r=windowInsolation(w,buildings,dayMs,lat,lon);
+    const dir=azToCardinal((Math.atan2(w.nx,w.ny)*180/Math.PI+360)%360);
+    return { name:w.name, dir, cont:r.cont, sun:r.sun, ok:r.cont>=z.hours, e:w.e, n:w.n }; }) }; }
 // климатическая зона → требуемая непрерывная инсоляция
 export function normHours(lat){ const a=Math.abs(lat); return a>=58?2.5:a>=48?2.0:1.5; }
 export const shadowLen=(h,altDeg)=> altDeg<=0.2 ? Infinity : h/Math.tan(altDeg*RAD);

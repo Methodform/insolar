@@ -1,8 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { sunPosition, compassAz, RAD } from '../engine/astronomy.js';
+import { sunPosition, compassAz, RAD, offsetInward, pointInPoly } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
+// нормативный отступ от границы участка (дом ≥3 м, прочее ≥1 м)
+const setbackFor = name => /дом/i.test(name || '') ? 3 : 1;
+function fitsPlot(pts, poly, setback) {
+  const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
+  const allow = offsetInward(base, setback) || base;
+  return pts.every(p => pointInPoly(p[0], p[1], allow));
+}
 
 function ridgeAlongA(pts, flip) {
   const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
@@ -37,6 +44,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
   const onRef = useRef(onBuildings); onRef.current = onBuildings;
+  const polyRef = useRef(poly); polyRef.current = poly;
 
   useEffect(() => {
     const el = mount.current;
@@ -64,6 +72,26 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
     const grid = new THREE.GridHelper(400, 40, 0x3a4a30, 0x3a4a30); grid.material.opacity = 0.25; grid.material.transparent = true; grid.position.y = 0.02; scene.add(grid);
     const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(6, 20, 20), new THREE.MeshBasicMaterial({ color: 0xffd257 })); scene.add(sunSphere);
+
+    // псевдо-облака
+    const cloudCv = document.createElement('canvas'); cloudCv.width = cloudCv.height = 128;
+    const cg = cloudCv.getContext('2d'); const gr = cg.createRadialGradient(64, 64, 4, 64, 64, 62);
+    gr.addColorStop(0, 'rgba(255,255,255,.95)'); gr.addColorStop(.5, 'rgba(255,255,255,.55)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+    cg.fillStyle = gr; cg.fillRect(0, 0, 128, 128);
+    const cloudTex = new THREE.CanvasTexture(cloudCv), cloudGroup = new THREE.Group();
+    for (let i = 0; i < 16; i++) { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: .6, depthWrite: false }));
+      const sz = 40 + Math.random() * 70; s.scale.set(sz * 1.7, sz, 1);
+      s.position.set((Math.random() - .5) * 760, 95 + Math.random() * 80, (Math.random() - .5) * 760); s.userData.spd = .03 + Math.random() * .06; cloudGroup.add(s); }
+    scene.add(cloudGroup);
+
+    // компас-надписи С/Ю/В/З (ось: X=восток, Z=юг, север=-Z)
+    const compassSprites = [];
+    [['С', 0, -1, '#f85149'], ['Ю', 0, 1, '#eef2f7'], ['В', 1, 0, '#eef2f7'], ['З', -1, 0, '#eef2f7']].forEach(([txt, dx, dz, col]) => {
+      const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d');
+      g.fillStyle = col; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 32, 34);
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false })); sp.renderOrder = 900;
+      scene.add(sp); compassSprites.push({ sp, dx, dz }); });
+
     const dyn = new THREE.Group(); scene.add(dyn);
     const gizmo = new THREE.Group(); scene.add(gizmo);
 
@@ -118,12 +146,12 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (sel.ci >= 0 && g) { const bd = bRef.current[sel.ci]; const gp = gpoint(e);
         let cE = 0, cN = 0; bd.pts.forEach(p => { cE += p[0]; cN += p[1]; }); cE /= bd.pts.length; cN /= bd.pts.length;
         const ue = bd.pts.length === 4 ? bd.pts[1][0] - bd.pts[0][0] : 1, un = bd.pts.length === 4 ? bd.pts[1][1] - bd.pts[0][1] : 0, uL = Math.hypot(ue, un) || 1;
-        Object.assign(gd, { on: true, mode: g, orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: ue / uL, uy: un / uL, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
+        Object.assign(gd, { on: true, mode: g, name: bd.name, orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: ue / uL, uy: un / uL, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
         e.preventDefault(); return; }
       const ci = pickBuilding(e);
       if (ci >= 0) { sel.ci = ci; makeGizmo(); const bd = bRef.current[ci]; const gp = gpoint(e);
         let cE = 0, cN = 0; bd.pts.forEach(p => { cE += p[0]; cN += p[1]; }); cE /= bd.pts.length; cN /= bd.pts.length;
-        Object.assign(gd, { on: true, mode: 'move', orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: 1, uy: 0, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
+        Object.assign(gd, { on: true, mode: 'move', name: bd.name, orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: 1, uy: 0, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
         e.preventDefault(); return; }
       sel.ci = -1; while (gizmo.children.length) gizmo.remove(gizmo.children[0]);
       orbit.drag = true; orbit.px = e.clientX; orbit.py = e.clientY;
@@ -138,6 +166,8 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         else if (gd.mode === 'sl' || gd.mode === 'sw') { const ax = gd.mode === 'sl' ? [gd.ux, gd.uy] : [vx, vy];
           const pS = (gd.sE - gd.cE) * ax[0] + (gd.sN - gd.cN) * ax[1], pN = (E - gd.cE) * ax[0] + (N - gd.cN) * ax[1];
           const f = Math.max(0.15, Math.min(6, pN / (Math.abs(pS) < 0.5 ? (pS < 0 ? -0.5 : 0.5) : pS))); cand = gd.orig.map(p => scaleAxis(p, [gd.cE, gd.cN], ax, f)); }
+        // ограничение: объект остаётся в участке с нормативным отступом
+        if (cand && !fitsPlot(cand, polyRef.current, setbackFor(gd.name))) { e.preventDefault(); return; }
         commit(cand, baseY); e.preventDefault(); return; }
       if (!orbit.drag) return;
       orbit.az -= (e.clientX - orbit.px) * 0.006; orbit.el += (e.clientY - orbit.py) * 0.006;
@@ -151,6 +181,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     resize(); addEventListener('resize', resize);
     let raf; (function loop() { raf = requestAnimationFrame(loop);
       const { az, el: e2, r } = orbit; camera.position.set(r * Math.cos(e2) * Math.sin(az), r * Math.sin(e2), r * Math.cos(e2) * Math.cos(az)); camera.lookAt(0, 6, 0);
+      cloudGroup.children.forEach(c => { c.position.x += c.userData.spd; if (c.position.x > 400) c.position.x = -400; });
+      const R = (api.current.plotHalf || 12) + 8 + r * 0.14, csc = Math.max(8, Math.min(22, r * 0.055));
+      compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
       renderer.render(scene, camera); })();
 
     api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, dispose() {
@@ -165,6 +198,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const a = api.current; if (!a.scene) return;
     const dyn = a.dyn; while (dyn.children.length) dyn.remove(dyn.children[0]);
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
+    a.plotHalf = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
     const shape = new THREE.Shape(); base.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
     const plot = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshStandardMaterial({ color: 0xf5c451, roughness: 0.85, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
     plot.rotation.x = -Math.PI / 2; plot.position.y = 0.05; plot.receiveShadow = true; dyn.add(plot);
