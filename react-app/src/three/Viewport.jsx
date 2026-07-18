@@ -4,11 +4,42 @@ import { sunPosition, compassAz, RAD } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
 
-export default function Viewport({ utcMs, lat, lon, poly, fenceH }) {
+// какую ось взять коньком (длинная сторона); flip — перевернуть
+function ridgeAlongA(pts, flip) {
+  const d = (p, q) => Math.hypot(p[0] - q[0], p[1] - q[1]);
+  const A = (d(pts[0], pts[1]) + d(pts[2], pts[3])) / 2, B = (d(pts[1], pts[2]) + d(pts[3], pts[0])) / 2;
+  const useA = A >= B; return flip ? !useA : useA;
+}
+// меш двускатной крыши (base — верх стен, rh — высота конька)
+function gableRoofMesh(pts, base, rh, mat, flip) {
+  if (pts.length !== 4) return null;
+  const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
+  let slopes, gables, R1, R2;
+  if (ridgeAlongA(pts, flip)) {
+    R1 = mid(pts[1], pts[2]); R2 = mid(pts[3], pts[0]);
+    slopes = [[pts[0], pts[1], R1, R2], [pts[2], pts[3], R2, R1]];
+    gables = [[pts[1], pts[2], R1], [pts[3], pts[0], R2]];
+  } else {
+    R1 = mid(pts[0], pts[1]); R2 = mid(pts[2], pts[3]);
+    slopes = [[pts[1], pts[2], R2, R1], [pts[3], pts[0], R1, R2]];
+    gables = [[pts[0], pts[1], R1], [pts[2], pts[3], R2]];
+  }
+  const top = base + rh, pos = [], isR = p => (p === R1 || p === R2);
+  const V = p => pos.push(p[0], isR(p) ? top : base, -p[1]);
+  const tri = (a, b, c) => { V(a); V(b); V(c); };
+  slopes.forEach(q => { tri(q[0], q[1], q[2]); tri(q[0], q[2], q[3]); });
+  gables.forEach(g => tri(g[0], g[1], g[2]));
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geo.computeVertexNormals();
+  const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true;
+  return m;
+}
+
+export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings }) {
   const mount = useRef(null);
   const api = useRef({});
 
-  // init once
   useEffect(() => {
     const el = mount.current;
     const renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -27,7 +58,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH }) {
     const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a5a3a, 0.5); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff2d6, 1.4);
     sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-    const sc = sun.shadow.camera; sc.near = 1; sc.far = SUN_DIST * 2 + 200; sc.left = sc.bottom = -80; sc.right = sc.top = 80;
+    const sc = sun.shadow.camera; sc.near = 1; sc.far = SUN_DIST * 2 + 200; sc.left = sc.bottom = -90; sc.right = sc.top = 90;
     sun.shadow.bias = -0.0001; sun.shadow.normalBias = 0.03; sun.shadow.radius = 3;
     scene.add(sun, sun.target);
 
@@ -39,16 +70,14 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH }) {
 
     const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(6, 20, 20), new THREE.MeshBasicMaterial({ color: 0xffd257 }));
     scene.add(sunSphere);
+    const dyn = new THREE.Group(); scene.add(dyn);
 
-    const dyn = new THREE.Group(); scene.add(dyn); // участок/забор
-
-    // орбита
     const orbit = { az: -0.9, el: 0.6, r: 150, drag: false, px: 0, py: 0 };
     const cvs = renderer.domElement;
     const down = e => { orbit.drag = true; orbit.px = e.clientX; orbit.py = e.clientY; };
     const move = e => { if (!orbit.drag) return; orbit.az -= (e.clientX - orbit.px) * 0.006; orbit.el += (e.clientY - orbit.py) * 0.006; orbit.el = Math.max(0.08, Math.min(1.5, orbit.el)); orbit.px = e.clientX; orbit.py = e.clientY; };
-    const up = () => orbit.drag = false;
-    cvs.addEventListener('mousedown', down); addEventListener('mousemove', move); addEventListener('mouseup', up);
+    const upH = () => orbit.drag = false;
+    cvs.addEventListener('mousedown', down); addEventListener('mousemove', move); addEventListener('mouseup', upH);
     cvs.addEventListener('wheel', e => { orbit.r *= (1 + Math.sign(e.deltaY) * 0.08); orbit.r = Math.max(60, Math.min(500, orbit.r)); e.preventDefault(); }, { passive: false });
 
     function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
@@ -64,23 +93,24 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH }) {
     }
     loop();
 
-    api.current = { scene, sun, sunSphere, ambient, hemi, dyn, THREE, renderer, dispose() {
-      cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', up); removeEventListener('resize', resize);
+    api.current = { scene, sun, sunSphere, ambient, hemi, dyn, dispose() {
+      cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize);
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
     return () => api.current.dispose();
   }, []);
 
-  // rebuild plot + fence when geometry changes
+  // rebuild plot + fence + buildings
   useEffect(() => {
     const a = api.current; if (!a.scene) return;
     const dyn = a.dyn; while (dyn.children.length) dyn.remove(dyn.children[0]);
-    const base = (poly && poly.length >= 3) ? poly : [[-12,-12],[12,-12],[12,12],[-12,12]];
+    const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const shape = new THREE.Shape();
     base.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
     const plot = new THREE.Mesh(new THREE.ShapeGeometry(shape),
       new THREE.MeshStandardMaterial({ color: 0xf5c451, roughness: 0.85, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
     plot.rotation.x = -Math.PI / 2; plot.position.y = 0.05; plot.receiveShadow = true; dyn.add(plot);
+
     if (fenceH > 0) {
       const fmat = new THREE.MeshStandardMaterial({ color: 0x8a7d5a, roughness: .95 });
       for (let i = 0; i < base.length; i++) {
@@ -92,9 +122,25 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH }) {
         m.castShadow = true; m.receiveShadow = true; dyn.add(m);
       }
     }
-  }, [poly, fenceH]);
 
-  // update sun each time/coords change
+    const cmat = new THREE.MeshStandardMaterial({ color: 0xe9e6df, roughness: 0.7 });
+    const rmat = new THREE.MeshStandardMaterial({ color: 0x8f4a34, roughness: 0.75, side: THREE.DoubleSide });
+    (buildings || []).forEach(bd => {
+      if (!bd.pts || bd.pts.length < 3) return;
+      const sh = new THREE.Shape();
+      bd.pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
+      const geo = new THREE.ExtrudeGeometry(sh, { depth: bd.height, bevelEnabled: false });
+      const m = new THREE.Mesh(geo, cmat); m.rotation.x = -Math.PI / 2;
+      m.castShadow = true; m.receiveShadow = true; dyn.add(m);
+      const rh = bd.roofH || 0;
+      if (bd.pts.length === 4 && rh > 0) {
+        const roof = gableRoofMesh(bd.pts, bd.height, rh, rmat, !!bd.ridge);
+        if (roof) dyn.add(roof);
+      }
+    });
+  }, [poly, fenceH, buildings]);
+
+  // sun update
   useEffect(() => {
     const a = api.current; if (!a.scene) return;
     const p = sunPosition(utcMs, lat, lon), altDeg = p.altitude * 180 / Math.PI, az = compassAz(p.azimuth) * RAD, ca = Math.cos(p.altitude);

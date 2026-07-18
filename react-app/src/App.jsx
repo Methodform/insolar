@@ -20,9 +20,31 @@ export default function App() {
   const [minutes, setMinutes] = useState(() => { const d=new Date(now.getTime()+4*3600000); return d.getUTCHours()*60+d.getUTCMinutes(); });
   const [playing, setPlaying] = useState(false);
   const timer = useRef(null);
+  const [buildings, setBuildings] = useState([]);
+  const [preset, setPreset] = useState('Дом 9×9|9,9,6|3');
 
   const lat = built ? built.lat0 : 55.75, lon = built ? built.lon0 : 37.62;
   const poly = built ? built.local : null;
+
+  function addPreset() {
+    const [name, dims] = preset.split('|');
+    const [w, d, h] = dims.split(',').map(Number);
+    const base = poly && poly.length >= 3 ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
+    // ориентация вдоль самой длинной стороны участка
+    let bestLen = -1, ux = 1, uy = 0;
+    for (let i = 0; i < base.length; i++) {
+      const a = base[i], b = base[(i + 1) % base.length], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy);
+      if (L > bestLen) { bestLen = L; ux = dx / L; uy = dy / L; }
+    }
+    const vx = -uy, vy = ux;
+    let cx = 0, cy = 0; base.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= base.length; cy /= base.length;
+    const k = buildings.length; cx += ux * k * 2; cy += uy * k * 2;
+    const hw = w / 2, hd = d / 2;
+    const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([ex, ey]) => [cx + ux * ex + vx * ey, cy + uy * ex + vy * ey]);
+    const roofH = /дом/i.test(name) ? 2.5 : 1.5;
+    setBuildings(bs => [...bs, { pts: corners, height: h, roofH, name }]);
+  }
+  const removeBuilding = i => setBuildings(bs => bs.filter((_, k) => k !== i));
 
   const [y, mo, da] = date.split('-').map(Number);
   const utcMs = localToUTC(y, mo - 1, da, Math.floor(minutes / 60), minutes % 60, tz);
@@ -61,7 +83,7 @@ export default function App() {
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
-        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} />
+        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -105,6 +127,40 @@ export default function App() {
                   <Select.Item value="2">2 м</Select.Item><Select.Item value="2.2">2.2 м</Select.Item>
                 </Select.Content>
               </Select.Root>
+            </Box>
+            <Separator size="4" />
+            <Box>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
+              <Select.Root value={preset} onValueChange={setPreset}>
+                <Select.Trigger mt="1" style={{ width: '100%' }} />
+                <Select.Content>
+                  <Select.Group>
+                    <Select.Label>Жилой дом</Select.Label>
+                    <Select.Item value="Дом 6×6|6,6,5|3">Дом 6×6 м, h 5</Select.Item>
+                    <Select.Item value="Дом 8×8|8,8,6|3">Дом 8×8 м, h 6</Select.Item>
+                    <Select.Item value="Дом 9×9|9,9,6|3">Дом 9×9 м, h 6</Select.Item>
+                    <Select.Item value="Дом 8×10|8,10,7|3">Дом 8×10 м, h 7</Select.Item>
+                  </Select.Group>
+                  <Select.Group>
+                    <Select.Label>Хозяйственные</Select.Label>
+                    <Select.Item value="Баня 4×6|4,6,3|1">Баня 4×6 м</Select.Item>
+                    <Select.Item value="Гараж 6×4|6,4,3|1">Гараж 6×4 м</Select.Item>
+                    <Select.Item value="Сарай 3×6|3,6,2.5|1">Сарай 3×6 м</Select.Item>
+                    <Select.Item value="Беседка 3×4|3,4,3|1">Беседка 3×4 м</Select.Item>
+                    <Select.Item value="Теплица 3×6|3,6,2.5|1">Теплица 3×6 м</Select.Item>
+                  </Select.Group>
+                </Select.Content>
+              </Select.Root>
+              <Button mt="2" onClick={addPreset} style={{ width: '100%' }}>+ Добавить сооружение</Button>
+              <Flex direction="column" gap="1" mt="2">
+                {buildings.map((b, i) => (
+                  <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
+                    <Text size="2">{b.name} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
+                    <IconButton size="1" variant="ghost" color="red" onClick={() => removeBuilding(i)}>🗑</IconButton>
+                  </Flex>
+                ))}
+                {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
+              </Flex>
             </Box>
           </Flex>
         </Card>
