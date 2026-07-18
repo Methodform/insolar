@@ -75,7 +75,27 @@ export function normHours(lat){ const a=Math.abs(lat); return a>=58?2.5:a>=48?2.
 export const shadowLen=(h,altDeg)=> altDeg<=0.2 ? Infinity : h/Math.tan(altDeg*RAD);
 export function azToCardinal(a){ return ['С','ССВ','СВ','ВСВ','В','ВЮВ','ЮВ','ЮЮВ','Ю','ЮЮЗ','ЮЗ','ЗЮЗ','З','ЗСЗ','СЗ','ССЗ'][Math.round(a/22.5)%16]; }
 
-export function polyArea(p){ let a=0; for(let i=0,j=p.length-1;i<p.length;j=i++) a+=p[j][0]*p[i][1]-p[i][0]*p[j][1]; return Math.abs(a/2); }
+export function polyAreaSigned(p){ let a=0; for(let i=0,j=p.length-1;i<p.length;j=i++) a+=p[j][0]*p[i][1]-p[i][0]*p[j][1]; return a/2; }
+export function polyArea(p){ return Math.abs(polyAreaSigned(p)); }
+export function nearestOnSeg(p,a,b){ const dx=b[0]-a[0],dy=b[1]-a[1],l2=dx*dx+dy*dy; let t=l2?((p[0]-a[0])*dx+(p[1]-a[1])*dy)/l2:0; t=Math.max(0,Math.min(1,t)); return [a[0]+t*dx,a[1]+t*dy]; }
+export function clampToPoly(p,poly){ if(pointInPoly(p[0],p[1],poly)) return p; let best=p,bd=1e9;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){ const q=nearestOnSeg(p,poly[j],poly[i]); const d=Math.hypot(q[0]-p[0],q[1]-p[1]); if(d<bd){bd=d;best=q;} } return best; }
+export function offsetInward(poly,d){ const n=poly.length; if(n<3) return null;
+  const ccw=polyAreaSigned(poly)>0, lines=[];
+  for(let i=0;i<n;i++){ const a=poly[i],b=poly[(i+1)%n]; let ux=b[0]-a[0],uy=b[1]-a[1]; const L=Math.hypot(ux,uy)||1; ux/=L; uy/=L;
+    const nx=ccw?-uy:uy, ny=ccw?ux:-ux; lines.push({px:a[0]+nx*d,py:a[1]+ny*d,ux,uy}); }
+  const res=[]; for(let i=0;i<n;i++){ const l1=lines[(i-1+n)%n],l2=lines[i]; const cr=l1.ux*l2.uy-l1.uy*l2.ux;
+    if(Math.abs(cr)<1e-9){ res.push([l2.px,l2.py]); continue; }
+    const t=((l2.px-l1.px)*l2.uy-(l2.py-l1.py)*l2.ux)/cr; res.push([l1.px+l1.ux*t,l1.py+l1.uy*t]); }
+  if(Math.sign(polyAreaSigned(res))!==Math.sign(polyAreaSigned(poly))||polyArea(res)<0.5) return null; return res; }
+export function plotBasis(poly){ let best=-1,ux=1,uy=0;
+  for(let i=0;i<poly.length;i++){ const a=poly[i],b=poly[(i+1)%poly.length]; const dx=b[0]-a[0],dy=b[1]-a[1],L=Math.hypot(dx,dy); if(L>best){best=L;ux=dx/L;uy=dy/L;} }
+  return {ux,uy,vx:-uy,vy:ux}; }
+// прямоугольник по двум точкам со сторонами вдоль участка
+export function rectFromDrag(poly,s,e){ const B=plotBasis(poly);
+  const pr=p=>[p[0]*B.ux+p[1]*B.uy, p[0]*B.vx+p[1]*B.vy], un=(U,V)=>[U*B.ux+V*B.vx, U*B.uy+V*B.vy];
+  const a=pr(s),b=pr(e); const u0=Math.min(a[0],b[0]),u1=Math.max(a[0],b[0]),v0=Math.min(a[1],b[1]),v1=Math.max(a[1],b[1]);
+  return { corners:[un(u0,v0),un(u1,v0),un(u1,v1),un(u0,v1)], w:u1-u0, h:v1-v0 }; }
 // нормативная зона по широте (СанПиН 1.2.3685-21)
 export function normativeZone(lat){ const a=Math.abs(lat);
   if(a>=58) return {zone:'северная (севернее 58° с.ш.)',hours:2.5,period:'22 апреля – 22 августа',mo:3,da:22};

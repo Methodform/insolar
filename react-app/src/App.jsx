@@ -4,6 +4,7 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
 import Viewport from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import HeatMap from './three/HeatMap.jsx';
+import PlanEditor from './three/PlanEditor.jsx';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData } from './engine/astronomy.js';
 
@@ -26,6 +27,7 @@ export default function App() {
   const [buildings, setBuildings] = useState([]);
   const [preset, setPreset] = useState('Дом 9×9|9,9,6|3');
   const [pro, setPro] = useState(false);
+  const [planOpen, setPlanOpen] = useState(false);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const openFile = useRef(null);
 
@@ -152,6 +154,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
+        {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} />
 
         {/* header */}
@@ -221,7 +224,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Select.Group>
                 </Select.Content>
               </Select.Root>
-              <Button mt="2" onClick={addPreset} style={{ width: '100%' }}>+ Добавить сооружение</Button>
+              <Flex gap="2" mt="2">
+                <Button onClick={addPreset} style={{ flex: 1 }}>+ Типовое</Button>
+                <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} style={{ flex: 1 }}>✏️ Рисовать</Button>
+              </Flex>
               <Flex direction="column" gap="1" mt="2">
                 {buildings.map((b, i) => (
                   <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
