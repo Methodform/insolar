@@ -91,7 +91,7 @@ export default function App() {
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
-        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} />
+        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
