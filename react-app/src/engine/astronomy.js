@@ -74,3 +74,19 @@ export function insolationAt(pt, buildings, dayMs, lat, lon){
 export function normHours(lat){ const a=Math.abs(lat); return a>=58?2.5:a>=48?2.0:1.5; }
 export const shadowLen=(h,altDeg)=> altDeg<=0.2 ? Infinity : h/Math.tan(altDeg*RAD);
 export function azToCardinal(a){ return ['С','ССВ','СВ','ВСВ','В','ВЮВ','ЮВ','ЮЮВ','Ю','ЮЮЗ','ЮЗ','ЗЮЗ','З','ЗСЗ','СЗ','ССЗ'][Math.round(a/22.5)%16]; }
+
+// годовая тепловая карта: среднесуточная инсоляция по сетке участка (12 дат)
+export function heatmapGrid(poly, buildings, year, lat, lon, tz){
+  const base=(poly&&poly.length>=3)?poly:[[-12,-12],[12,-12],[12,12],[-12,12]];
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9;
+  base.forEach(p=>{mnx=Math.min(mnx,p[0]);mxx=Math.max(mxx,p[0]);mny=Math.min(mny,p[1]);mxy=Math.max(mxy,p[1]);});
+  const span=Math.max(mxx-mnx,mxy-mny), cell=Math.max(1.5,Math.min(4,span/22));
+  const days=[]; for(let m=0;m<12;m++) days.push(localToUTC(year,m,21,12,0,tz));
+  const cells=[]; let maxV=0.001;
+  for(let x=mnx+cell/2;x<mxx;x+=cell) for(let y=mny+cell/2;y<mxy;y+=cell){
+    if(!pointInPoly(x,y,base)) continue;
+    let s=0; for(const d of days) s+=insolationAt([x,y],buildings,d,lat,lon).sun;
+    const val=s/days.length; if(val>maxV)maxV=val; cells.push({x,y,val});
+  }
+  return {cells, cell, maxV, base};
+}

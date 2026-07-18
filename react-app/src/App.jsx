@@ -1,8 +1,9 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Select,
-  Slider, Tabs, Badge, Separator, IconButton } from '@radix-ui/themes';
+  Slider, Tabs, Badge, Separator, IconButton, Dialog } from '@radix-ui/themes';
 import Viewport from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
+import HeatMap from './three/HeatMap.jsx';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal } from './engine/astronomy.js';
 
@@ -24,6 +25,7 @@ export default function App() {
   const timer = useRef(null);
   const [buildings, setBuildings] = useState([]);
   const [preset, setPreset] = useState('Дом 9×9|9,9,6|3');
+  const [pro, setPro] = useState(false);
 
   const lat = built ? built.lat0 : 55.75, lon = built ? built.lon0 : 37.62;
   const poly = built ? built.local : null;
@@ -100,6 +102,7 @@ export default function App() {
           <Text size="2" color="gray">React + Radix · моделирование солнца</Text>
           <Box style={{ flex: 1 }} />
           <Tabs.Root defaultValue="viz"><Tabs.List><Tabs.Trigger value="viz">Визуализация</Tabs.Trigger><Tabs.Trigger value="an">Анализ</Tabs.Trigger></Tabs.List></Tabs.Root>
+          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={() => setPro(p => !p)}>{pro ? '✓ Pro' : '🔓 Pro-режим'}</Button>
           <Button variant="soft" color="gray" onClick={() => setAppearance(a => a === 'light' ? 'dark' : 'light')}>
             {appearance === 'light' ? '🌙 Тёмная' : '☀️ Светлая'}
           </Button>
@@ -170,6 +173,25 @@ export default function App() {
                 {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
               </Flex>
             </Box>
+            <Separator size="4" />
+            {pro ? (
+              <Box>
+                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА · PRO</Text>
+                <Dialog.Root>
+                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}>🗺 Годовая тепловая карта</Button></Dialog.Trigger>
+                  <Dialog.Content maxWidth="820px">
+                    <Dialog.Title>Годовая тепловая карта инсоляции</Dialog.Title>
+                    <Dialog.Description size="2" color="gray" mb="3">Среднесуточная инсоляция по участку за 12 контрольных дат с учётом зданий.</Dialog.Description>
+                    <HeatMap poly={poly} buildings={buildings} lat={lat} lon={lon} tz={tz} year={y} />
+                    <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
+                  </Dialog.Content>
+                </Dialog.Root>
+              </Box>
+            ) : (
+              <Box style={{ border: '1px dashed var(--gray-a6)', borderRadius: 10, padding: 12 }}>
+                <Text size="1" color="gray">🔒 Pro-режим: годовая тепловая карта, инсоляция по окнам, отчёт. Включите кнопкой «Pro» вверху.</Text>
+              </Box>
+            )}
           </Flex>
         </Card>
 
