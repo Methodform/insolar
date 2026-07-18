@@ -2,7 +2,8 @@ import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Select,
   Slider, Tabs, Badge, Separator, IconButton } from '@radix-ui/themes';
 import Viewport from './three/Viewport.jsx';
-import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly } from './engine/astronomy.js';
+import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
+  insolationAt, normHours, shadowLen, azToCardinal } from './engine/astronomy.js';
 
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
@@ -54,6 +55,12 @@ export default function App() {
   const altDeg = pos.altitude * 180 / Math.PI, azDeg = compassAz(pos.azimuth);
   const dayLen = times.polarDay ? 24 : times.polarNight ? 0 : (times.set - times.rise) / 3600000;
   const noonAlt = sunPosition(times.noon, lat, lon).altitude * 180 / Math.PI;
+
+  const dayMs = localToUTC(y, mo - 1, da, 12, 0, tz);
+  const insol = useMemo(() => insolationAt([0, 0], buildings, dayMs, lat, lon), [buildings, dayMs, lat, lon]);
+  const reqH = normHours(lat);
+  const shadowAz = (azDeg + 180) % 360;
+  const fmtLen = L => !isFinite(L) ? '∞' : L >= 1000 ? '>1 км' : L.toFixed(1) + ' м';
 
   useEffect(() => {
     if (!playing) { clearInterval(timer.current); return; }
@@ -178,6 +185,19 @@ export default function App() {
             <Stat k="Солнечный полдень" v={fmtLocal(times.noon, tz)} />
             <Stat k="Долгота дня" v={fmtHours(dayLen)} />
             <Stat k="Макс. высота" v={noonAlt.toFixed(1) + '°'} />
+
+            <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em' }}>ИНСОЛЯЦИЯ ЦЕНТРА УЧАСТКА</Text>
+            <Stat k="Всего за день" v={fmtHours(insol.sun)} />
+            <Stat k="Макс. непрерывно" v={fmtHours(insol.cont)} />
+            <Stat k={`Норма ≥ ${reqH} ч`} v={<Badge color={insol.cont >= reqH ? 'grass' : 'red'}>{insol.cont >= reqH ? 'выполнена' : 'не выполнена'}</Badge>} />
+
+            {(buildings.length > 0) && <>
+              <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em' }}>ДЛИНА ТЕНИ (СЕЙЧАС)</Text>
+              <Stat k="Тень падает на" v={altDeg > 0 ? `${azToCardinal(shadowAz)} (${shadowAz.toFixed(0)}°)` : 'солнца нет'} />
+              {altDeg > 0 && buildings.map((b, i) => (
+                <Stat key={i} k={b.name} v={fmtLen(shadowLen(b.height + (b.roofH || 0), altDeg))} />
+              ))}
+            </>}
           </Flex>
         </Card>
 
