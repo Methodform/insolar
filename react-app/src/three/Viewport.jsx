@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { sunPosition, compassAz, RAD, offsetInward, pointInPoly } from '../engine/astronomy.js';
+import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
 // нормативный отступ от границы участка (дом ≥3 м, прочее ≥1 м)
@@ -39,7 +39,33 @@ function gableRoofMesh(pts, base, rh, mat, flip) {
 const rotPt = (p, c, a) => { const s = Math.sin(a), co = Math.cos(a), dx = p[0] - c[0], dy = p[1] - c[1]; return [c[0] + dx * co - dy * s, c[1] + dx * s + dy * co]; };
 const scaleAxis = (p, c, ax, f) => { const U = (p[0] - c[0]) * ax[0] + (p[1] - c[1]) * ax[1]; const px = (p[0] - c[0]) - U * ax[0], py = (p[1] - c[1]) - U * ax[1]; return [c[0] + ax[0] * U * f + px, c[1] + ax[1] * U * f + py]; };
 
-export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings }) {
+// --- 3D-аналитика поверхностей («тепловизор») ---
+const sunVec = (azDeg, altDeg) => { const a = azDeg * RAD, al = altDeg * RAD, ca = Math.cos(al); return new THREE.Vector3(Math.sin(a) * ca, Math.sin(al), -Math.cos(a) * ca); };
+const THERMAL = [[0, '#3a1f5c'], [0.18, '#6d2f79'], [0.36, '#a8446f'], [0.54, '#d95f4e'], [0.7, '#f0842f'], [0.84, '#ffb02e'], [0.94, '#ffd84d'], [1, '#fff6c8']];
+function lerpHex(a, b, t) { const r = x => parseInt(x, 16), h = n => Math.round(n).toString(16).padStart(2, '0');
+  const ar = r(a.slice(1, 3)), ag = r(a.slice(3, 5)), ab = r(a.slice(5, 7)), br = r(b.slice(1, 3)), bg = r(b.slice(3, 5)), bb = r(b.slice(5, 7));
+  return '#' + h(ar + (br - ar) * t) + h(ag + (bg - ag) * t) + h(ab + (bb - ab) * t); }
+export function thermalColor(t) { t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < THERMAL.length; i++) { if (t <= THERMAL[i][0]) { const a = THERMAL[i - 1], b = THERMAL[i]; return lerpHex(a[1], b[1], (t - a[0]) / ((b[0] - a[0]) || 1)); } }
+  return THERMAL[THERMAL.length - 1][1]; }
+function gridSurface(ni, nj, nodeFn, cellOk) { const nodes = [], idx = (i, j) => i * (nj + 1) + j;
+  for (let i = 0; i <= ni; i++) for (let j = 0; j <= nj; j++) nodes.push(nodeFn(i, j));
+  const cells = []; for (let i = 0; i < ni; i++) for (let j = 0; j < nj; j++) { if (cellOk && !cellOk(i, j)) continue; cells.push([idx(i, j), idx(i + 1, j), idx(i + 1, j + 1), idx(i, j + 1)]); }
+  return { nodes, cells }; }
+function signedDistPoly(x, y, poly) { let dmin = 1e9;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const q = nearestOnSeg([x, y], poly[j], poly[i]); const d = Math.hypot(q[0] - x, q[1] - y); if (d < dmin) dmin = d; }
+  return pointInPoly(x, y, poly) ? dmin : -dmin; }
+function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
+  const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2]; let R1, R2, quads;
+  if (ridgeAlongA(pts, flip)) { R1 = mid(pts[1], pts[2]); R2 = mid(pts[3], pts[0]); quads = [[pts[0], pts[1], R1, R2], [pts[2], pts[3], R2, R1]]; }
+  else { R1 = mid(pts[0], pts[1]); R2 = mid(pts[2], pts[3]); quads = [[pts[1], pts[2], R2, R1], [pts[3], pts[0], R1, R2]]; }
+  const isR = p => (p === R1 || p === R2);
+  return quads.map(q => { const c = q.map(p => new THREE.Vector3(p[0], isR(p) ? base + rh : base, -p[1]));
+    const n = new THREE.Vector3().subVectors(c[1], c[0]).cross(new THREE.Vector3().subVectors(c[2], c[0])).normalize(); if (n.y < 0) n.negate();
+    return { corners: c, normal: n }; }); }
+
+export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
+  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
@@ -201,7 +227,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.plotHalf = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
     const shape = new THREE.Shape(); base.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
     const plot = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshStandardMaterial({ color: 0xf5c451, roughness: 0.85, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
-    plot.rotation.x = -Math.PI / 2; plot.position.y = 0.05; plot.receiveShadow = true; dyn.add(plot);
+    plot.rotation.x = -Math.PI / 2; plot.position.y = 0.05; plot.receiveShadow = true; plot.userData.plot = true; dyn.add(plot);
     if (fenceH > 0) { const fmat = new THREE.MeshStandardMaterial({ color: 0x8a7d5a, roughness: .95 });
       for (let i = 0; i < base.length; i++) { const A = base[i], B = base[(i + 1) % base.length]; const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.05) continue;
         const m = new THREE.Mesh(new THREE.BoxGeometry(len, fenceH, 0.12), fmat); m.position.set((ax + bx) / 2, fenceH / 2, (az + bz) / 2); m.rotation.y = Math.atan2(-dz, dx); m.castShadow = true; m.receiveShadow = true; dyn.add(m); } }
@@ -228,6 +254,61 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 0.9 : 1.5) : 0; a.ambient.intensity = up ? 0.3 : 0.12; a.sunSphere.visible = altDeg > -2;
     const top = altDeg <= 0 ? 0x11161f : altDeg < 8 ? 0x6a80a0 : 0x9fc0e8; a.scene.background.setHex(top); a.scene.fog.color.setHex(top);
   }, [utcMs, lat, lon]);
+
+  // 3D-аналитика поверхностей
+  useEffect(() => {
+    const a = api.current; if (!a.scene) return;
+    if (a.analyticsGroup) { a.scene.remove(a.analyticsGroup); a.analyticsGroup = null; }
+    if (!analytics) return;
+    const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
+    const rc = new THREE.Raycaster(); const occ = a.dyn.children.filter(o => !o.userData.plot);
+    // шаги солнца по выбранным месяцам
+    let m1 = Math.max(1, Math.min(12, anM1)), m2 = Math.max(1, Math.min(12, anM2)); if (m2 < m1) [m1, m2] = [m2, m1];
+    const stepMin = 20, days = []; for (let m = m1 - 1; m <= m2 - 1; m++) { const t = getTimes(localToUTC(year, m, 21, 12, 0, 0), lat, lon), steps = [];
+      for (let ms = t.rise; ms <= t.set; ms += stepMin * 60000) { const p = sunPosition(ms, lat, lon), alt = p.altitude * 180 / Math.PI; if (alt > 0) steps.push(sunVec(compassAz(p.azimuth), alt)); } days.push(steps); }
+    const nDays = days.length || 1;
+    const sampleHours = (origin, normal) => { let sunMin = 0; days.forEach(steps => steps.forEach(v => { if (normal && v.dot(normal) <= 0) return; rc.set(origin, v); rc.far = SUN_DIST; if (!occ.length || rc.intersectObjects(occ, false).length === 0) sunMin += stepMin; })); return sunMin / 60 / nDays; };
+    const skyOpen = (origin, normal) => { let open = 0, tot = 0; for (let az = 0; az < 360; az += 45) for (let el = 20; el <= 70; el += 25) { const aa = az * RAD, ee = el * RAD; const v = new THREE.Vector3(Math.sin(aa) * Math.cos(ee), Math.sin(ee), -Math.cos(aa) * Math.cos(ee)); if (normal && v.dot(normal) <= 0) continue; tot++; rc.set(origin, v); rc.far = SUN_DIST; if (!occ.length || rc.intersectObjects(occ, false).length === 0) open++; } return tot ? open / tot : 0; };
+    const surfVal = (origin, normal) => { let v = sampleHours(origin, normal); if (anDiff) v += skyOpen(origin, normal) * 2; return v; };
+    const up = new THREE.Vector3(0, 1, 0), surfaces = [];
+    let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; base.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
+    const span = Math.max(mxx - mnx, mxy - mny), gs = Math.max(0.9, Math.min(2.2, span / 34)), feather = Math.max(1.5, gs * 2);
+    const gmnx = mnx - feather, gmny = mny - feather, gmxx = mxx + feather, gmxy = mxy + feather;
+    const gi = Math.max(1, Math.ceil((gmxx - gmnx) / gs)), gj = Math.max(1, Math.ceil((gmxy - gmny) / gs));
+    surfaces.push(gridSurface(gi, gj, (i, j) => { const x = gmnx + (gmxx - gmnx) * i / gi, y = gmny + (gmxy - gmny) * j / gj;
+      const alpha = Math.max(0, Math.min(1, signedDistPoly(x, y, base) / feather)); return { pos: new THREE.Vector3(x, 0.09, -y), origin: new THREE.Vector3(x, 0.12, -y), normal: up, alpha }; }));
+    (buildings || []).forEach(bd => { if (!bd.pts || bd.pts.length < 3) return;
+      let cx = 0, cy = 0; bd.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= bd.pts.length; cy /= bd.pts.length; const by = bd.baseY || 0, H = bd.height;
+      for (let e = 0; e < bd.pts.length; e++) { const A = bd.pts[e], B = bd.pts[(e + 1) % bd.pts.length]; const dx = B[0] - A[0], dy = B[1] - A[1], len = Math.hypot(dx, dy) || 1;
+        let nx = dy / len, ny = -dx / len; if (nx * ((A[0] + B[0]) / 2 - cx) + ny * ((A[1] + B[1]) / 2 - cy) < 0) { nx = -nx; ny = -ny; } const nrm = new THREE.Vector3(nx, 0, -ny).normalize();
+        const nu = Math.max(1, Math.round(len / 1.1)), nv = Math.max(1, Math.round(H / 1.1));
+        surfaces.push(gridSurface(nu, nv, (i, j) => { const u = i / nu, v = j / nv * H; const bpt = new THREE.Vector3(A[0] + dx * u, by + v, -(A[1] + dy * u));
+          const origin = bpt.clone().add(nrm.clone().multiplyScalar(0.15)); origin.y = Math.max(0.3, by + v); return { pos: bpt.clone().add(nrm.clone().multiplyScalar(0.04)), origin, normal: nrm }; })); }
+      const rh = bd.roofH || 0;
+      if (bd.pts.length === 4 && rh > 0) roofSlopes3D(bd.pts, by + H, rh, !!bd.ridge).forEach(sl => { const c = sl.corners, n = sl.normal, off = n.clone().multiplyScalar(0.05), ori = n.clone().multiplyScalar(0.25);
+        const ns = Math.max(1, Math.round(c[1].distanceTo(c[0]) / 1.1)), nt = Math.max(1, Math.round(c[3].distanceTo(c[0]) / 1.1));
+        surfaces.push(gridSurface(ns, nt, (i, j) => { const s = i / ns, t = j / nt; const p = new THREE.Vector3().addScaledVector(c[0], (1 - s) * (1 - t)).addScaledVector(c[1], s * (1 - t)).addScaledVector(c[2], s * t).addScaledVector(c[3], (1 - s) * t);
+          return { pos: p.clone().add(off), origin: p.clone().add(ori), normal: n }; })); }); });
+    if (fenceH > 0) { let cx = 0, cy = 0; base.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= base.length; cy /= base.length;
+      for (let e = 0; e < base.length; e++) { const A = base[e], B = base[(e + 1) % base.length]; const dx = B[0] - A[0], dy = B[1] - A[1], len = Math.hypot(dx, dy) || 1;
+        let ox = dy / len, oy = -dx / len; if (ox * ((A[0] + B[0]) / 2 - cx) + oy * ((A[1] + B[1]) / 2 - cy) < 0) { ox = -ox; oy = -oy; }
+        [1, -1].forEach(side => { const nx = ox * side, ny = oy * side, nrm = new THREE.Vector3(nx, 0, -ny).normalize();
+          const nu = Math.max(1, Math.round(len / 1.1)), nv = Math.max(2, Math.round(fenceH / 0.7));
+          surfaces.push(gridSurface(nu, nv, (i, j) => { const u = i / nu, v = j / nv * fenceH; const bpt = new THREE.Vector3(A[0] + dx * u, v, -(A[1] + dy * u));
+            const origin = bpt.clone().add(nrm.clone().multiplyScalar(0.1)); origin.y = Math.max(0.2, v); return { pos: bpt.clone().add(nrm.clone().multiplyScalar(0.05)), origin, normal: nrm }; })); }); } }
+    let minV = 1e9, maxV = -1e9;
+    surfaces.forEach(sf => { sf.vals = sf.nodes.map(nd => { if (nd.alpha !== undefined && nd.alpha <= 0.02) return 0; const v = surfVal(nd.origin, nd.normal); if (v < minV) minV = v; if (v > maxV) maxV = v; return v; }); });
+    if (!(maxV > minV)) { minV = 0; maxV = Math.max(0.001, maxV); }
+    const norm = v => Math.max(0, Math.min(1, (v - minV) / (maxV - minV)));
+    const grp = new THREE.Group();
+    surfaces.forEach(sf => { if (!sf.cells.length) return; const pos = [], col = [];
+      const push = k => { const p = sf.nodes[k].pos; pos.push(p.x, p.y, p.z); const c = new THREE.Color(thermalColor(norm(sf.vals[k]))); const al = sf.nodes[k].alpha !== undefined ? sf.nodes[k].alpha : 1; col.push(c.r, c.g, c.b, al); };
+      sf.cells.forEach(q => { push(q[0]); push(q[1]); push(q[2]); push(q[0]); push(q[2]); push(q[3]); });
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 4));
+      grp.add(new THREE.Mesh(g, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); });
+    a.scene.add(grp); a.analyticsGroup = grp;
+    onAnalyticsStats && onAnalyticsStats({ minV, maxV, m1, m2, diff: anDiff });
+  }, [analytics, anM1, anM2, anDiff, buildings, poly, fenceH, lat, lon, year]);
 
   return <div ref={mount} style={{ position: 'absolute', inset: 0 }} />;
 }

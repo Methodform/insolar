@@ -4,7 +4,7 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, TransparencyGridIcon, SewingPinFilledIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon } from '@radix-ui/react-icons';
-import Viewport from './three/Viewport.jsx';
+import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import HeatMap from './three/HeatMap.jsx';
 import PlanEditor from './three/PlanEditor.jsx';
@@ -32,6 +32,11 @@ export default function App() {
   const [preset, setPreset] = useState('Дом 9×9|9,9,6|3');
   const [pro, setPro] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [analytics, setAnalytics] = useState(false);
+  const [anM1, setAnM1] = useState(4);
+  const [anM2, setAnM2] = useState(9);
+  const [anDiff, setAnDiff] = useState(false);
+  const [anStats, setAnStats] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const openFile = useRef(null);
 
@@ -160,7 +165,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
-        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} />
+        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
+          analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -283,6 +289,29 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Dialog.Content>
                 </Dialog.Root>
 
+                <Box mt="2" style={{ border: '1px solid var(--gray-a5)', borderRadius: 10, padding: 10 }}>
+                  <Button variant={analytics ? 'solid' : 'soft'} color={analytics ? 'grass' : 'gray'} onClick={() => setAnalytics(v => !v)} style={{ width: '100%' }}>
+                    <LayersIcon /> {analytics ? 'Скрыть 3D-аналитику' : '3D-аналитика поверхностей'}
+                  </Button>
+                  {analytics && <>
+                    <Flex gap="2" mt="2" align="center">
+                      <Text size="1" color="gray">Месяцы</Text>
+                      <Select.Root value={String(anM1)} onValueChange={v => setAnM1(+v)}>
+                        <Select.Trigger style={{ flex: 1 }} />
+                        <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
+                      </Select.Root>
+                      <Text size="1" color="gray">–</Text>
+                      <Select.Root value={String(anM2)} onValueChange={v => setAnM2(+v)}>
+                        <Select.Trigger style={{ flex: 1 }} />
+                        <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
+                      </Select.Root>
+                    </Flex>
+                    <Text as="label" size="1" color="gray" mt="2" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <input type="checkbox" checked={anDiff} onChange={e => setAnDiff(e.target.checked)} /> учитывать рассеянный свет
+                    </Text>
+                  </>}
+                </Box>
+
                 <Dialog.Root>
                   <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}><TransparencyGridIcon /> Инсоляция по окнам</Button></Dialog.Trigger>
                   <Dialog.Content maxWidth="520px">
@@ -384,6 +413,21 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             </>}
           </Flex>
         </Card>
+
+        {/* легенда 3D-аналитики */}
+        {pro && analytics && anStats && (
+          <Card size="1" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 72, width: 300, zIndex: 25 }}>
+            <Text size="2" weight="bold">3D-аналитика · {months[anStats.m1 - 1]}–{months[anStats.m2 - 1]}</Text>
+            <Box mt="2" style={{ display: 'flex', height: 12, borderRadius: 4, overflow: 'hidden' }}>
+              {Array.from({ length: 21 }, (_, i) => <span key={i} style={{ flex: 1, background: thermalColor(i / 20) }} />)}
+            </Box>
+            <Flex justify="between" mt="1">
+              <Text size="1" color="gray">{anStats.minV.toFixed(1)} {anStats.diff ? 'усл.ч' : 'ч'}</Text>
+              <Text size="1" color="gray">{anStats.maxV.toFixed(1)} {anStats.diff ? 'усл.ч' : 'ч/сут'}</Text>
+            </Flex>
+            <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Плавная карта по земле, крышам и фасадам. {anStats.diff ? 'С учётом рассеянного света.' : 'Только прямое солнце.'}</Text>
+          </Card>
+        )}
 
         {/* timebar */}
         <Card size="2" style={{ position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20 }}>
