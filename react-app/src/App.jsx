@@ -1,6 +1,9 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Select,
   Slider, Tabs, Badge, Separator, IconButton, Dialog } from '@radix-ui/themes';
+import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
+  TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, TransparencyGridIcon, SewingPinFilledIcon,
+  FileTextIcon, DownloadIcon, UploadIcon, ResetIcon } from '@radix-ui/react-icons';
 import Viewport from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import HeatMap from './three/HeatMap.jsx';
@@ -162,13 +165,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
           background: 'var(--color-panel-translucent)', backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--gray-a4)' }}>
-          <Heading size="4">☉ Инсоляр</Heading>
+          <Heading size="4"><Flex align="center" gap="1"><SunIcon width="20" height="20" /> Инсоляр</Flex></Heading>
           <Text size="2" color="gray">React + Radix · моделирование солнца</Text>
           <Box style={{ flex: 1 }} />
           <Tabs.Root defaultValue="viz"><Tabs.List><Tabs.Trigger value="viz">Визуализация</Tabs.Trigger><Tabs.Trigger value="an">Анализ</Tabs.Trigger></Tabs.List></Tabs.Root>
-          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={() => setPro(p => !p)}>{pro ? '✓ Pro' : '🔓 Pro-режим'}</Button>
+          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={() => setPro(p => !p)}>{pro ? <CheckIcon /> : <LockOpen1Icon />} Pro-режим</Button>
           <Button variant="soft" color="gray" onClick={() => setAppearance(a => a === 'light' ? 'dark' : 'light')}>
-            {appearance === 'light' ? '🌙 Тёмная' : '☀️ Светлая'}
+            {appearance === 'light' ? <><MoonIcon /> Тёмная</> : <><SunIcon /> Светлая</>}
           </Button>
         </Flex>
 
@@ -188,8 +191,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <TextField.Root type="number" value={tz} onChange={e => setTz(parseFloat(e.target.value) || 0)} style={{ width: 84 }} />
               </Flex>
               <Flex gap="2" mt="2">
-                <Button onClick={() => { setPlaying(false); setNow(); }}>Сейчас</Button>
-                <Button variant={playing ? 'solid' : 'soft'} color={playing ? 'red' : 'grass'} onClick={() => setPlaying(p => !p)}>{playing ? '⏸ Стоп' : '▶ Реальное время'}</Button>
+                <Button onClick={() => { setPlaying(false); setNow(); }}><ResetIcon /> Сейчас</Button>
+                <Button variant={playing ? 'solid' : 'soft'} color={playing ? 'red' : 'grass'} onClick={() => setPlaying(p => !p)}>{playing ? <><PauseIcon /> Стоп</> : <><PlayIcon /> Реальное время</>}</Button>
               </Flex>
             </Box>
             <Separator size="4" />
@@ -227,13 +230,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Select.Content>
               </Select.Root>
               <Flex gap="2" mt="2">
-                <Button onClick={addPreset} style={{ flex: 1 }}>+ Типовое</Button>
-                <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} style={{ flex: 1 }}>✏️ Рисовать</Button>
+                <Button onClick={addPreset} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
+                <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
               </Flex>
               <Dialog.Root>
-                <Dialog.Trigger><Button variant="soft" color="gray" mt="2" style={{ width: '100%' }}>📏 Памятка: нормативные отступы</Button></Dialog.Trigger>
+                <Dialog.Trigger><Button variant="soft" color="gray" mt="2" style={{ width: '100%' }}><RulerHorizontalIcon /> Памятка: нормативные отступы</Button></Dialog.Trigger>
                 <Dialog.Content maxWidth="560px">
-                  <Dialog.Title>📏 Нормативные отступы</Dialog.Title>
+                  <Dialog.Title><Flex align="center" gap="2"><RulerHorizontalIcon /> Нормативные отступы</Flex></Dialog.Title>
                   <Dialog.Description size="1" color="gray" mb="2">Ориентировочные минимумы (ИЖС/СНТ). Точные значения — по действующим редакциям СП и местным ПЗЗ.</Dialog.Description>
                   <Box style={{ maxHeight: '65vh', overflowY: 'auto' }}>
                     {[
@@ -260,7 +263,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 {buildings.map((b, i) => (
                   <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
                     <Text size="2">{b.name} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
-                    <IconButton size="1" variant="ghost" color="red" onClick={() => removeBuilding(i)}>🗑</IconButton>
+                    <IconButton size="1" variant="ghost" color="red" onClick={() => removeBuilding(i)}><TrashIcon /></IconButton>
                   </Flex>
                 ))}
                 {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
@@ -271,7 +274,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Box>
                 <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА · PRO</Text>
                 <Dialog.Root>
-                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}>🗺 Годовая тепловая карта</Button></Dialog.Trigger>
+                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}><LayersIcon /> Годовая тепловая карта</Button></Dialog.Trigger>
                   <Dialog.Content maxWidth="820px">
                     <Dialog.Title>Годовая тепловая карта инсоляции</Dialog.Title>
                     <Dialog.Description size="2" color="gray" mb="3">Среднесуточная инсоляция по участку за 12 контрольных дат с учётом зданий.</Dialog.Description>
@@ -281,9 +284,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Dialog.Root>
 
                 <Dialog.Root>
-                  <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}>🪟 Инсоляция по окнам</Button></Dialog.Trigger>
+                  <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}><TransparencyGridIcon /> Инсоляция по окнам</Button></Dialog.Trigger>
                   <Dialog.Content maxWidth="520px">
-                    <Dialog.Title>Инсоляция по окнам (фасады)</Dialog.Title>
+                    <Dialog.Title><Flex align="center" gap="2"><TransparencyGridIcon /> Инсоляция по окнам (фасады)</Flex></Dialog.Title>
                     <Dialog.Description size="1" color="gray" mb="3">
                       Норматив ≥ {winReport.z.hours} ч на {winReport.z.da}.{winReport.z.mo + 1}. Каждая строка — фасад (окно) с ориентацией.
                     </Dialog.Description>
@@ -300,9 +303,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Dialog.Root>
 
                 <Dialog.Root>
-                  <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}>🌱 Рекомендации по зонированию</Button></Dialog.Trigger>
+                  <Dialog.Trigger><Button mt="2" style={{ width: '100%' }}><SewingPinFilledIcon /> Рекомендации по зонированию</Button></Dialog.Trigger>
                   <Dialog.Content maxWidth="560px">
-                    <Dialog.Title>🌱 Рекомендации по зонированию</Dialog.Title>
+                    <Dialog.Title><Flex align="center" gap="2"><SewingPinFilledIcon /> Рекомендации по зонированию</Flex></Dialog.Title>
                     <Dialog.Description size="1" color="gray" mb="3">Ориентация по сторонам света: где разместить огород, посадки и зону отдыха.</Dialog.Description>
                     <ZoneMap poly={poly} />
                     <Box mt="3">
@@ -320,7 +323,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
                 <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ДОКУМЕНТ</Text>
                 <Dialog.Root>
-                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}>📄 Нормативный отчёт (PDF)</Button></Dialog.Trigger>
+                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}><FileTextIcon /> Нормативный отчёт (PDF)</Button></Dialog.Trigger>
                   <Dialog.Content maxWidth="440px">
                     <Dialog.Title>Нормативный отчёт по инсоляции</Dialog.Title>
                     <Dialog.Description size="2" color="gray" mb="3">СанПиН 1.2.3685-21. Реквизиты попадут в шапку.</Dialog.Description>
@@ -331,15 +334,15 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     </Flex>
                     <Flex justify="end" gap="2" mt="3">
                       <Dialog.Close><Button variant="soft" color="gray">Отмена</Button></Dialog.Close>
-                      <Dialog.Close><Button onClick={openReport}>📄 Сформировать</Button></Dialog.Close>
+                      <Dialog.Close><Button onClick={openReport}><FileTextIcon /> Сформировать</Button></Dialog.Close>
                     </Flex>
                   </Dialog.Content>
                 </Dialog.Root>
 
                 <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ПРОЕКТ</Text>
                 <Flex gap="2" mt="1">
-                  <Button variant="soft" color="gray" onClick={saveProject} style={{ flex: 1 }}>💾 Сохранить</Button>
-                  <Button variant="soft" color="gray" onClick={() => openFile.current.click()} style={{ flex: 1 }}>📂 Открыть</Button>
+                  <Button variant="soft" color="gray" onClick={saveProject} style={{ flex: 1 }}><DownloadIcon /> Сохранить</Button>
+                  <Button variant="soft" color="gray" onClick={() => openFile.current.click()} style={{ flex: 1 }}><UploadIcon /> Открыть</Button>
                   <input ref={openFile} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; }} />
                 </Flex>
               </Box>
