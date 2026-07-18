@@ -75,6 +75,25 @@ export function normHours(lat){ const a=Math.abs(lat); return a>=58?2.5:a>=48?2.
 export const shadowLen=(h,altDeg)=> altDeg<=0.2 ? Infinity : h/Math.tan(altDeg*RAD);
 export function azToCardinal(a){ return ['С','ССВ','СВ','ВСВ','В','ВЮВ','ЮВ','ЮЮВ','Ю','ЮЮЗ','ЮЗ','ЗЮЗ','З','ЗСЗ','СЗ','ССЗ'][Math.round(a/22.5)%16]; }
 
+export function polyArea(p){ let a=0; for(let i=0,j=p.length-1;i<p.length;j=i++) a+=p[j][0]*p[i][1]-p[i][0]*p[j][1]; return Math.abs(a/2); }
+// нормативная зона по широте (СанПиН 1.2.3685-21)
+export function normativeZone(lat){ const a=Math.abs(lat);
+  if(a>=58) return {zone:'северная (севернее 58° с.ш.)',hours:2.5,period:'22 апреля – 22 августа',mo:3,da:22};
+  if(a>=48) return {zone:'центральная (48°–58° с.ш.)',hours:2.0,period:'22 марта – 22 сентября',mo:2,da:22};
+  return {zone:'южная (южнее 48° с.ш.)',hours:1.5,period:'22 февраля – 22 октября',mo:1,da:22};
+}
+// данные нормативного отчёта: контрольные точки на нормативную дату
+export function reportData(poly, buildings, lat, lon, tz, year){
+  const z=normativeZone(lat), dayMs=localToUTC(year,z.mo,z.da,12,0,tz), t=getTimes(dayMs,lat,lon);
+  const base=poly&&poly.length>=3?poly:[[-12,-12],[12,-12],[12,12],[-12,12]];
+  let mnx=1e9,mxx=-1e9,mny=1e9,mxy=-1e9; base.forEach(p=>{mnx=Math.min(mnx,p[0]);mxx=Math.max(mxx,p[0]);mny=Math.min(mny,p[1]);mxy=Math.max(mxy,p[1]);});
+  const N=5, rows=[]; let idx=1;
+  for(let i=0;i<=N;i++)for(let j=0;j<=N;j++){ const x=mnx+(mxx-mnx)*i/N, y=mny+(mxy-mny)*j/N; if(!pointInPoly(x,y,base))continue;
+    const r=insolationAt([x,y],buildings,dayMs,lat,lon); rows.push({i:idx++, e:+x.toFixed(1), n:+y.toFixed(1), sun:r.sun, cont:r.cont, ok:r.cont>=z.hours}); }
+  const months=['января','февраля','марта','апреля','мая','июня','июля','августа','сентября','октября','ноября','декабря'];
+  return { z, t, rows, area:polyArea(base), okc:rows.filter(r=>r.ok).length, n:rows.length,
+    noonAlt:sunPosition(t.noon,lat,lon).altitude*180/Math.PI, dateStr:`${z.da} ${months[z.mo]} ${year}` };
+}
 // годовая тепловая карта: среднесуточная инсоляция по сетке участка (12 дат)
 export function heatmapGrid(poly, buildings, year, lat, lon, tz){
   const base=(poly&&poly.length>=3)?poly:[[-12,-12],[12,-12],[12,12],[-12,12]];

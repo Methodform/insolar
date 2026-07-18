@@ -5,7 +5,7 @@ import Viewport from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import HeatMap from './three/HeatMap.jsx';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
-  insolationAt, normHours, shadowLen, azToCardinal } from './engine/astronomy.js';
+  insolationAt, normHours, shadowLen, azToCardinal, reportData } from './engine/astronomy.js';
 
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
@@ -26,6 +26,65 @@ export default function App() {
   const [buildings, setBuildings] = useState([]);
   const [preset, setPreset] = useState('Дом 9×9|9,9,6|3');
   const [pro, setPro] = useState(false);
+  const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
+  const openFile = useRef(null);
+
+  function saveProject() {
+    const data = { v: 1, app: 'insolar', polyText, tz, fence, buildings, date, minutes, report: rp };
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'insolar-project.json';
+    document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
+  }
+  function loadProject(file) {
+    const rd = new FileReader();
+    rd.onload = () => { try { const d = JSON.parse(rd.result);
+      if (d.polyText !== undefined) { setPolyText(d.polyText); setBuilt(parsePoly(d.polyText)); }
+      if (d.tz !== undefined) setTz(d.tz); if (d.fence !== undefined) setFence(String(d.fence));
+      if (Array.isArray(d.buildings)) setBuildings(d.buildings);
+      if (d.date) setDate(d.date); if (d.minutes !== undefined) setMinutes(d.minutes);
+      if (d.report) setRp(d.report);
+    } catch (e) { alert('Не удалось открыть файл проекта'); } };
+    rd.readAsText(file);
+  }
+  function openReport() {
+    if (!poly) { alert('Сначала постройте участок'); return; }
+    const d = reportData(poly, buildings, lat, lon, tz, y);
+    const esc = s => (s || '—').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+    const rows = d.rows.map(r => `<tr><td>${r.i}</td><td>${r.e}; ${r.n}</td><td>${r.sun.toFixed(1)}</td><td>${r.cont.toFixed(1)}</td><td class="${r.ok ? 'ok' : 'no'}">${r.ok ? 'соответствует' : 'не соответствует'}</td></tr>`).join('');
+    const verdict = d.okc === d.n ? `Все ${d.n} контрольных точек обеспечены нормируемой инсоляцией (≥ ${d.z.hours} ч). Требования выполняются.` : `Норму (≥ ${d.z.hours} ч) обеспечивают ${d.okc} из ${d.n} точек (${Math.round(d.okc / d.n * 100)} %).`;
+    const today = new Date().toLocaleDateString('ru-RU');
+    const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Отчёт об инсоляции</title><style>
+@page{size:A4;margin:18mm 16mm}body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:12pt;line-height:1.45}
+h1{font-size:15pt;text-align:center;margin:0 0 4pt}h2{font-size:12.5pt;border-bottom:1px solid #999;padding-bottom:3pt;margin:16pt 0 6pt}
+.sub{text-align:center;color:#444;font-size:10.5pt;margin-bottom:14pt}
+table{width:100%;border-collapse:collapse;margin:6pt 0;font-size:11pt}th,td{border:1px solid #888;padding:4pt 6pt;text-align:left}th{background:#eee}
+td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
+.kv{border:none}.kv td{border:none;padding:2pt 4pt}.kv td:first-child{color:#555;width:42%}
+.verdict{border:1.5px solid #1e5c3d;background:#f1f6f2;padding:8pt 10pt;margin-top:8pt}
+.note{font-size:9pt;color:#777;margin-top:16pt}button{padding:8px 14px;border-radius:6px;border:1px solid #1e5c3d;background:#1e5c3d;color:#fff;cursor:pointer}
+@media print{.noprint{display:none}}.noprint{position:fixed;top:8px;right:8px}</style></head><body>
+<div class="noprint"><button onclick="window.print()">🖨 Печать / PDF</button></div>
+<h1>ОТЧЁТ О РАСЧЁТЕ ПРОДОЛЖИТЕЛЬНОСТИ ИНСОЛЯЦИИ</h1>
+<div class="sub">Земельный участок · контрольные точки территории</div>
+<h2>1. Общие сведения</h2><table class="kv">
+<tr><td>Объект (адрес)</td><td>${esc(rp.addr)}</td></tr><tr><td>Заказчик</td><td>${esc(rp.client)}</td></tr>
+<tr><td>Исполнитель</td><td>${esc(rp.exec)}</td></tr><tr><td>Дата составления</td><td>${today}</td></tr>
+<tr><td>Норматив</td><td>СанПиН 1.2.3685-21</td></tr></table>
+<h2>2. Исходные данные</h2><table class="kv">
+<tr><td>Координаты центра</td><td>Ш ${lat.toFixed(5)}°, Д ${lon.toFixed(5)}°</td></tr>
+<tr><td>Часовой пояс</td><td>UTC${tz>=0?'+':''}${tz}</td></tr><tr><td>Площадь участка</td><td>${d.area.toFixed(1)} м²</td></tr>
+<tr><td>Климатическая зона</td><td>${d.z.zone}</td></tr><tr><td>Нормируемый период</td><td>${d.z.period}</td></tr>
+<tr><td>Требуемая инсоляция</td><td>не менее ${d.z.hours} ч</td></tr><tr><td>Расчётная дата</td><td>${d.dateStr}</td></tr>
+<tr><td>Восход / заход / полдень</td><td>${fmtLocal(d.t.rise,tz)} / ${fmtLocal(d.t.set,tz)} / ${fmtLocal(d.t.noon,tz)}</td></tr>
+<tr><td>Высота солнца в полдень</td><td>${d.noonAlt.toFixed(1)}°</td></tr>
+<tr><td>Затеняющие объекты</td><td>${buildings.length} зданий${(parseFloat(fence)||0)>0?', забор '+fence+' м':''}</td></tr></table>
+<h2>3. Методика</h2><p>Положение Солнца рассчитано по алгоритму Meeus/SunCalc. Для каждой контрольной точки на высоте 1,5 м с шагом 5 минут от восхода до захода проверяется прямой солнечный луч с учётом затенения зданиями (метод теневого полигона). Определяется макс. непрерывная продолжительность инсоляции.</p>
+<h2>4. Результаты</h2><table><tr><th>№</th><th>Коорд. E; N, м</th><th>Всего, ч</th><th>Непрерывно, ч</th><th>Соответствие ≥${d.z.hours} ч</th></tr>${rows}</table>
+<h2>5. Заключение</h2><div class="verdict">${verdict}</div>
+<div class="note">Расчёт носит модельный характер и не заменяет заключение аккредитованной организации и экспертизу проектной документации.</div>
+<scr${''}ipt>window.onload=()=>setTimeout(()=>window.print(),400)<\/scr${''}ipt></body></html>`;
+    const w = window.open('', '_blank'); if (!w) { alert('Разрешите всплывающие окна'); return; } w.document.write(html); w.document.close();
+  }
 
   const lat = built ? built.lat0 : 55.75, lon = built ? built.lon0 : 37.62;
   const poly = built ? built.local : null;
@@ -186,6 +245,31 @@ export default function App() {
                     <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
                   </Dialog.Content>
                 </Dialog.Root>
+
+                <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ДОКУМЕНТ</Text>
+                <Dialog.Root>
+                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}>📄 Нормативный отчёт (PDF)</Button></Dialog.Trigger>
+                  <Dialog.Content maxWidth="440px">
+                    <Dialog.Title>Нормативный отчёт по инсоляции</Dialog.Title>
+                    <Dialog.Description size="2" color="gray" mb="3">СанПиН 1.2.3685-21. Реквизиты попадут в шапку.</Dialog.Description>
+                    <Flex direction="column" gap="2">
+                      <TextField.Root placeholder="Адрес объекта" value={rp.addr} onChange={e => setRp({ ...rp, addr: e.target.value })} />
+                      <TextField.Root placeholder="Заказчик" value={rp.client} onChange={e => setRp({ ...rp, client: e.target.value })} />
+                      <TextField.Root placeholder="Исполнитель" value={rp.exec} onChange={e => setRp({ ...rp, exec: e.target.value })} />
+                    </Flex>
+                    <Flex justify="end" gap="2" mt="3">
+                      <Dialog.Close><Button variant="soft" color="gray">Отмена</Button></Dialog.Close>
+                      <Dialog.Close><Button onClick={openReport}>📄 Сформировать</Button></Dialog.Close>
+                    </Flex>
+                  </Dialog.Content>
+                </Dialog.Root>
+
+                <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ПРОЕКТ</Text>
+                <Flex gap="2" mt="1">
+                  <Button variant="soft" color="gray" onClick={saveProject} style={{ flex: 1 }}>💾 Сохранить</Button>
+                  <Button variant="soft" color="gray" onClick={() => openFile.current.click()} style={{ flex: 1 }}>📂 Открыть</Button>
+                  <input ref={openFile} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; }} />
+                </Flex>
               </Box>
             ) : (
               <Box style={{ border: '1px dashed var(--gray-a6)', borderRadius: 10, padding: 12 }}>
