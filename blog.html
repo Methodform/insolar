@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Блог — Инсоляр</title>
+<meta name="description" content="Блог о солнце, инсоляции и планировании участка: нормы, стороны света, тени и размещение построек.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#ffffff;--paper:#F6F5F1;--ink:#0f1310;--muted:#69726a;--green:#1e5c3d;--line:#E7E7E1;--sun:#E8A33D}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Inter',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.55;-webkit-font-smoothing:antialiased;font-size:17px}
+  a{color:inherit;text-decoration:none}
+  .wrap{max-width:1000px;margin:0 auto;padding:0 24px}
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;gap:22px;height:64px;max-width:1120px;margin:0 auto;padding:0 24px}
+  .logo{font-weight:600;font-size:18px}.logo .d{color:var(--green)}
+  .nav .sp{flex:1}.nav a.lnk{color:var(--ink);font-size:14.5px}
+  .nav a.lnk.active{color:var(--muted)}
+  .pill{display:inline-flex;align-items:center;border-radius:999px;padding:11px 22px;font-size:14.5px;font-weight:500;border:1px solid var(--green);background:var(--green);color:#fff}
+  .pill:hover{filter:brightness(1.1)}
+  .hero{padding:64px 0 24px}
+  .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  h1{font-size:clamp(2.4rem,6vw,4rem);line-height:1;letter-spacing:-.02em;font-weight:600;margin-top:12px}
+  .hero p{color:var(--muted);margin-top:14px;max-width:52ch;font-size:1.1rem}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;padding:24px 0 80px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}}
+  .card{border:1px solid var(--line);border-radius:18px;overflow:hidden;background:var(--bg);transition:.2s;display:flex;flex-direction:column}
+  .card:hover{transform:translateY(-3px);box-shadow:0 20px 44px -28px rgba(0,0,0,.3)}
+  .thumb{height:180px;display:block}
+  .card .body{padding:22px;display:flex;flex-direction:column;flex:1}
+  .card .tag{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--green);font-weight:600}
+  .card h3{font-size:1.3rem;letter-spacing:-.01em;margin:8px 0 8px;font-weight:600}
+  .card p{color:var(--muted);font-size:.98rem;flex:1}
+  .card .more{margin-top:14px;color:var(--green);font-weight:500;font-size:.95rem}
+  .soon{border-style:dashed;color:var(--muted);display:flex;align-items:center;justify-content:center;min-height:280px;font-size:.95rem}
+  footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <div class="logo">☉ Инсол<span class="d">яр</span></div>
+    <div class="sp"></div>
+    <a class="lnk" href="landing.html">Главная</a>
+    <a class="lnk active" href="blog.html">Блог</a>
+    <a class="pill" href="index.html">Открыть сервис</a>
+  </div>
+</header>
+
+<section class="hero wrap">
+  <span class="lbl">Блог</span>
+  <h1>Солнце, тени<br>и планирование участка</h1>
+  <p>Разбираем, как свет влияет на дом и участок: нормы инсоляции, стороны света, тени и грамотное размещение построек.</p>
+</section>
+
+<section class="wrap">
+  <div class="grid">
+    <a class="card" href="article-insolyaciya.html">
+      <svg class="thumb" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none" aria-hidden="true">
+        <defs><linearGradient id="g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#cfe0f2"/><stop offset="1" stop-color="#eef1ea"/></linearGradient></defs>
+        <rect width="400" height="180" fill="url(#g)"/>
+        <circle cx="320" cy="48" r="26" fill="#E8A33D"/>
+        <polygon points="60,150 250,150 220,96 90,96" fill="#dfe6d6" stroke="#1e5c3d" stroke-width="2"/>
+        <rect x="120" y="70" width="60" height="40" fill="#e9e6df" stroke="#c9c6bd"/>
+        <polygon points="120,70 150,52 180,70" fill="#8f4a34"/>
+        <polygon points="180,110 250,110 280,150 210,150" fill="#00000018"/>
+      </svg>
+      <div class="body">
+        <span class="tag">Инсоляция · участок</span>
+        <h3>Инсоляция и стороны света: как расположить дом, комнаты и окна</h3>
+        <p>Что такое инсоляция, нормы СанПиН и как ориентировать дом, комнаты и грядки, чтобы солнце работало на вас круглый год.</p>
+        <span class="more">Читать →</span>
+      </div>
+    </a>
+
+    <div class="card soon">Скоро: тени соседних построек и споры с соседями</div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">☉ Инсоляр — моделирование солнца и инсоляции участка · <a href="landing.html" style="color:var(--green)">Главная</a> · <a href="index.html" style="color:var(--green)">Сервис</a></div>
+</footer>
+</body>
+</html>
