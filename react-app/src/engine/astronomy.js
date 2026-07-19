@@ -71,9 +71,10 @@ export function insolationAt(pt, buildings, dayMs, lat, lon){
   return {sun:sunMin/60, cont:mx/60};
 }
 // окна = середины фасадов зданий, нормаль наружу
-// окна считаем только у жилых строений (дом/баня)
+// окна считаем у жилых строений (дом/баня) и у любых нарисованных зданий с крышей
 function hasWindows(b){ const k=b.kind, n=(b.name||'').toLowerCase();
-  if(k) return k==='house'||k==='bath';
+  if(k) return k==='house'||k==='bath';           // явный тип: только дом/баня
+  if((b.roofH||0)>0) return true;                  // нарисованное здание с крышей
   return /дом|бан/.test(n); }
 export function facadeWindows(buildings){ const out=[];
   (buildings||[]).forEach((b,bi)=>{ const pts=b.pts; if(!pts||pts.length<3||!hasWindows(b)) return;
@@ -137,7 +138,7 @@ export function reportData(poly, buildings, lat, lon, tz, year){
   // сетка вдоль сторон участка (в его базисе), а не по мировым осям
   const B=plotBasis(base); let umin=1e9,umax=-1e9,vmin=1e9,vmax=-1e9;
   base.forEach(p=>{ const u=p[0]*B.ux+p[1]*B.uy, v=p[0]*B.vx+p[1]*B.vy; if(u<umin)umin=u; if(u>umax)umax=u; if(v<vmin)vmin=v; if(v>vmax)vmax=v; });
-  const N=9, rows=[]; let idx=1;
+  const N=4, rows=[]; let idx=1;
   for(let i=0;i<=N;i++)for(let j=0;j<=N;j++){ const u=umin+(umax-umin)*i/N, v=vmin+(vmax-vmin)*j/N;
     const x=u*B.ux+v*B.vx, y=u*B.uy+v*B.vy; if(!pointInPoly(x,y,base))continue;
     const r=insolationAt([x,y],buildings,dayMs,lat,lon); rows.push({i:idx++, e:+x.toFixed(1), n:+y.toFixed(1), sun:r.sun, cont:r.cont, ok:r.cont>=z.hours}); }
