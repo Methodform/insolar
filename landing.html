@@ -168,7 +168,7 @@
         <button id="btnSummer" class="on" onclick="setSeason('summer')">Лето</button>
         <button id="btnWinter" onclick="setSeason('winter')">Зима</button>
       </div>
-      <img id="stageImg" class="stage" src="img/cabin-summer.jpg" alt="Дом на участке — лето">
+      <img id="stageImg" class="stage" src="img/Summer-Shot-scaled.jpg" alt="Дом на участке — лето">
       <div class="stage-cap" id="stageCap">лето · солнце высоко, тени короче</div>
     </div>
   </div>
@@ -277,7 +277,7 @@
     const img=document.getElementById('stageImg'), cap=document.getElementById('stageCap');
     img.style.opacity=0;
     setTimeout(()=>{
-      img.src = summer ? 'img/cabin-summer.jpg' : 'img/cabin-winter.jpg';
+      img.src = summer ? 'img/Summer-Shot-scaled.jpg' : 'img/Winter-Shot-scaled.jpg';
       img.alt = summer ? 'Дом на участке — лето' : 'Дом на участке — зима';
       cap.textContent = summer ? 'лето · солнце высоко, тени короче' : 'зима · солнце низко, тени длиннее';
       img.style.opacity=1;

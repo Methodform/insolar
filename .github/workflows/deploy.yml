@@ -34,6 +34,7 @@ jobs:
         run: |
           mkdir -p _site/app
           cp *.html _site/ 2>/dev/null || true
+          cp -r img _site/ 2>/dev/null || true
           cp -r react-app/dist/* _site/app/
 
       - uses: actions/upload-pages-artifact@v3
