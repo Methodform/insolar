@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Select,
-  Slider, Tabs, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
-import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
+  Slider, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
+import { SunIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
@@ -17,7 +17,11 @@ const DEFAULT_POLY = `53.5859054 49.0883256
 53.5857069 49.0882681`;
 
 export default function App() {
-  const [appearance, setAppearance] = useState('light');
+  const [themeMode, setThemeMode] = useState('system');
+  const [sysDark, setSysDark] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches);
+  useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(prefers-color-scheme: dark)');
+    const h = e => setSysDark(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
+  const appearance = themeMode === 'system' ? (sysDark ? 'dark' : 'light') : themeMode;
   const [polyText, setPolyText] = useState(DEFAULT_POLY);
   const [built, setBuilt] = useState(() => parsePoly(DEFAULT_POLY));
   const [tz, setTz] = useState(4);
@@ -171,11 +175,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
-          background: 'var(--color-panel-translucent)', backdropFilter: 'blur(10px)', borderBottom: '1px solid var(--gray-a4)' }}>
+          background: 'var(--color-panel-solid)', borderBottom: '1px solid var(--gray-a4)' }}>
           <Heading size="4"><Flex align="center" gap="1"><SunIcon width="20" height="20" /> Инсоляр</Flex></Heading>
           <Text size="2" color="gray">React + Radix · моделирование солнца</Text>
           <Box style={{ flex: 1 }} />
-          <Tabs.Root defaultValue="viz"><Tabs.List><Tabs.Trigger value="viz">Визуализация</Tabs.Trigger><Tabs.Trigger value="an">Анализ</Tabs.Trigger></Tabs.List></Tabs.Root>
           <Dialog.Root>
             <Dialog.Trigger><Button variant="soft" color="gray"><RulerHorizontalIcon /> Отступы</Button></Dialog.Trigger>
             <Dialog.Content maxWidth="560px">
@@ -221,9 +224,14 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             </Dialog.Content>
           </Dialog.Root>
           <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={() => setPro(p => !p)}>{pro ? <CheckIcon /> : <LockOpen1Icon />} Pro-режим</Button>
-          <Button variant="soft" color="gray" onClick={() => setAppearance(a => a === 'light' ? 'dark' : 'light')}>
-            {appearance === 'light' ? <><MoonIcon /> Тёмная</> : <><SunIcon /> Светлая</>}
-          </Button>
+          <Select.Root value={themeMode} onValueChange={setThemeMode}>
+            <Select.Trigger variant="soft" color="gray" />
+            <Select.Content>
+              <Select.Item value="light">☀ Светлая</Select.Item>
+              <Select.Item value="dark">☾ Тёмная</Select.Item>
+              <Select.Item value="system">🖥 Как в системе</Select.Item>
+            </Select.Content>
+          </Select.Root>
         </Flex>
 
         {/* left panel */}
