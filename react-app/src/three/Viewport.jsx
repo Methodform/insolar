@@ -91,7 +91,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const sun = new THREE.DirectionalLight(0xfff2d6, 1.4);
     sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
     const sc = sun.shadow.camera; sc.near = 1; sc.far = SUN_DIST * 2 + 200; sc.left = sc.bottom = -60; sc.right = sc.top = 60;
-    sun.shadow.bias = -0.00035; sun.shadow.normalBias = 0.02; sun.shadow.radius = 2.5;
+    sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.006; sun.shadow.radius = 2;
     scene.add(sun, sun.target);
 
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x5a7043, roughness: 1 }));
@@ -215,7 +215,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const dyn = a.dyn; while (dyn.children.length) dyn.remove(dyn.children[0]);
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     a.plotHalf = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
-    if (a.sun) { const R = Math.max(20, a.plotHalf + 12); const sc = a.sun.shadow.camera; sc.left = sc.bottom = -R; sc.right = sc.top = R; sc.updateProjectionMatrix(); }
+    if (a.sun) { const R = Math.max(20, a.plotHalf + 12); const sc = a.sun.shadow.camera;
+      sc.left = sc.bottom = -R; sc.right = sc.top = R;
+      sc.near = Math.max(1, SUN_DIST - R - 40); sc.far = SUN_DIST + R + 40;   // узкий диапазон глубины → выше точность → нет зазора
+      sc.updateProjectionMatrix(); }
     const shape = new THREE.Shape(); base.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
     const plot = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshStandardMaterial({ color: 0xf5c451, roughness: 0.85, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
     plot.rotation.x = -Math.PI / 2; plot.position.y = 0.05; plot.receiveShadow = true; plot.userData.plot = true; dyn.add(plot);

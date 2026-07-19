@@ -11,6 +11,9 @@ import ZoneMap from './three/ZoneMap.jsx';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
 
+// URL Cloudflare Worker'а (см. react-app/cadastre-proxy/README.md). Заменить после деплоя:
+const CADASTRE_PROXY = '';
+
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
 53.5856392 49.0889309
@@ -43,7 +46,29 @@ export default function App() {
   const [showPlot, setShowPlot] = useState(true);
   const [showWin, setShowWin] = useState(true);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
+  const [plotMode, setPlotMode] = useState('points');
+  const [cadCode, setCadCode] = useState('');
+  const [cadLoading, setCadLoading] = useState(false);
+  const [cadError, setCadError] = useState('');
   const openFile = useRef(null);
+
+  async function fetchCadastre() {
+    const code = cadCode.trim();
+    if (!code) { setCadError('Введите кадастровый номер'); return; }
+    if (!CADASTRE_PROXY) { setCadError('Прокси не настроен: задайте CADASTRE_PROXY (см. cadastre-proxy/README.md)'); return; }
+    setCadLoading(true); setCadError('');
+    try {
+      const r = await fetch(`${CADASTRE_PROXY}?code=${encodeURIComponent(code)}`);
+      const d = await r.json();
+      if (!d.ok || !Array.isArray(d.points) || d.points.length < 3) { setCadError(d.error || 'Участок не найден'); return; }
+      const txt = d.points.map(p => `${p[0].toFixed(7)} ${p[1].toFixed(7)}`).join('\n');
+      setPolyText(txt);
+      const p = parsePoly(txt);
+      if (p) { setBuilt(p); if (p.lon0) setTz(Math.round(p.lon0 / 15)); }
+      else setCadError('Не удалось разобрать координаты участка');
+    } catch (e) { setCadError('Ошибка запроса к прокси'); }
+    finally { setCadLoading(false); }
+  }
 
   function saveProject() {
     const data = { v: 1, app: 'insolar', polyText, tz, fence, buildings, date, minutes, report: rp };
@@ -241,9 +266,24 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <Card size="2" style={{ position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
           <Flex direction="column" gap="3">
             <Box>
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>УЧАСТОК · КООРДИНАТЫ ТОЧЕК</Text>
-              <TextArea mt="1" rows={5} value={polyText} onChange={e => setPolyText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12 }} />
-              <Flex gap="2" mt="2"><Button onClick={build}>Построить участок</Button><Button variant="soft" color="gray" onClick={() => { setBuilt(null); }}>Сбросить</Button></Flex>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>УЧАСТОК</Text>
+              <Flex gap="2" mt="1">
+                <Button size="1" variant={plotMode === 'points' ? 'solid' : 'soft'} color={plotMode === 'points' ? 'grass' : 'gray'} onClick={() => setPlotMode('points')} style={{ flex: 1 }}>По точкам</Button>
+                <Button size="1" variant={plotMode === 'cadastre' ? 'solid' : 'soft'} color={plotMode === 'cadastre' ? 'grass' : 'gray'} onClick={() => setPlotMode('cadastre')} style={{ flex: 1 }}>По кад. номеру</Button>
+              </Flex>
+              {plotMode === 'points' ? (
+                <>
+                  <TextArea mt="2" rows={5} value={polyText} onChange={e => setPolyText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12 }} placeholder="широта долгота (по одной точке на строку)" />
+                  <Flex gap="2" mt="2"><Button onClick={build}>Построить участок</Button><Button variant="soft" color="gray" onClick={() => { setBuilt(null); }}>Сбросить</Button></Flex>
+                </>
+              ) : (
+                <>
+                  <TextField.Root mt="2" placeholder="напр. 63:01:0208004:12" value={cadCode} onChange={e => setCadCode(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') fetchCadastre(); }} />
+                  <Button mt="2" onClick={fetchCadastre} disabled={cadLoading} style={{ width: '100%' }}>{cadLoading ? 'Ищу участок…' : 'Найти участок'}</Button>
+                  {cadError && <Text size="1" color="red" mt="1" style={{ display: 'block' }}>{cadError}</Text>}
+                  <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Границы загружаются из НСПД (Росреестр). После загрузки участок построится автоматически.</Text>
+                </>
+              )}
             </Box>
             <Separator size="4" />
             <Box>
