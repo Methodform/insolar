@@ -71,8 +71,12 @@ export function insolationAt(pt, buildings, dayMs, lat, lon){
   return {sun:sunMin/60, cont:mx/60};
 }
 // окна = середины фасадов зданий, нормаль наружу
+// окна считаем только у жилых строений (дом/баня)
+function hasWindows(b){ const k=b.kind, n=(b.name||'').toLowerCase();
+  if(k) return k==='house'||k==='bath';
+  return /дом|бан/.test(n); }
 export function facadeWindows(buildings){ const out=[];
-  (buildings||[]).forEach((b,bi)=>{ const pts=b.pts; if(!pts||pts.length<3) return;
+  (buildings||[]).forEach((b,bi)=>{ const pts=b.pts; if(!pts||pts.length<3||!hasWindows(b)) return;
     let cx=0,cy=0; pts.forEach(p=>{cx+=p[0];cy+=p[1];}); cx/=pts.length; cy/=pts.length;
     for(let i=0;i<pts.length;i++){ const a=pts[i],c=pts[(i+1)%pts.length];
       const mx=(a[0]+c[0])/2,my=(a[1]+c[1])/2; let ex=c[0]-a[0],ey=c[1]-a[1]; const L=Math.hypot(ex,ey)||1; ex/=L; ey/=L;

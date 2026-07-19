@@ -45,6 +45,7 @@ export default function App() {
   const [anStats, setAnStats] = useState(null);
   const [showPlot, setShowPlot] = useState(true);
   const [showWin, setShowWin] = useState(true);
+  const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const [plotMode, setPlotMode] = useState('points');
   const [cadCode, setCadCode] = useState('');
@@ -200,7 +201,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
-          windows={showWin && !(pro && analytics) ? winReport.rows : []} />
+          windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -340,6 +341,11 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Button onClick={addPreset} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
                 <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
               </Flex>
+              <Flex gap="2" mt="2">
+                <Button size="1" variant={plantMode === 'tree' ? 'solid' : 'soft'} color={plantMode === 'tree' ? 'grass' : 'gray'} onClick={() => setPlantMode(m => m === 'tree' ? null : 'tree')} style={{ flex: 1 }}>🌳 Дерево</Button>
+                <Button size="1" variant={plantMode === 'bush' ? 'solid' : 'soft'} color={plantMode === 'bush' ? 'grass' : 'gray'} onClick={() => setPlantMode(m => m === 'bush' ? null : 'bush')} style={{ flex: 1 }}>🌿 Куст</Button>
+              </Flex>
+              {plantMode && <Text size="1" color="grass" mt="1" style={{ display: 'block' }}>Кликайте по участку, чтобы посадить {plantMode === 'tree' ? 'дерево' : 'куст'}. Кнопку ещё раз — чтобы выйти.</Text>}
               <Flex direction="column" gap="1" mt="2">
                 {buildings.map((b, i) => (
                   <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>

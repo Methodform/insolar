@@ -69,12 +69,15 @@ function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
     return { corners: c, normal: n }; }); }
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
-  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [] }) {
+  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [], plantMode = null }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
   const onRef = useRef(onBuildings); onRef.current = onBuildings;
   const polyRef = useRef(poly); polyRef.current = poly;
+  const plantRef = useRef(plantMode); plantRef.current = plantMode;
+
+  useEffect(() => { const c = mount.current && mount.current.querySelector('canvas'); if (c) c.style.cursor = plantMode ? 'crosshair' : ''; }, [plantMode]);
 
   useEffect(() => {
     const el = mount.current;
@@ -162,7 +165,15 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     }
 
     const plotB = () => plotBasis((polyRef.current && polyRef.current.length >= 3) ? polyRef.current : [[-12, -12], [12, -12], [12, 12], [-12, 12]]);
+    function plant(kind, E, N) {
+      const base = (polyRef.current && polyRef.current.length >= 3) ? polyRef.current : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
+      const c = clampToPoly([E, N], base), s = kind === 'tree' ? 0.9 : 0.6;
+      const pts = [[-s, -s], [s, -s], [s, s], [-s, s]].map(([x, y]) => [c[0] + x, c[1] + y]);
+      const obj = kind === 'tree' ? { kind: 'tree', pts, height: 6, roofH: 0, name: 'Дерево' } : { kind: 'bush', pts, height: 1.2, roofH: 0, name: 'Куст' };
+      onRef.current && onRef.current([...bRef.current, obj]);
+    }
     const down = e => {
+      if (plantRef.current) { const gp = gpoint(e); if (gp) plant(plantRef.current, gp.x, -gp.z); e.preventDefault(); return; }
       const g = pickGizmo(e);
       if (sel.ci >= 0 && g) { const bd = bRef.current[sel.ci]; const gp = gpoint(e); const B = plotB();
         let cE = 0, cN = 0; bd.pts.forEach(p => { cE += p[0]; cN += p[1]; }); cE /= bd.pts.length; cN /= bd.pts.length;
