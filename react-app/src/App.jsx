@@ -35,7 +35,7 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const timer = useRef(null);
   const [buildings, setBuildings] = useState([]);
-  const [preset, setPreset] = useState('Дом 9×9|9,9,6|3');
+  const [preset, setPreset] = useState('house|Дом 8×8|8,8,6');
   const [pro, setPro] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [analytics, setAnalytics] = useState(false);
@@ -131,7 +131,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   const poly = built ? built.local : null;
 
   function addPreset() {
-    const [name, dims] = preset.split('|');
+    const [kind, name, dims] = preset.split('|');
     const [w, d, h] = dims.split(',').map(Number);
     const base = poly && poly.length >= 3 ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     // ориентация вдоль самой длинной стороны участка
@@ -145,8 +145,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     const k = buildings.length; cx += ux * k * 2; cy += uy * k * 2;
     const hw = w / 2, hd = d / 2;
     const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([ex, ey]) => [cx + ux * ex + vx * ey, cy + uy * ex + vy * ey]);
-    const roofH = /дом/i.test(name) ? 2.5 : 1.5;
-    setBuildings(bs => [...bs, { pts: corners, height: h, roofH, name }]);
+    const roofByKind = { house: 2.5, bath: 2, gazebo: 1.6, canopy: 0.3, tent: 2.6, tree: 0, bush: 0 };
+    const roofH = roofByKind[kind] !== undefined ? roofByKind[kind] : 1.5;
+    setBuildings(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
   const removeBuilding = i => setBuildings(bs => bs.filter((_, k) => k !== i));
 
@@ -316,18 +317,22 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Select.Content>
                   <Select.Group>
                     <Select.Label>Жилой дом</Select.Label>
-                    <Select.Item value="Дом 6×6|6,6,5|3">Дом 6×6 м, h 5</Select.Item>
-                    <Select.Item value="Дом 8×8|8,8,6|3">Дом 8×8 м, h 6</Select.Item>
-                    <Select.Item value="Дом 9×9|9,9,6|3">Дом 9×9 м, h 6</Select.Item>
-                    <Select.Item value="Дом 8×10|8,10,7|3">Дом 8×10 м, h 7</Select.Item>
+                    <Select.Item value="house|Дом 6×6|6,6,5">Дом 6×6 м, h 5</Select.Item>
+                    <Select.Item value="house|Дом 8×8|8,8,6">Дом 8×8 м, h 6</Select.Item>
+                    <Select.Item value="house|Дом 8×10|8,10,7">Дом 8×10 м, h 7</Select.Item>
                   </Select.Group>
                   <Select.Group>
-                    <Select.Label>Хозяйственные</Select.Label>
-                    <Select.Item value="Баня 4×6|4,6,3|1">Баня 4×6 м</Select.Item>
-                    <Select.Item value="Гараж 6×4|6,4,3|1">Гараж 6×4 м</Select.Item>
-                    <Select.Item value="Сарай 3×6|3,6,2.5|1">Сарай 3×6 м</Select.Item>
-                    <Select.Item value="Беседка 3×4|3,4,3|1">Беседка 3×4 м</Select.Item>
-                    <Select.Item value="Теплица 3×6|3,6,2.5|1">Теплица 3×6 м</Select.Item>
+                    <Select.Label>Постройки</Select.Label>
+                    <Select.Item value="bath|Баня 4×6|4,6,3">Баня 4×6 м</Select.Item>
+                    <Select.Item value="gazebo|Беседка 3×4|3,4,2.4">Беседка 3×4 м</Select.Item>
+                    <Select.Item value="canopy|Навес 3×5|3,5,2.4">Навес 3×5 м</Select.Item>
+                    <Select.Item value="tent|Шатёр 4×4|4,4,2.6">Шатёр 4×4 м</Select.Item>
+                  </Select.Group>
+                  <Select.Group>
+                    <Select.Label>Озеленение</Select.Label>
+                    <Select.Item value="tree|Дерево|1.8,1.8,6">Дерево (h 6)</Select.Item>
+                    <Select.Item value="tree|Дерево низкое|1.4,1.4,4">Дерево низкое (h 4)</Select.Item>
+                    <Select.Item value="bush|Куст|1.2,1.2,1.2">Куст</Select.Item>
                   </Select.Group>
                 </Select.Content>
               </Select.Root>

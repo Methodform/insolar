@@ -36,6 +36,10 @@ function gableRoofMesh(pts, base, rh, mat, flip) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; return m;
 }
+function inferKind(name) { const n = (name || '').toLowerCase();
+  if (/бан/.test(n)) return 'bath'; if (/бесед/.test(n)) return 'gazebo'; if (/навес/.test(n)) return 'canopy';
+  if (/шат/.test(n)) return 'tent'; if (/дерев/.test(n)) return 'tree'; if (/куст/.test(n)) return 'bush';
+  if (/дорож/.test(n)) return 'path'; return 'house'; }
 const rotPt = (p, c, a) => { const s = Math.sin(a), co = Math.cos(a), dx = p[0] - c[0], dy = p[1] - c[1]; return [c[0] + dx * co - dy * s, c[1] + dx * s + dy * co]; };
 const scaleAxis = (p, c, ax, f) => { const U = (p[0] - c[0]) * ax[0] + (p[1] - c[1]) * ax[1]; const px = (p[0] - c[0]) - U * ax[0], py = (p[1] - c[1]) - U * ax[1]; return [c[0] + ax[0] * U * f + px, c[1] + ax[1] * U * f + py]; };
 
@@ -227,13 +231,55 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         const m = new THREE.Mesh(new THREE.PlaneGeometry(len, fenceH), fmat); m.position.set((ax + bx) / 2, fenceH / 2, (az + bz) / 2); m.rotation.y = Math.atan2(-dz, dx); m.castShadow = true; m.receiveShadow = true; dyn.add(m); } }
     const cmat = new THREE.MeshStandardMaterial({ color: 0xe9e6df, roughness: 0.7 });
     const rmat = new THREE.MeshStandardMaterial({ color: 0x8f4a34, roughness: 0.75, side: THREE.DoubleSide });
+    const woodMat = new THREE.MeshStandardMaterial({ color: 0xb08b57, roughness: 0.85 });
+    const postMat = new THREE.MeshStandardMaterial({ color: 0x6b5a3c, roughness: 0.8 });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
+    const foliageMat = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
+    const fabricMat = new THREE.MeshStandardMaterial({ color: 0xdcd3bf, roughness: 0.9, side: THREE.DoubleSide });
+    const pathMat = new THREE.MeshStandardMaterial({ color: 0xb7a375, roughness: 1 });
     (buildings || []).forEach((bd, ci) => {
-      if (!bd.pts || bd.pts.length < 3) return;
+      if (!bd.pts || bd.pts.length < 2) return;
+      const kind = bd.kind || inferKind(bd.name), by = bd.baseY || 0;
+      const tag = m => { m.castShadow = true; m.receiveShadow = true; m.userData.ci = ci; dyn.add(m); return m; };
+
+      if (kind === 'path') {
+        for (let i = 0; i < bd.pts.length - 1; i++) { const A = bd.pts[i], B = bd.pts[i + 1];
+          const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.05) continue;
+          const m = new THREE.Mesh(new THREE.BoxGeometry(len, 0.08, bd.width || 1), pathMat);
+          m.position.set((ax + bx) / 2, by + 0.07, (az + bz) / 2); m.rotation.y = Math.atan2(-dz, dx); m.receiveShadow = true; m.userData.ci = ci; dyn.add(m); }
+        return;
+      }
+      let cx = 0, cy = 0; bd.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= bd.pts.length; cy /= bd.pts.length;
+      if (kind === 'tree' || kind === 'bush') {
+        let rad = 0.8; bd.pts.forEach(p => rad = Math.max(rad, Math.hypot(p[0] - cx, p[1] - cy)));
+        const H = bd.height || (kind === 'tree' ? 5 : 1.2);
+        if (kind === 'tree') { const trunkH = H * 0.45;
+          tag(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, trunkH, 8), trunkMat), { position: new THREE.Vector3(cx, by + trunkH / 2, -cy) }));
+          const fr = Math.max(0.9, rad * 0.95);
+          [[by + H * 0.62, fr], [by + H * 0.85, fr * 0.72]].forEach(([yy, r]) => tag(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), foliageMat), { position: new THREE.Vector3(cx, yy, -cy) })));
+        } else { const r = Math.max(0.6, rad); const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), foliageMat); s.position.set(cx, by + r * 0.65, -cy); s.scale.y = 0.7; tag(s); }
+        return;
+      }
+      if ((kind === 'gazebo' || kind === 'canopy' || kind === 'tent') && bd.pts.length === 4) {
+        const c = bd.pts, H = bd.height, rh = bd.roofH || 1.5;
+        if (kind !== 'tent') c.forEach(p => { const pm = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.11, H, 8), postMat); pm.position.set(p[0], by + H / 2, -p[1]); tag(pm); });
+        if (kind === 'gazebo') { const sh = new THREE.Shape(); c.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
+          const fl = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.14, bevelEnabled: false }), woodMat); fl.rotation.x = -Math.PI / 2; fl.position.y = by + 0.14; tag(fl); }
+        const baseRoofY = kind === 'tent' ? by : by + H, apexY = baseRoofY + rh;
+        const apex = new THREE.Vector3(cx, apexY, -cy), pos = [];
+        for (let i = 0; i < 4; i++) { const A = c[i], B = c[(i + 1) % 4]; pos.push(A[0], baseRoofY, -A[1], B[0], baseRoofY, -B[1], apex.x, apex.y, apex.z); }
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+        tag(new THREE.Mesh(geo, kind === 'tent' ? fabricMat : rmat));
+        return;
+      }
+      // дом / баня / произвольный контур: стены-экструзия + двускатная крыша
+      if (bd.pts.length < 3) return;
+      const wallMat = kind === 'bath' ? woodMat : cmat;
       const sh = new THREE.Shape(); bd.pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
-      const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: bd.height, bevelEnabled: false }), cmat);
-      m.rotation.x = -Math.PI / 2; m.position.y = bd.baseY || 0; m.castShadow = true; m.receiveShadow = true; m.userData.ci = ci; dyn.add(m);
+      const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: bd.height, bevelEnabled: false }), wallMat);
+      m.rotation.x = -Math.PI / 2; m.position.y = by; m.castShadow = true; m.receiveShadow = true; m.userData.ci = ci; dyn.add(m);
       const rh = bd.roofH || 0;
-      if (bd.pts.length === 4 && rh > 0) { const roof = gableRoofMesh(bd.pts, bd.height, rh, rmat, !!bd.ridge); if (roof) { roof.position.y = bd.baseY || 0; roof.userData.ci = ci; dyn.add(roof); } }
+      if (bd.pts.length === 4 && rh > 0) { const roof = gableRoofMesh(bd.pts, bd.height, rh, rmat, !!bd.ridge); if (roof) { roof.position.y = by; roof.userData.ci = ci; dyn.add(roof); } }
     });
     if (a.sel && a.sel.ci >= 0 && a.sel.ci < (buildings || []).length) a.makeGizmo(); else if (a.gizmo) { while (a.gizmo.children.length) a.gizmo.remove(a.gizmo.children[0]); }
   }, [poly, fenceH, buildings]);

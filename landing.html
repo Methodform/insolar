@@ -57,6 +57,7 @@
   .scrollcue .line{width:46px;height:1px;background:var(--muted)}
   .stage-wrap{margin-top:64px;border-radius:24px;overflow:hidden;position:relative;background:var(--paper)}
   .stage{display:block;width:100%;height:auto}
+  img.stage{aspect-ratio:16/9;object-fit:cover;transition:opacity .35s ease}
   .seasons{position:absolute;top:20px;left:20px;display:flex;gap:6px;background:rgba(255,255,255,.7);
     border:1px solid var(--line);border-radius:999px;padding:5px;backdrop-filter:blur(6px)}
   .seasons button{border:none;background:transparent;font:inherit;font-size:13px;font-weight:500;
@@ -167,28 +168,8 @@
         <button id="btnSummer" class="on" onclick="setSeason('summer')">Лето</button>
         <button id="btnWinter" onclick="setSeason('winter')">Зима</button>
       </div>
-      <svg id="stage" class="stage" viewBox="0 0 1180 560" xmlns="http://www.w3.org/2000/svg" aria-label="Участок, солнце и тени">
-        <defs>
-          <linearGradient id="skyG" x1="0" y1="0" x2="0" y2="1">
-            <stop id="skyTop" offset="0" stop-color="#cfe0f2"/>
-            <stop id="skyBot" offset="1" stop-color="#f1efe9"/>
-          </linearGradient>
-          <radialGradient id="sunG"><stop offset="0" stop-color="#ffe6a3"/><stop offset="1" stop-color="#e8a33d"/></radialGradient>
-        </defs>
-        <rect width="1180" height="560" fill="url(#skyG)"/>
-        <circle id="sun" cx="900" cy="120" r="46" fill="url(#sunG)"/>
-        <!-- участок -->
-        <polygon points="150,500 830,500 740,250 250,250" fill="#dfe6d6" stroke="#1e5c3d" stroke-width="3"/>
-        <polygon points="188,485 795,485 715,268 285,268" fill="none" stroke="#ff3b30" stroke-width="1.5" stroke-dasharray="7 5"/>
-        <!-- тень дома -->
-        <polygon id="shadow" points="470,470 640,470 720,500 520,500" fill="#0e130f18"/>
-        <!-- дом с двускатной крышей -->
-        <rect x="400" y="360" width="150" height="90" fill="#e9e6df" stroke="#c9c6bd"/>
-        <polygon points="400,360 475,318 550,360" fill="#8f4a34"/>
-        <text x="250" y="240" font-family="Inter" font-size="16" fill="#1e5c3d" font-weight="500">ваш участок</text>
-        <text id="seasonCap" x="820" y="120" font-family="Inter" font-size="14" fill="#8a6a1f">лето · солнце высоко</text>
-      </svg>
-      <div class="stage-cap">Переключите сезон — тень меняется вместе с высотой солнца.</div>
+      <img id="stageImg" class="stage" src="img/cabin-summer.jpg" alt="Дом на участке — лето">
+      <div class="stage-cap" id="stageCap">лето · солнце высоко, тени короче</div>
     </div>
   </div>
 </section>
@@ -288,25 +269,19 @@
   const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:.1});
   document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 
-  // сезонный переключатель — меняет высоту солнца и длину тени
+  // сезонный переключатель — меняет фотографию участка
   function setSeason(s){
     const summer = s==='summer';
     document.getElementById('btnSummer').classList.toggle('on',summer);
     document.getElementById('btnWinter').classList.toggle('on',!summer);
-    const sun=document.getElementById('sun'), sh=document.getElementById('shadow'),
-          cap=document.getElementById('seasonCap'),
-          top=document.getElementById('skyTop'), bot=document.getElementById('skyBot');
-    if(summer){
-      sun.setAttribute('cx',900); sun.setAttribute('cy',120);
-      sh.setAttribute('points','470,470 640,470 720,500 520,500');
-      cap.textContent='лето · солнце высоко'; cap.setAttribute('x',820); cap.setAttribute('y',120);
-      top.setAttribute('stop-color','#cfe0f2'); bot.setAttribute('stop-color','#f1efe9');
-    }else{
-      sun.setAttribute('cx',760); sun.setAttribute('cy',250);
-      sh.setAttribute('points','400,455 560,455 300,500 120,500');
-      cap.textContent='зима · солнце низко, тень длиннее'; cap.setAttribute('x',600); cap.setAttribute('y',250);
-      top.setAttribute('stop-color','#dfe6ee'); bot.setAttribute('stop-color','#eef0ea');
-    }
+    const img=document.getElementById('stageImg'), cap=document.getElementById('stageCap');
+    img.style.opacity=0;
+    setTimeout(()=>{
+      img.src = summer ? 'img/cabin-summer.jpg' : 'img/cabin-winter.jpg';
+      img.alt = summer ? 'Дом на участке — лето' : 'Дом на участке — зима';
+      cap.textContent = summer ? 'лето · солнце высоко, тени короче' : 'зима · солнце низко, тени длиннее';
+      img.style.opacity=1;
+    },200);
   }
 
   // калькулятор экономии

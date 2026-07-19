@@ -5,10 +5,11 @@ import { pointInPoly, offsetInward, rectFromDrag, clampToPoly, plotBasis, polyAr
 export default function PlanEditor({ poly, fenceH, buildings, onBuildings, onClose }) {
   const cvRef = useRef(null);
   const st = useRef({ pts: [], preview: null, rect: null, drag: null, hover: -1, ul: null, view: null });
-  const [mode, setMode] = useState('rect');   // rect | contour
+  const [mode, setMode] = useState('rect');   // rect | contour | path
   const [ortho, setOrtho] = useState(true);
   const [height, setHeight] = useState(6);
   const [roofH, setRoofH] = useState(2.5);
+  const [pathW, setPathW] = useState(1);
   const [ulOpacity, setUlOpacity] = useState(55);
   const [ulW, setUlW] = useState(40);
   const fileRef = useRef(null);
@@ -57,8 +58,11 @@ export default function PlanEditor({ poly, fenceH, buildings, onBuildings, onClo
     [[1, '#ff8a80'], [3, '#ff3b30']].forEach(([d, col]) => { const o = offsetInward(b, d); if (!o) return;
       g.strokeStyle = col; g.lineWidth = 1.4; g.setLineDash(d === 1 ? [6, 4] : []); g.beginPath();
       o.forEach((p, i) => { const [x, y] = w2s(p[0], p[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.stroke(); g.setLineDash([]); });
-    // здания
+    // здания и дорожки
     buildings.forEach((bd, idx) => { const active = idx === s.hover;
+      if (bd.kind === 'path') { // дорожка — толстая линия
+        g.strokeStyle = active ? '#4aa3ff' : '#b7a375'; g.lineWidth = Math.max(3, (bd.width || 1) * s.view.sc); g.lineCap = 'round'; g.lineJoin = 'round';
+        g.beginPath(); bd.pts.forEach((p, i) => { const [x, y] = w2s(p[0], p[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke(); g.lineWidth = 1.5; g.lineCap = 'butt'; return; }
       g.fillStyle = active ? 'rgba(74,163,255,.35)' : 'rgba(199,205,212,.5)'; g.strokeStyle = active ? '#4aa3ff' : '#9aa4b0'; g.lineWidth = active ? 2 : 1.5;
       g.beginPath(); bd.pts.forEach((p, i) => { const [x, y] = w2s(p[0], p[1]); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath(); g.fill(); g.stroke();
       const cx = bd.pts.reduce((a, p) => a + p[0], 0) / bd.pts.length, cy = bd.pts.reduce((a, p) => a + p[1], 0) / bd.pts.length, [tx, ty] = w2s(cx, cy);
@@ -91,17 +95,22 @@ export default function PlanEditor({ poly, fenceH, buildings, onBuildings, onClo
     if (s.drag) { const dx = e - s.drag.sx, dy = n - s.drag.sy; const cand = s.drag.orig.map(p => [p[0] + dx, p[1] + dy]);
       onBuildings(buildings.map((b, k) => k === s.drag.i ? { ...b, pts: cand } : b)); s.moved = true; return; }
     if (s.rect) { s.rect.end = clampToPoly([e, n], base()); draw(); return; }
-    if (mode === 'contour') { s.preview = constrain(e, n); draw(); return; }
+    if (mode === 'contour' || mode === 'path') { s.preview = constrain(e, n); draw(); return; }
     const h = buildingAt(e, n); if (h !== s.hover) { s.hover = h; draw(); } };
   const onUp = () => { const s = st.current;
     if (s.rect) { const r = rectFromDrag(base(), s.rect.start, s.rect.end); s.rect = null;
       if (r.w > 0.5 && r.h > 0.5) onBuildings([...buildings, { pts: r.corners, height: Math.max(0.5, height), roofH: Math.max(0, roofH), name: 'Прямоугольник' }]);
       draw(); return; }
     if (s.drag) { s.drag = null; setTimeout(() => s.moved = false, 0); } };
-  const onClick = ev => { const s = st.current; if (mode !== 'contour') return; if (s.moved) { s.moved = false; return; }
+  const onClick = ev => { const s = st.current; if (mode !== 'contour' && mode !== 'path') return; if (s.moved) { s.moved = false; return; }
     const [e, n] = s2w(ev.clientX, ev.clientY); s.pts.push(constrain(e, n)); draw(); };
-  const onDbl = () => { const s = st.current; if (s.pts.length >= 3) { onBuildings([...buildings, { pts: s.pts.slice(), height: Math.max(0.5, height), roofH: Math.max(0, roofH) }]); s.pts = []; s.preview = null; draw(); } };
-  function closeContour() { const s = st.current; if (s.pts.length >= 3) { onBuildings([...buildings, { pts: s.pts.slice(), height: Math.max(0.5, height), roofH: Math.max(0, roofH) }]); s.pts = []; s.preview = null; draw(); } }
+  function finishPath() { const s = st.current; if (s.pts.length >= 2) { onBuildings([...buildings, { kind: 'path', pts: s.pts.slice(), width: Math.max(0.3, pathW), height: 0, name: 'Дорожка' }]); s.pts = []; s.preview = null; draw(); } }
+  const onDbl = () => { const s = st.current;
+    if (mode === 'path') { finishPath(); return; }
+    if (s.pts.length >= 3) { onBuildings([...buildings, { pts: s.pts.slice(), height: Math.max(0.5, height), roofH: Math.max(0, roofH) }]); s.pts = []; s.preview = null; draw(); } };
+  function closeContour() { const s = st.current;
+    if (mode === 'path') { finishPath(); return; }
+    if (s.pts.length >= 3) { onBuildings([...buildings, { pts: s.pts.slice(), height: Math.max(0.5, height), roofH: Math.max(0, roofH) }]); s.pts = []; s.preview = null; draw(); } }
   function loadUnderlay(file) { const rd = new FileReader(); rd.onload = () => { const img = new Image(); img.onload = () => { st.current.ul = img; draw(); }; img.src = rd.result; }; rd.readAsDataURL(file); }
 
   useEffect(() => { const key = e => { const s = st.current;
@@ -122,12 +131,14 @@ export default function PlanEditor({ poly, fenceH, buildings, onBuildings, onClo
         <b style={{ fontSize: 13 }}>План · вид сверху</b>
         <label><input type="radio" checked={mode === 'rect'} onChange={() => setMode('rect')} /> ▭ прямоугольник</label>
         <label><input type="radio" checked={mode === 'contour'} onChange={() => setMode('contour')} /> контур</label>
+        <label><input type="radio" checked={mode === 'path'} onChange={() => setMode('path')} /> 🛤 дорожка</label>
         {mode === 'contour' && <label><input type="checkbox" checked={ortho} onChange={e => setOrtho(e.target.checked)} /> углы 90°</label>}
-        <span>Высота <input style={inp} type="number" step="0.5" value={height} onChange={e => setHeight(+e.target.value)} /></span>
-        <span>Крыша <input style={inp} type="number" step="0.5" value={roofH} onChange={e => setRoofH(+e.target.value)} /></span>
-        {mode === 'contour' && <>
+        {mode !== 'path' && <><span>Высота <input style={inp} type="number" step="0.5" value={height} onChange={e => setHeight(+e.target.value)} /></span>
+        <span>Крыша <input style={inp} type="number" step="0.5" value={roofH} onChange={e => setRoofH(+e.target.value)} /></span></>}
+        {mode === 'path' && <span>Ширина,м <input style={inp} type="number" step="0.5" value={pathW} onChange={e => setPathW(+e.target.value)} /></span>}
+        {(mode === 'contour' || mode === 'path') && <>
           <button style={btn} onClick={() => { st.current.pts.pop(); draw(); }}>↶ Отменить</button>
-          <button style={btn} onClick={closeContour}>✓ Замкнуть</button>
+          <button style={btn} onClick={closeContour}>✓ Готово</button>
           <button style={btn} onClick={() => { st.current.pts = []; st.current.preview = null; draw(); }}>Очистить</button>
         </>}
         <span style={{ opacity: .5 }}>|</span>
