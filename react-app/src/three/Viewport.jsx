@@ -265,9 +265,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         let rad = 0.8; bd.pts.forEach(p => rad = Math.max(rad, Math.hypot(p[0] - cx, p[1] - cy)));
         const H = bd.height || (kind === 'tree' ? 5 : 1.2);
         if (kind === 'tree') { const trunkH = H * 0.45;
-          tag(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, trunkH, 8), trunkMat), { position: new THREE.Vector3(cx, by + trunkH / 2, -cy) }));
+          const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, trunkH, 8), trunkMat); tr.position.set(cx, by + trunkH / 2, -cy); tag(tr);
           const fr = Math.max(0.9, rad * 0.95);
-          [[by + H * 0.62, fr], [by + H * 0.85, fr * 0.72]].forEach(([yy, r]) => tag(Object.assign(new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), foliageMat), { position: new THREE.Vector3(cx, yy, -cy) })));
+          [[by + H * 0.62, fr], [by + H * 0.85, fr * 0.72]].forEach(([yy, r]) => { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), foliageMat); s.position.set(cx, yy, -cy); tag(s); });
         } else { const r = Math.max(0.6, rad); const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), foliageMat); s.position.set(cx, by + r * 0.65, -cy); s.scale.y = 0.7; tag(s); }
         return;
       }
