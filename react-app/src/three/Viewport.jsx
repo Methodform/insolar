@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
-import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC } from '../engine/astronomy.js';
+import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC, plotBasis } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
 // нормативный отступ от границы участка (дом ≥3 м, прочее ≥1 м)
@@ -136,8 +136,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       let cE = 0, cN = 0; bd.pts.forEach(p => { cE += p[0]; cN += p[1]; }); cE /= bd.pts.length; cN /= bd.pts.length;
       let ext = 5; bd.pts.forEach(p => ext = Math.max(ext, Math.hypot(p[0] - cE, p[1] - cN)));
       gizmo.position.set(cE, (bd.baseY || 0) + 0.3, -cN); const L = ext * 0.75 + 3;
-      gizmo.add(arrow(new THREE.Vector3(1, 0, 0), L, 0xff1f1f, 'tx'));
-      gizmo.add(arrow(new THREE.Vector3(0, 0, -1), L, 0x1f8bff, 'tz'));
+      const B = plotBasis((polyRef.current && polyRef.current.length >= 3) ? polyRef.current : [[-12, -12], [12, -12], [12, 12], [-12, 12]]);
+      gizmo.add(arrow(new THREE.Vector3(B.ux, 0, -B.uy), L, 0xff1f1f, 'tx'));   // вдоль стороны участка
+      gizmo.add(arrow(new THREE.Vector3(B.vx, 0, -B.vy), L, 0x1f8bff, 'tz'));   // поперёк участка
       gizmo.add(arrow(new THREE.Vector3(0, 1, 0), L * 0.7, 0x16d13a, 'ty'));
       const ringB = new THREE.Mesh(new THREE.TorusGeometry(ext + 1.7, 0.28, 10, 56), gmat(0x0a0a0a)); ringB.rotation.x = Math.PI / 2; ringB.userData.giz = 'rot'; ringB.renderOrder = 998; gizmo.add(ringB);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(ext + 1.7, 0.18, 10, 56), gmat(0xffc400)); ring.rotation.x = Math.PI / 2; ring.userData.giz = 'rot'; ring.renderOrder = 999; gizmo.add(ring);
@@ -156,17 +157,18 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       onRef.current && onRef.current(arr);
     }
 
+    const plotB = () => plotBasis((polyRef.current && polyRef.current.length >= 3) ? polyRef.current : [[-12, -12], [12, -12], [12, 12], [-12, 12]]);
     const down = e => {
       const g = pickGizmo(e);
-      if (sel.ci >= 0 && g) { const bd = bRef.current[sel.ci]; const gp = gpoint(e);
+      if (sel.ci >= 0 && g) { const bd = bRef.current[sel.ci]; const gp = gpoint(e); const B = plotB();
         let cE = 0, cN = 0; bd.pts.forEach(p => { cE += p[0]; cN += p[1]; }); cE /= bd.pts.length; cN /= bd.pts.length;
         const ue = bd.pts.length === 4 ? bd.pts[1][0] - bd.pts[0][0] : 1, un = bd.pts.length === 4 ? bd.pts[1][1] - bd.pts[0][1] : 0, uL = Math.hypot(ue, un) || 1;
-        Object.assign(gd, { on: true, mode: g, name: bd.name, orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: ue / uL, uy: un / uL, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
+        Object.assign(gd, { on: true, mode: g, name: bd.name, orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: ue / uL, uy: un / uL, B, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
         e.preventDefault(); return; }
       const ci = pickBuilding(e);
-      if (ci >= 0) { sel.ci = ci; makeGizmo(); const bd = bRef.current[ci]; const gp = gpoint(e);
+      if (ci >= 0) { sel.ci = ci; makeGizmo(); const bd = bRef.current[ci]; const gp = gpoint(e); const B = plotB();
         let cE = 0, cN = 0; bd.pts.forEach(p => { cE += p[0]; cN += p[1]; }); cE /= bd.pts.length; cN /= bd.pts.length;
-        Object.assign(gd, { on: true, mode: 'move', name: bd.name, orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: 1, uy: 0, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
+        Object.assign(gd, { on: true, mode: 'move', name: bd.name, orig: bd.pts.map(p => p.slice()), baseY: bd.baseY || 0, cE, cN, ux: 1, uy: 0, B, sE: gp ? gp.x : 0, sN: gp ? -gp.z : 0, sy: e.clientY });
         e.preventDefault(); return; }
       sel.ci = -1; while (gizmo.children.length) gizmo.remove(gizmo.children[0]);
       orbit.drag = true; orbit.px = e.clientX; orbit.py = e.clientY;
@@ -174,8 +176,8 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const move = e => {
       if (gd.on) { const gp = gpoint(e); const E = gp ? gp.x : 0, N = gp ? -gp.z : 0, vx = -gd.uy, vy = gd.ux; let cand = null, baseY;
         if (gd.mode === 'move') { cand = gd.orig.map(p => [p[0] + (E - gd.sE), p[1] + (N - gd.sN)]); }
-        else if (gd.mode === 'tx') { cand = gd.orig.map(p => [p[0] + (E - gd.sE), p[1]]); }
-        else if (gd.mode === 'tz') { cand = gd.orig.map(p => [p[0], p[1] + (N - gd.sN)]); }
+        else if (gd.mode === 'tx') { const t = (E - gd.sE) * gd.B.ux + (N - gd.sN) * gd.B.uy; cand = gd.orig.map(p => [p[0] + gd.B.ux * t, p[1] + gd.B.uy * t]); }
+        else if (gd.mode === 'tz') { const t = (E - gd.sE) * gd.B.vx + (N - gd.sN) * gd.B.vy; cand = gd.orig.map(p => [p[0] + gd.B.vx * t, p[1] + gd.B.vy * t]); }
         else if (gd.mode === 'ty') { baseY = Math.max(0, gd.baseY + (gd.sy - e.clientY) * 0.08); }
         else if (gd.mode === 'rot') { const a = Math.atan2(N - gd.cN, E - gd.cE) - Math.atan2(gd.sN - gd.cN, gd.sE - gd.cE); cand = gd.orig.map(p => rotPt(p, [gd.cE, gd.cN], a)); }
         else if (gd.mode === 'sl' || gd.mode === 'sw') { const ax = gd.mode === 'sl' ? [gd.ux, gd.uy] : [vx, vy];

@@ -9,7 +9,7 @@ import SunPath from './three/SunPath.jsx';
 import PlanEditor from './three/PlanEditor.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
-  insolationAt, normHours, shadowLen, azToCardinal, reportData } from './engine/astronomy.js';
+  insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
 
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
@@ -41,6 +41,7 @@ export default function App() {
   const [anDiff, setAnDiff] = useState(false);
   const [anStats, setAnStats] = useState(null);
   const [showPlot, setShowPlot] = useState(true);
+  const [showWin, setShowWin] = useState(true);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const openFile = useRef(null);
 
@@ -137,6 +138,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   const insol = useMemo(() => insolationAt([0, 0], buildings, dayMs, lat, lon), [buildings, dayMs, lat, lon]);
   const reqH = normHours(lat);
   const plotReport = useMemo(() => reportData(poly, buildings, lat, lon, tz, y), [poly, buildings, lat, lon, tz, y]);
+  const winReport = useMemo(() => windowsReport(buildings, lat, lon, tz, y), [buildings, lat, lon, tz, y]);
   const shadowAz = (azDeg + 180) % 360;
   const fmtLen = L => !isFinite(L) ? '∞' : L >= 1000 ? '>1 км' : L.toFixed(1) + ' м';
 
@@ -166,12 +168,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   );
 
   return (
-    <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large">
+    <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
-          plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []} />
+          plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
+          windows={showWin && !(pro && analytics) ? winReport.rows : []} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -332,24 +335,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </>}
                 </Box>
 
-                <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ДОКУМЕНТ</Text>
-                <Dialog.Root>
-                  <Dialog.Trigger><Button mt="1" style={{ width: '100%' }}><FileTextIcon /> Нормативный отчёт (PDF)</Button></Dialog.Trigger>
-                  <Dialog.Content maxWidth="440px">
-                    <Dialog.Title>Нормативный отчёт по инсоляции</Dialog.Title>
-                    <Dialog.Description size="2" color="gray" mb="3">СанПиН 1.2.3685-21. Реквизиты попадут в шапку.</Dialog.Description>
-                    <Flex direction="column" gap="2">
-                      <TextField.Root placeholder="Адрес объекта" value={rp.addr} onChange={e => setRp({ ...rp, addr: e.target.value })} />
-                      <TextField.Root placeholder="Заказчик" value={rp.client} onChange={e => setRp({ ...rp, client: e.target.value })} />
-                      <TextField.Root placeholder="Исполнитель" value={rp.exec} onChange={e => setRp({ ...rp, exec: e.target.value })} />
-                    </Flex>
-                    <Flex justify="end" gap="2" mt="3">
-                      <Dialog.Close><Button variant="soft" color="gray">Отмена</Button></Dialog.Close>
-                      <Dialog.Close><Button onClick={openReport}><FileTextIcon /> Сформировать</Button></Dialog.Close>
-                    </Flex>
-                  </Dialog.Content>
-                </Dialog.Root>
-
                 <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ПРОЕКТ</Text>
                 <Flex gap="2" mt="1">
                   <Button variant="soft" color="gray" onClick={saveProject} style={{ flex: 1 }}><DownloadIcon /> Сохранить</Button>
@@ -366,7 +351,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Card>
 
         {/* right panel */}
-        <Card size="2" style={{ position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
+        <Card size="2" style={{ position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, background: 'var(--color-panel-solid)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <Flex direction="column" gap="2">
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
             <SunPath y={y} mo={mo} da={da} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} />
@@ -386,10 +372,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Stat k="Макс. непрерывно" v={fmtHours(insol.cont)} />
             <Stat k={`Норма ≥ ${reqH} ч`} v={<Badge color={insol.cont >= reqH ? 'grass' : 'red'}>{insol.cont >= reqH ? 'выполнена' : 'не выполнена'}</Badge>} />
 
-            <Flex justify="between" align="center" mt="3">
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>КОНТРОЛЬНЫЕ ТОЧКИ</Text>
+            <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>КОНТРОЛЬНЫЕ ТОЧКИ</Text>
+            <Flex gap="4" align="center">
               <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                 <input type="checkbox" checked={showPlot} onChange={e => setShowPlot(e.target.checked)} /> на участке
+              </Text>
+              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                <input type="checkbox" checked={showWin} onChange={e => setShowWin(e.target.checked)} /> на окнах
               </Text>
             </Flex>
             <Flex gap="3" align="center">
@@ -406,6 +395,25 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               ))}
             </>}
           </Flex>
+          </Box>
+          <Box style={{ paddingTop: 22, marginTop: -14, position: 'relative', background: 'linear-gradient(to top, var(--color-panel-solid) 58%, transparent)' }}>
+            <Dialog.Root>
+              <Dialog.Trigger><Button style={{ width: '100%' }}><FileTextIcon /> Скачать PDF отчёт</Button></Dialog.Trigger>
+              <Dialog.Content maxWidth="440px">
+                <Dialog.Title>Нормативный отчёт по инсоляции</Dialog.Title>
+                <Dialog.Description size="2" color="gray" mb="3">СанПиН 1.2.3685-21. Реквизиты попадут в шапку.</Dialog.Description>
+                <Flex direction="column" gap="2">
+                  <TextField.Root placeholder="Адрес объекта" value={rp.addr} onChange={e => setRp({ ...rp, addr: e.target.value })} />
+                  <TextField.Root placeholder="Заказчик" value={rp.client} onChange={e => setRp({ ...rp, client: e.target.value })} />
+                  <TextField.Root placeholder="Исполнитель" value={rp.exec} onChange={e => setRp({ ...rp, exec: e.target.value })} />
+                </Flex>
+                <Flex justify="end" gap="2" mt="3">
+                  <Dialog.Close><Button variant="soft" color="gray">Отмена</Button></Dialog.Close>
+                  <Dialog.Close><Button onClick={openReport}><FileTextIcon /> Сформировать</Button></Dialog.Close>
+                </Flex>
+              </Dialog.Content>
+            </Dialog.Root>
+          </Box>
         </Card>
 
         {/* легенда 3D-аналитики */}
