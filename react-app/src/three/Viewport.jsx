@@ -212,7 +212,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize);
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
@@ -259,6 +259,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
   useEffect(() => {
     const a = api.current; if (!a.scene) return;
     if (a.analyticsGroup) { a.scene.remove(a.analyticsGroup); a.analyticsGroup = null; }
+    if (a.grid) a.grid.visible = !analytics;   // прячем сетку сцены, чтобы её линии не просвечивали сквозь слой аналитики
     if (!analytics) return;
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const rc = new THREE.Raycaster(); const occ = a.dyn.children.filter(o => !o.userData.plot);
