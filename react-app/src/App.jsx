@@ -225,7 +225,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           </Dialog.Root>
           <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={() => setPro(p => !p)}>{pro ? <CheckIcon /> : <LockOpen1Icon />} Pro-режим</Button>
           <Select.Root value={themeMode} onValueChange={setThemeMode}>
-            <Select.Trigger variant="soft" color="gray" />
+            <Select.Trigger variant="surface" color="gray" />
             <Select.Content>
               <Select.Item value="light">☀ Светлая</Select.Item>
               <Select.Item value="dark">☾ Тёмная</Select.Item>
@@ -359,7 +359,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               </Box>
             ) : (
               <Box style={{ border: '1px dashed var(--gray-a6)', borderRadius: 10, padding: 12 }}>
-                <Text size="1" color="gray">🔒 Pro-режим: годовая тепловая карта, инсоляция по окнам, рекомендации по зонированию, нормативный отчёт и сохранение проекта. Включите кнопкой «Pro» вверху.</Text>
+                <Text size="1" color="gray">🔒 Pro-режим: 3D-аналитика поверхностей, нормативный отчёт (PDF) и сохранение проекта. Включите кнопкой «Pro» вверху.</Text>
               </Box>
             )}
           </Flex>
