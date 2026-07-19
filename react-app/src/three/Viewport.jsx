@@ -381,10 +381,8 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     if (!plotMarkers || !plotMarkers.length) return;
     const grp = new THREE.Group();
     plotMarkers.forEach(m => { const col = m.ok ? 0x1f9d45 : 0xc0392b;
-      const s = new THREE.Mesh(new THREE.SphereGeometry(0.55, 12, 12), new THREE.MeshBasicMaterial({ color: col, toneMapped: false }));
-      s.position.set(m.e, 0.55, -m.n); grp.add(s);
-      const ring = new THREE.Mesh(new THREE.CircleGeometry(0.75, 18), new THREE.MeshBasicMaterial({ color: col, transparent: true, opacity: 0.35, toneMapped: false, side: THREE.DoubleSide }));
-      ring.rotation.x = -Math.PI / 2; ring.position.set(m.e, 0.12, -m.n); grp.add(ring); });
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 12), new THREE.MeshBasicMaterial({ color: col, toneMapped: false }));
+      s.position.set(m.e, 0.45, -m.n); s.castShadow = false; s.receiveShadow = false; grp.add(s); });
     a.scene.add(grp); a.plotGroup = grp;
   }, [plotMarkers]);
 
