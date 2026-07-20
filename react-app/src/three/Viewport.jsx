@@ -318,14 +318,14 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     // шаги солнца по выбранным месяцам
     let m1 = Math.max(1, Math.min(12, anM1)), m2 = Math.max(1, Math.min(12, anM2)); if (m2 < m1) [m1, m2] = [m2, m1];
     const stepMin = 20, days = []; for (let m = m1 - 1; m <= m2 - 1; m++) { const t = getTimes(localToUTC(year, m, 21, 12, 0, 0), lat, lon), steps = [];
-      for (let ms = t.rise; ms <= t.set; ms += stepMin * 60000) { const p = sunPosition(ms, lat, lon), alt = p.altitude * 180 / Math.PI; if (alt > 0) steps.push(sunVec(compassAz(p.azimuth), alt)); } days.push(steps); }
+      for (let ms = t.rise; ms <= t.set; ms += stepMin * 60000) { const p = sunPosition(ms, lat, lon), alt = p.altitude * 180 / Math.PI; if (alt > 5) steps.push(sunVec(compassAz(p.azimuth), alt)); } days.push(steps); }
     const nDays = days.length || 1;
     const sampleHours = (origin, normal) => { let sunMin = 0; days.forEach(steps => steps.forEach(v => { if (normal && v.dot(normal) <= 0) return; rc.set(origin, v); rc.far = SUN_DIST; if (!occ.length || rc.intersectObjects(occ, false).length === 0) sunMin += stepMin; })); return sunMin / 60 / nDays; };
     const skyOpen = (origin, normal) => { let open = 0, tot = 0; for (let az = 0; az < 360; az += 45) for (let el = 20; el <= 70; el += 25) { const aa = az * RAD, ee = el * RAD; const v = new THREE.Vector3(Math.sin(aa) * Math.cos(ee), Math.sin(ee), -Math.cos(aa) * Math.cos(ee)); if (normal && v.dot(normal) <= 0) continue; tot++; rc.set(origin, v); rc.far = SUN_DIST; if (!occ.length || rc.intersectObjects(occ, false).length === 0) open++; } return tot ? open / tot : 0; };
     const surfVal = (origin, normal) => { let v = sampleHours(origin, normal); if (anDiff) v += skyOpen(origin, normal) * 2; return v; };
     const up = new THREE.Vector3(0, 1, 0), surfaces = [];
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; base.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
-    const span = Math.max(mxx - mnx, mxy - mny), gs = Math.max(0.9, Math.min(2.2, span / 34)), feather = Math.max(1.5, gs * 2);
+    const span = Math.max(mxx - mnx, mxy - mny), gs = Math.max(0.7, Math.min(1.6, span / 44)), feather = Math.max(1.2, gs * 1.8);
     const gmnx = mnx - feather, gmny = mny - feather, gmxx = mxx + feather, gmxy = mxy + feather;
     const gi = Math.max(1, Math.ceil((gmxx - gmnx) / gs)), gj = Math.max(1, Math.ceil((gmxy - gmny) / gs));
     surfaces.push(gridSurface(gi, gj, (i, j) => { const x = gmnx + (gmxx - gmnx) * i / gi, y = gmny + (gmxy - gmny) * j / gj;
