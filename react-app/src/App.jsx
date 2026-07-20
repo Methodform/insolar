@@ -14,6 +14,8 @@ import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parse
 
 // URL Cloudflare Worker'а (см. react-app/cadastre-proxy/README.md). Заменить после деплоя:
 const CADASTRE_PROXY = '';
+// общий ключ MapTiler, встроенный в сборку (GitHub secret → VITE_MAPTILER_KEY). Ограничьте его по домену в MapTiler.
+const MAPTILER_KEY = (import.meta.env && import.meta.env.VITE_MAPTILER_KEY) || '';
 
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
@@ -40,9 +42,11 @@ export default function App() {
   const [pro, setPro] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
-  const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || ''; } catch (e) { return ''; } });
+  const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
   const [ground3d, setGround3d] = useState('streets');  // off | streets — по умолчанию схема включена
+  const [keyDraft, setKeyDraft] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
+  const applyKey = () => setMapKey(keyDraft.trim());
   const [analytics, setAnalytics] = useState(false);
   const [anM1, setAnM1] = useState(4);
   const [anM2, setAnM2] = useState(9);
@@ -304,9 +308,15 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Select.Content>
                 </Select.Root>
               </Flex>
-              {ground3d === 'streets' && <>
-                <TextField.Root mt="2" placeholder="Ключ MapTiler (бесплатный)" value={mapKey} onChange={e => setMapKey(e.target.value)} />
-                {!mapKey && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Схема-подложка в 3D тянется тайлами MapTiler — нужен бесплатный ключ (maptiler.com). Окно «Показать на карте» работает без ключа.</Text>}
+              {ground3d === 'streets' && !MAPTILER_KEY && <>
+                <Flex gap="2" mt="2">
+                  <TextField.Root placeholder="Ключ MapTiler (бесплатный)" value={keyDraft} onChange={e => setKeyDraft(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') applyKey(); }} onBlur={applyKey} style={{ flex: 1 }} />
+                  <Button variant="soft" onClick={applyKey}>Применить</Button>
+                </Flex>
+                {keyDraft.trim() && keyDraft.trim() === mapKey
+                  ? <Text size="1" color="grass" mt="1" style={{ display: 'block' }}>Ключ применён ✓</Text>
+                  : <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Схема в 3D тянется тайлами MapTiler — нужен бесплатный ключ (maptiler.com).</Text>}
               </>}
             </Box>
             <Separator size="4" />

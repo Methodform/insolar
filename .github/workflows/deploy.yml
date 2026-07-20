@@ -26,6 +26,8 @@ jobs:
 
       - name: Build React app
         working-directory: react-app
+        env:
+          VITE_MAPTILER_KEY: ${{ secrets.MAPTILER_KEY }}
         run: |
           npm install
           npm run build
