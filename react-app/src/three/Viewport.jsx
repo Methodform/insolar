@@ -397,7 +397,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     if (!groundStyle || groundStyle === 'off' || !key || !poly || poly.length < 3) return;
     const latR = lat * Math.PI / 180, mLat = 110540, mLon = 111320 * Math.cos(latR);
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; poly.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
-    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max(mxx - mnx, 8) * 1.5, spanN = Math.max(mxy - mny, 8) * 1.5;
+    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max((mxx - mnx) * 4, 160), spanN = Math.max((mxy - mny) * 4, 160);
     const lonMin = lon + (cE - spanE / 2) / mLon, lonMax = lon + (cE + spanE / 2) / mLon, latMin = lat + (cN - spanN / 2) / mLat, latMax = lat + (cN + spanN / 2) / mLat;
     const lon2tx = (L, z) => Math.floor((L + 180) / 360 * Math.pow(2, z));
     const lat2ty = (D, z) => { const r = D * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); };
@@ -405,7 +405,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const ty2lat = (y, z) => { const n = Math.PI * (1 - 2 * y / Math.pow(2, z)); return Math.atan(Math.sinh(n)) * 180 / Math.PI; };
     let z = 19, xmin, xmax, ymin, ymax;
     for (; z >= 1; z--) { xmin = lon2tx(lonMin, z); xmax = lon2tx(lonMax, z); ymin = lat2ty(latMax, z); ymax = lat2ty(latMin, z);
-      if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 16) break; }
+      if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 25) break; }
     const nx = xmax - xmin + 1, ny = ymax - ymin + 1;
     const cv = document.createElement('canvas'); cv.width = nx * 256; cv.height = ny * 256; const g = cv.getContext('2d');
     const styleUrl = (x, y) => groundStyle === 'streets'

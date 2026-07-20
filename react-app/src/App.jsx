@@ -382,7 +382,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             {pro ? (
               <Box>
                 <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА · PRO</Text>
-                <Box mt="1" style={{ border: '1px solid var(--gray-a5)', borderRadius: 10, padding: 10 }}>
+                <Box mt="2">
                   <Flex align="center" justify="between" asChild>
                     <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
                       <Flex align="center" gap="2"><LayersIcon /> 3D-аналитика поверхностей</Flex>
