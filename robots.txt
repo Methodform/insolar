@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://methodform.github.io/insolar/sitemap.xml

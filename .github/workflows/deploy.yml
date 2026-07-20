@@ -36,6 +36,7 @@ jobs:
         run: |
           mkdir -p _site/app
           cp *.html _site/ 2>/dev/null || true
+          cp robots.txt sitemap.xml _site/ 2>/dev/null || true
           cp -r img _site/ 2>/dev/null || true
           cp -r react-app/dist/* _site/app/
 
