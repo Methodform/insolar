@@ -203,7 +203,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
-        {mapOpen && <MapView polyText={polyText} apiKey={mapKey} onKey={setMapKey} onClose={() => setMapOpen(false)} />}
+        {mapOpen && <MapView polyText={polyText} onClose={() => setMapOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
@@ -300,12 +300,14 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   <Select.Trigger style={{ flex: 1 }} />
                   <Select.Content>
                     <Select.Item value="off">Нет</Select.Item>
-                    <Select.Item value="satellite">Спутник</Select.Item>
                     <Select.Item value="streets">Схема</Select.Item>
                   </Select.Content>
                 </Select.Root>
               </Flex>
-              {ground3d !== 'off' && !mapKey && <Text size="1" color="amber" mt="1" style={{ display: 'block' }}>Нужен ключ MapTiler — введите его в окне «Показать на карте».</Text>}
+              {ground3d === 'streets' && <>
+                <TextField.Root mt="2" placeholder="Ключ MapTiler (бесплатный)" value={mapKey} onChange={e => setMapKey(e.target.value)} />
+                {!mapKey && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Схема-подложка в 3D тянется тайлами MapTiler — нужен бесплатный ключ (maptiler.com). Окно «Показать на карте» работает без ключа.</Text>}
+              </>}
             </Box>
             <Separator size="4" />
             <Box>
