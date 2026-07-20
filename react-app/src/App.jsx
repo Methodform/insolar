@@ -42,7 +42,7 @@ export default function App() {
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || ''; } catch (e) { return ''; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
-  const [ground3d, setGround3d] = useState('off');  // off | satellite | streets
+  const [ground3d, setGround3d] = useState('streets');  // off | streets — по умолчанию схема включена
   const [analytics, setAnalytics] = useState(false);
   const [anM1, setAnM1] = useState(4);
   const [anM2, setAnM2] = useState(9);
@@ -393,12 +393,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <Flex gap="2" mt="2" align="center">
                       <Text size="1" color="gray">Месяцы</Text>
                       <Select.Root value={String(anM1)} onValueChange={v => setAnM1(+v)}>
-                        <Select.Trigger style={{ flex: 1 }} />
+                        <Select.Trigger variant="soft" style={{ flex: 1 }} />
                         <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
                       </Select.Root>
                       <Text size="1" color="gray">–</Text>
                       <Select.Root value={String(anM2)} onValueChange={v => setAnM2(+v)}>
-                        <Select.Trigger style={{ flex: 1 }} />
+                        <Select.Trigger variant="soft" style={{ flex: 1 }} />
                         <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
                       </Select.Root>
                     </Flex>
