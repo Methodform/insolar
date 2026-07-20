@@ -45,7 +45,7 @@ export default function MapView({ polyText, apiKey = '', onKey, onClose }) {
       setErr('');
       try { localStorage.setItem('maptiler_key', key); } catch (e) {}
       if (m.getLayer('sat')) { m.removeLayer('sat'); m.removeSource('sat'); }
-      m.addSource('sat', { type: 'raster', tiles: [`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${encodeURIComponent(key)}`], tileSize: 256, attribution: '© MapTiler © OpenStreetMap' });
+      m.addSource('sat', { type: 'raster', tiles: [`https://api.maptiler.com/tiles/satellite-v2/{z}/{x}/{y}.jpg?key=${encodeURIComponent((key || '').trim())}`], tileSize: 256, attribution: '© MapTiler © OpenStreetMap' });
       m.addLayer({ id: 'sat', type: 'raster', source: 'sat' }, 'plot-fill');
     } else if (m.getLayer('sat')) { m.removeLayer('sat'); m.removeSource('sat'); }
     setSat(on);

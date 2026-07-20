@@ -387,28 +387,56 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.scene.add(grp); a.plotGroup = grp;
   }, [plotMarkers]);
 
-  // реальная карта как текстура земли (MapTiler static) под участком
+  // реальная карта как текстура земли — сшивка растровых тайлов MapTiler (бесплатный тариф)
   useEffect(() => {
     const a = api.current; if (!a.scene) return;
-    if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; }
-    if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; }
-    if (!groundStyle || groundStyle === 'off' || !groundKey || !poly || poly.length < 3) return;
+    const clear = () => { if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; }
+      if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; } };
+    clear();
+    const key = (groundKey || '').trim();
+    if (!groundStyle || groundStyle === 'off' || !key || !poly || poly.length < 3) return;
+    const latR = lat * Math.PI / 180, mLat = 110540, mLon = 111320 * Math.cos(latR);
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; poly.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
-    const ext = Math.max(mxx - mnx, mxy - mny, 10) * 1.6, px = 1024, latR = lat * Math.PI / 180;
-    let zoom = Math.log2(156543.033928 * Math.cos(latR) / (ext / px)); zoom = Math.max(1, Math.min(20, Math.round(zoom * 100) / 100));
-    const cov = 156543.033928 * Math.cos(latR) / Math.pow(2, zoom) * px;   // фактическое покрытие изображения, м
-    const styleId = groundStyle === 'streets' ? 'streets-v2' : 'satellite';
-    const url = `https://api.maptiler.com/maps/${styleId}/static/${lon},${lat},${zoom}/${px}x${px}.jpg?key=${encodeURIComponent(groundKey)}&attribution=bottomright`;
-    const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
-    loader.load(url, tex => {
-      tex.colorSpace = THREE.SRGBColorSpace;
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(cov, cov), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
-      m.rotation.x = -Math.PI / 2; m.position.y = 0.06; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
-      // контур участка поверх карты
-      const pts = poly.concat([poly[0]]).map(p => new THREE.Vector3(p[0], 0.09, -p[1]));
-      const ol = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffd257, toneMapped: false }));
+    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max(mxx - mnx, 8) * 1.5, spanN = Math.max(mxy - mny, 8) * 1.5;
+    const lonMin = lon + (cE - spanE / 2) / mLon, lonMax = lon + (cE + spanE / 2) / mLon, latMin = lat + (cN - spanN / 2) / mLat, latMax = lat + (cN + spanN / 2) / mLat;
+    const lon2tx = (L, z) => Math.floor((L + 180) / 360 * Math.pow(2, z));
+    const lat2ty = (D, z) => { const r = D * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); };
+    const tx2lon = (x, z) => x / Math.pow(2, z) * 360 - 180;
+    const ty2lat = (y, z) => { const n = Math.PI * (1 - 2 * y / Math.pow(2, z)); return Math.atan(Math.sinh(n)) * 180 / Math.PI; };
+    let z = 19, xmin, xmax, ymin, ymax;
+    for (; z >= 1; z--) { xmin = lon2tx(lonMin, z); xmax = lon2tx(lonMax, z); ymin = lat2ty(latMax, z); ymax = lat2ty(latMin, z);
+      if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 16) break; }
+    const nx = xmax - xmin + 1, ny = ymax - ymin + 1;
+    const cv = document.createElement('canvas'); cv.width = nx * 256; cv.height = ny * 256; const g = cv.getContext('2d');
+    const styleUrl = (x, y) => groundStyle === 'streets'
+      ? `https://api.maptiler.com/maps/streets-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
+      : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${encodeURIComponent(key)}`;
+    let done = 0, total = nx * ny, cancelled = false;
+    const build = () => {
+      if (cancelled) return;
+      const left = tx2lon(xmin, z), right = tx2lon(xmax + 1, z), top = ty2lat(ymin, z), bot = ty2lat(ymax + 1, z);
+      const lE = (left - lon) * mLon, rE = (right - lon) * mLon, tN = (top - lat) * mLat, bN = (bot - lat) * mLat;
+      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
+      const pos = [lE, 0, -tN, lE, 0, -bN, rE, 0, -bN, lE, 0, -tN, rE, 0, -bN, rE, 0, -tN];
+      const uv = [0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1], nor = [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0];
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 1, side: THREE.DoubleSide }));
+      m.position.y = 0.06; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
+      const olp = poly.concat([poly[0]]).map(p => new THREE.Vector3(p[0], 0.1, -p[1]));
+      const ol = new THREE.Line(new THREE.BufferGeometry().setFromPoints(olp), new THREE.LineBasicMaterial({ color: 0xffd257, toneMapped: false }));
       a.scene.add(ol); a.groundOutline = ol;
-    }, undefined, () => { /* тайл не загрузился — тихо игнорируем */ });
+    };
+    for (let x = xmin; x <= xmax; x++) for (let y = ymin; y <= ymax; y++) {
+      const img = new Image(); img.crossOrigin = 'anonymous';
+      const ox = (x - xmin) * 256, oy = (y - ymin) * 256;
+      img.onload = () => { g.drawImage(img, ox, oy, 256, 256); if (++done === total) build(); };
+      img.onerror = () => { if (++done === total) build(); };
+      img.src = styleUrl(x, y);
+    }
+    return () => { cancelled = true; };
   }, [groundKey, groundStyle, poly, lat, lon]);
 
   return <div ref={mount} style={{ position: 'absolute', inset: 0 }} />;
