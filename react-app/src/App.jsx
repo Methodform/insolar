@@ -7,6 +7,7 @@ import { SunIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIco
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import PlanEditor from './three/PlanEditor.jsx';
+import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
@@ -38,6 +39,7 @@ export default function App() {
   const [preset, setPreset] = useState('house|Дом 8×8|8,8,6');
   const [pro, setPro] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
   const [analytics, setAnalytics] = useState(false);
   const [anM1, setAnM1] = useState(4);
   const [anM2, setAnM2] = useState(9);
@@ -198,6 +200,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
+        {mapOpen && <MapView polyText={polyText} onClose={() => setMapOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
@@ -286,6 +289,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Границы загружаются из НСПД (Росреестр). После загрузки участок построится автоматически.</Text>
                 </>
               )}
+              <Button variant="soft" color="gray" mt="2" onClick={() => setMapOpen(true)} disabled={!poly} style={{ width: '100%' }}>🗺 Показать на карте</Button>
             </Box>
             <Separator size="4" />
             <Box>
