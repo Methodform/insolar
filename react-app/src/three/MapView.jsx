@@ -12,11 +12,12 @@ function parseLonLat(txt) {
   return out;
 }
 
-export default function MapView({ polyText, onClose }) {
+export default function MapView({ polyText, apiKey = '', onKey, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const [sat, setSat] = useState(false);
-  const [key, setKey] = useState(() => { try { return localStorage.getItem('maptiler_key') || ''; } catch (e) { return ''; } });
+  const key = apiKey;
+  const setKey = k => onKey && onKey(k);
   const [err, setErr] = useState('');
   const ring = parseLonLat(polyText);
 

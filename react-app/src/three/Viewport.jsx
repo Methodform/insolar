@@ -69,7 +69,8 @@ function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
     return { corners: c, normal: n }; }); }
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
-  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [], plantMode = null }) {
+  analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [], plantMode = null,
+  groundKey = '', groundStyle = 'off' }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
@@ -385,6 +386,30 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       s.position.set(m.e, 0.45, -m.n); s.castShadow = false; s.receiveShadow = false; grp.add(s); });
     a.scene.add(grp); a.plotGroup = grp;
   }, [plotMarkers]);
+
+  // реальная карта как текстура земли (MapTiler static) под участком
+  useEffect(() => {
+    const a = api.current; if (!a.scene) return;
+    if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; }
+    if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; }
+    if (!groundStyle || groundStyle === 'off' || !groundKey || !poly || poly.length < 3) return;
+    let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; poly.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
+    const ext = Math.max(mxx - mnx, mxy - mny, 10) * 1.6, px = 1024, latR = lat * Math.PI / 180;
+    let zoom = Math.log2(156543.033928 * Math.cos(latR) / (ext / px)); zoom = Math.max(1, Math.min(20, Math.round(zoom * 100) / 100));
+    const cov = 156543.033928 * Math.cos(latR) / Math.pow(2, zoom) * px;   // фактическое покрытие изображения, м
+    const styleId = groundStyle === 'streets' ? 'streets-v2' : 'satellite';
+    const url = `https://api.maptiler.com/maps/${styleId}/static/${lon},${lat},${zoom}/${px}x${px}.jpg?key=${encodeURIComponent(groundKey)}&attribution=bottomright`;
+    const loader = new THREE.TextureLoader(); loader.setCrossOrigin('anonymous');
+    loader.load(url, tex => {
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(cov, cov), new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
+      m.rotation.x = -Math.PI / 2; m.position.y = 0.06; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
+      // контур участка поверх карты
+      const pts = poly.concat([poly[0]]).map(p => new THREE.Vector3(p[0], 0.09, -p[1]));
+      const ol = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({ color: 0xffd257, toneMapped: false }));
+      a.scene.add(ol); a.groundOutline = ol;
+    }, undefined, () => { /* тайл не загрузился — тихо игнорируем */ });
+  }, [groundKey, groundStyle, poly, lat, lon]);
 
   return <div ref={mount} style={{ position: 'absolute', inset: 0 }} />;
 }

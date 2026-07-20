@@ -40,6 +40,9 @@ export default function App() {
   const [pro, setPro] = useState(false);
   const [planOpen, setPlanOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
+  const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || ''; } catch (e) { return ''; } });
+  const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
+  const [ground3d, setGround3d] = useState('off');  // off | satellite | streets
   const [analytics, setAnalytics] = useState(false);
   const [anM1, setAnM1] = useState(4);
   const [anM2, setAnM2] = useState(9);
@@ -200,11 +203,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
-        {mapOpen && <MapView polyText={polyText} onClose={() => setMapOpen(false)} />}
+        {mapOpen && <MapView polyText={polyText} apiKey={mapKey} onKey={setMapKey} onClose={() => setMapOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
-          windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode} />
+          windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode}
+          groundKey={mapKey} groundStyle={ground3d} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -290,6 +294,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </>
               )}
               <Button variant="soft" color="gray" mt="2" onClick={() => setMapOpen(true)} disabled={!poly} style={{ width: '100%' }}>🗺 Показать на карте</Button>
+              <Flex gap="2" mt="2" align="center">
+                <Text size="1" color="gray">Карта в 3D</Text>
+                <Select.Root value={ground3d} onValueChange={setGround3d}>
+                  <Select.Trigger style={{ flex: 1 }} />
+                  <Select.Content>
+                    <Select.Item value="off">Нет</Select.Item>
+                    <Select.Item value="satellite">Спутник</Select.Item>
+                    <Select.Item value="streets">Схема</Select.Item>
+                  </Select.Content>
+                </Select.Root>
+              </Flex>
+              {ground3d !== 'off' && !mapKey && <Text size="1" color="amber" mt="1" style={{ display: 'block' }}>Нужен ключ MapTiler — введите его в окне «Показать на карте».</Text>}
             </Box>
             <Separator size="4" />
             <Box>
