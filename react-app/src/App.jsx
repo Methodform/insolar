@@ -514,22 +514,22 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {/* модал тарифов */}
         <Dialog.Root open={paywall} onOpenChange={setPaywall}>
           <Dialog.Content maxWidth="820px">
-            <Dialog.Title>Тарифы Инсоляр</Dialog.Title>
-            <Dialog.Description size="2" color="gray" mb="4">Бесплатно — базовый просмотр участка. Pro — расстановка объектов, любые даты и сезоны, аналитика, документ по СанПиН и сохранение.</Dialog.Description>
+            <Dialog.Title>Ваш участок — под рукой круглый год</Dialog.Title>
+            <Dialog.Description size="2" color="gray" mb="4">Планируйте сколько угодно: постройки, посадки, пересадки, разные сезоны и годы. Инсоляр считает солнце и тени вживую, а проект остаётся вашим.</Dialog.Description>
             <Flex gap="3" wrap="wrap">
               {[
                 { key: 'free', name: 'Free', price: '0 ₽', sub: 'навсегда', hero: false, badge: null,
                   feats: ['1 участок (по точкам)', 'Сегодня + время суток', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Карта-схема участка'],
                   cta: pro ? null : 'Текущий план' },
-                { key: 'month', name: 'Месяц', price: '490 ₽', sub: 'в месяц', hero: false, badge: null,
-                  feats: ['Всё из Free', 'Расстановка объектов и рисование', 'Любая дата и сезоны', '3D-аналитика поверхностей', 'Кадастр, свой забор', 'Сохранение и PDF-отчёт'],
-                  cta: 'Оформить месяц' },
-                { key: 'season', name: 'Сезон · 6 мес', price: '1 490 ₽', sub: '≈ 248 ₽/мес · весь сезон', hero: true, badge: 'Рекомендуем',
-                  feats: ['Всё из Pro', 'На весь сезон стройки и посадок', 'Выгода ~40% против месяца', 'Один платёж, без продлений'],
+                { key: 'month', name: 'Месяц', price: '490 ₽', sub: 'в месяц · попробовать', hero: false, badge: null,
+                  feats: ['Всё из Free', 'Расстановка объектов и рисование', 'Любая дата и сезоны', '3D-аналитика, кадастр, свой забор', 'Сохранение и PDF-отчёт'],
+                  cta: 'Попробовать месяц' },
+                { key: 'season', name: 'Сезон · 6 мес', price: '1 490 ₽', sub: '≈ 248 ₽/мес', hero: false, badge: null,
+                  feats: ['Всё из Pro', 'На весь сезон стройки и посадок', 'Один платёж, без продлений'],
                   cta: 'Взять на сезон' },
-                { key: 'year', name: 'Год', price: '1 990 ₽', sub: '≈ 166 ₽/мес · выгоднее всего', hero: false, badge: null,
-                  feats: ['Всё из Pro', 'Для нескольких участков / лет', 'Максимальная выгода за месяц'],
-                  cta: 'Оформить год' },
+                { key: 'year', name: 'Год', price: '1 990 ₽', sub: '≈ 166 ₽/мес · лучшая цена', hero: true, badge: 'Рекомендуем',
+                  feats: ['Всё из Pro без ограничений', 'Планируйте весь год: стройка, посадки, пересадки', 'Сколько угодно вариантов и объектов', 'Участок эволюционирует вместе с вами', 'Максимальная выгода за месяц'],
+                  cta: 'Планировать год' },
               ].map(t => (
                 <Box key={t.key} style={{ flex: '1 1 180px', border: t.hero ? '2px solid var(--grass-8)' : '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.hero ? 'var(--grass-a2)' : 'transparent', position: 'relative' }}>
                   {t.badge && <Badge color="grass" style={{ position: 'absolute', top: -10, left: 14 }}>{t.badge}</Badge>}
@@ -544,21 +544,16 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Box>
               ))}
             </Flex>
-            <Box mt="4" style={{ border: '1px dashed var(--gray-a6)', borderRadius: 10, padding: 14 }}>
-              <Flex justify="between" align="center" gap="3" wrap="wrap">
-                <Box style={{ flex: '1 1 260px' }}>
-                  <Text size="2" weight="bold" style={{ display: 'block' }}>Разово: паспорт участка + отчёт — 790 ₽</Text>
-                  <Text size="1" color="gray">Без подписки: рассчитать один участок и скачать PDF-паспорт с планом, сезонной инсоляцией и отчётом по СанПиН. Файл остаётся у вас навсегда.</Text>
-                </Box>
-                <Button color="grass" variant="soft" onClick={() => { setPro(true); setPaywall(false); }}>Купить паспорт</Button>
-              </Flex>
-            </Box>
-            <Flex justify="between" align="center" mt="4">
-              <Text size="1" color="gray">Цены иллюстративные. Оплата будет подключена позже. Скачанные документы остаются у вас после окончания доступа.</Text>
+            <Flex justify="between" align="center" mt="4" gap="3" wrap="wrap">
+              <Text size="1" color="gray" style={{ flex: '1 1 300px' }}>
+                Когда доступ закончится, участок и проекты не пропадут — останутся для просмотра, а скачанные документы навсегда ваши.
+                Нужен только документ разово? <a href="#" onClick={e => { e.preventDefault(); setPro(true); setPaywall(false); }} style={{ color: 'var(--grass-11)' }}>Скачать паспорт участка за 790 ₽</a>.
+              </Text>
               {pro
                 ? <Button variant="soft" color="gray" onClick={() => { setPro(false); setPaywall(false); }}>Отключить Pro (демо)</Button>
                 : <Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close>}
             </Flex>
+            <Text size="1" color="gray" mt="2" style={{ display: 'block' }}>Цены иллюстративные, оплата будет подключена позже.</Text>
           </Dialog.Content>
         </Dialog.Root>
 
