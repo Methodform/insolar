@@ -1,8 +1,8 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Select,
   Slider, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
-import { SunIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
-  TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon,
+import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
+  TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
@@ -214,15 +214,17 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     </Flex>
   );
 
-  const sheetBase = { position: 'fixed', left: 8, right: 8, bottom: 120, zIndex: 20, background: 'var(--color-panel-solid)', maxHeight: 'calc(100dvh - 220px)', borderRadius: 16 };
+  const sheetPos = { position: 'fixed', top: 52, left: 0, right: 0, bottom: 56, zIndex: 20, background: 'var(--color-panel-solid)', borderRadius: 0 };
   const leftCardStyle = mobile
-    ? { ...sheetBase, overflowY: 'auto', display: panel === 'plot' ? 'block' : 'none' }
+    ? { ...sheetPos, overflowY: 'auto', display: panel === 'plot' ? 'block' : 'none' }
     : { position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' };
   const rightCardStyle = mobile
-    ? { ...sheetBase, display: panel === 'sun' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }
+    ? { ...sheetPos, display: panel === 'sun' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }
     : { position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, background: 'var(--color-panel-solid)', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
+  const recCardStyle = { ...sheetPos, overflowY: 'auto', display: panel === 'rec' ? 'block' : 'none' };
+  const profCardStyle = { ...sheetPos, overflowY: 'auto', display: panel === 'profile' ? 'block' : 'none' };
   const timebarStyle = mobile
-    ? { position: 'fixed', left: 8, right: 8, bottom: 60, zIndex: 20, background: 'var(--color-panel-solid)' }
+    ? { position: 'fixed', left: 8, right: 8, bottom: 62, zIndex: 20, background: 'var(--color-panel-solid)', display: panel ? 'none' : 'block' }
     : { position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' };
 
   return (
@@ -242,8 +244,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           <Heading size="4"><Flex align="center" gap="1"><SunIcon width="20" height="20" /> Инсоляр</Flex></Heading>
           {!mobile && <Text size="2" color="gray">React + Radix · моделирование солнца</Text>}
           <Box style={{ flex: 1 }} />
+          {!mobile && <>
           <Dialog.Root>
-            <Dialog.Trigger><Button variant="soft" color="gray"><RulerHorizontalIcon />{!mobile && ' Отступы'}</Button></Dialog.Trigger>
+            <Dialog.Trigger><Button variant="soft" color="gray"><RulerHorizontalIcon /> Отступы</Button></Dialog.Trigger>
             <Dialog.Content maxWidth="560px">
               <Dialog.Title><Flex align="center" gap="2"><RulerHorizontalIcon /> Нормативные отступы</Flex></Dialog.Title>
               <Dialog.Description size="1" color="gray" mb="2">Ориентировочные минимумы (ИЖС/СНТ). Точные значения — по действующим редакциям СП и местным ПЗЗ.</Dialog.Description>
@@ -286,15 +289,11 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
-          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon />{!mobile && ' Pro активен'}</> : <><LockOpen1Icon />{!mobile && ' Тарифы'}</>}</Button>
-          <Select.Root value={themeMode} onValueChange={setThemeMode}>
-            <Select.Trigger variant="surface" color="gray" />
-            <Select.Content>
-              <Select.Item value="light">☀ Светлая</Select.Item>
-              <Select.Item value="dark">☾ Тёмная</Select.Item>
-              <Select.Item value="system">🖥 Как в системе</Select.Item>
-            </Select.Content>
-          </Select.Root>
+          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> Pro активен</> : <><LockOpen1Icon /> Тарифы</>}</Button>
+          </>}
+          <IconButton variant="soft" color="gray" title="Тема" onClick={() => setThemeMode(appearance === 'dark' ? 'light' : 'dark')}>
+            {appearance === 'dark' ? <SunIcon /> : <MoonIcon />}
+          </IconButton>
         </Flex>
 
         {/* left panel */}
@@ -510,6 +509,52 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           </Box>
         </Card>
 
+        {/* мобильная шторка «Рекомендации» */}
+        {mobile && (
+          <Card size="2" style={recCardStyle}>
+            <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>РЕКОМЕНДАЦИИ ПО ЗОНИРОВАНИЮ</Text>
+            <Box mt="2"><ZoneMap poly={poly} /></Box>
+            <Box mt="2">
+              {[
+                ['🥕 Огород / грядки — юг', 'Максимум света для светолюбивых культур.'],
+                ['🌳 Высокие посадки — север / края', 'Чтобы не затеняли грядки и окна дома. Отступ от границы: высокие ≥ 3 м, среднерослые ≥ 2 м, кустарник ≥ 1 м.'],
+                ['🌿 Газон / зона отдыха — центр', 'Универсальная буферная зона между постройками и посадками.'],
+              ].map(([t, d]) => (
+                <Box key={t} mb="2"><Text size="2" weight="bold" style={{ display: 'block' }}>{t}</Text><Text size="1" color="gray">{d}</Text></Box>
+              ))}
+            </Box>
+            <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>НОРМАТИВНЫЕ ОТСТУПЫ</Text>
+            {[
+              ['От границы соседнего участка', [['Жилой / садовый дом', '3 м'], ['Гараж (окна к соседу)', '2 м'], ['Баня, хозпостройки', '1 м'], ['Постройка для скота / птицы', '4 м'], ['Деревья высокие / средние / кустарник', '3 / 2 / 1 м']]],
+              ['От красной линии', [['Дом — от улицы', '5 м'], ['Дом — от проезда', '3 м'], ['Хозпостройки', '5 м']]],
+              ['Санитарные (внутри участка)', [['Дом → уборная', '12 м'], ['Дом → душ, баня', '8 м'], ['Колодец → уборная / компост', '8 м']]],
+              ['Противопожарные (между домами соседей)', [['Негорючие (камень, бетон)', '6 м'], ['С деревянными перекрытиями', '8 м'], ['Древесина, каркас', '10–15 м']]],
+            ].map(([title, rows]) => (
+              <Box key={title} mt="2">
+                <Text size="2" weight="bold" style={{ display: 'block', marginBottom: 4 }}>{title}</Text>
+                {rows.map(([k, v]) => (
+                  <Flex key={k} justify="between" gap="3" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
+                    <Text size="2" color="gray">{k}</Text><Text size="2" weight="medium">{v}</Text>
+                  </Flex>
+                ))}
+              </Box>
+            ))}
+            <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Материал справочный: СП 53.13330, СП 42.13330, СП 4.13130, СанПиН 1.2.3685-21. Не заменяет проект и экспертизу.</Text>
+          </Card>
+        )}
+
+        {/* мобильная шторка «Профиль» */}
+        {mobile && (
+          <Card size="2" style={profCardStyle}>
+            <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОФИЛЬ</Text>
+            <Flex align="center" gap="2" mt="2">
+              <Badge color={pro ? 'grass' : 'gray'} size="2">{pro ? 'Pro активен' : 'Бесплатный доступ'}</Badge>
+            </Flex>
+            <Button mt="3" style={{ width: '100%' }} onClick={openPaywall}>{pro ? 'Управление подпиской' : 'Оформить Pro'}</Button>
+            <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Инсоляр — планирование участка по солнцу: тени, инсоляция по СанПиН, расстановка построек и посадок. Расчёты носят модельный характер.</Text>
+          </Card>
+        )}
+
         {/* легенда 3D-аналитики */}
         {pro && analytics && anStats && (
           <Card size="1" style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: 72, width: 300, zIndex: 25 }}>
@@ -584,9 +629,19 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
         {/* мобильная нижняя панель вкладок */}
         {mobile && (
-          <Flex gap="2" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 52, zIndex: 21, background: 'var(--color-panel-solid)', borderTop: '1px solid var(--gray-a4)', padding: '6px 8px' }}>
-            <Button style={{ flex: 1 }} variant={panel === 'plot' ? 'solid' : 'soft'} color={panel === 'plot' ? 'grass' : 'gray'} onClick={() => setPanel(p => p === 'plot' ? null : 'plot')}>Участок</Button>
-            <Button style={{ flex: 1 }} variant={panel === 'sun' ? 'solid' : 'soft'} color={panel === 'sun' ? 'grass' : 'gray'} onClick={() => setPanel(p => p === 'sun' ? null : 'sun')}>Солнце</Button>
+          <Flex gap="1" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 56, zIndex: 22, background: 'var(--color-panel-solid)', borderTop: '1px solid var(--gray-a4)', padding: '6px 6px' }}>
+            {[
+              { k: 'plot', label: 'Участок', icon: <HomeIcon /> },
+              { k: 'sun', label: 'Солнце', icon: <SunIcon /> },
+              { k: 'rec', label: 'Советы', icon: <SewingPinFilledIcon /> },
+              { k: 'profile', label: 'Профиль', icon: <PersonIcon /> },
+            ].map(t => (
+              <Button key={t.k} style={{ flex: 1, flexDirection: 'column', height: 'auto', gap: 2, padding: '4px 0' }} size="1"
+                variant={panel === t.k ? 'solid' : 'soft'} color={panel === t.k ? 'grass' : 'gray'}
+                onClick={() => setPanel(p => p === t.k ? null : t.k)}>
+                {t.icon}<span style={{ fontSize: 10 }}>{t.label}</span>
+              </Button>
+            ))}
           </Flex>
         )}
       </Box>
