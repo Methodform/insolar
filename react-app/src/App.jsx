@@ -41,6 +41,9 @@ export default function App() {
   const [buildings, setBuildings] = useState([]);
   const [preset, setPreset] = useState('house|Дом 8×8|8,8,6');
   const [pro, setPro] = useState(false);
+  const [paywall, setPaywall] = useState(false);
+  const openPaywall = () => setPaywall(true);
+  const requirePro = fn => () => { if (pro) fn(); else openPaywall(); };
   const [planOpen, setPlanOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
@@ -268,7 +271,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
-          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={() => setPro(p => !p)}>{pro ? <CheckIcon /> : <LockOpen1Icon />} Pro-режим</Button>
+          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> Pro активен</> : <><LockOpen1Icon /> Тарифы</>}</Button>
           <Select.Root value={themeMode} onValueChange={setThemeMode}>
             <Select.Trigger variant="surface" color="gray" />
             <Select.Content>
@@ -327,7 +330,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДАТА И ВРЕМЯ</Text>
               <Flex gap="2" mt="1">
-                <TextField.Root type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!pro} style={{ flex: 1 }} />
+                <TextField.Root type="date" value={date} onChange={e => setDate(e.target.value)} readOnly={!pro}
+                  onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }} style={{ flex: 1, cursor: pro ? 'auto' : 'pointer' }} />
                 <TextField.Root type="number" value={tz} onChange={e => setTz(parseFloat(e.target.value) || 0)} style={{ width: 84 }} />
               </Flex>
               <Flex gap="2" mt="2">
@@ -338,12 +342,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Separator size="4" />
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗАБОР ПО ПЕРИМЕТРУ</Text>
-              <Select.Root value={fence} onValueChange={setFence}>
+              <Select.Root value={fence} onValueChange={v => { if (v === 'custom' && !pro) { openPaywall(); return; } setFence(v); }}>
                 <Select.Trigger mt="1" style={{ width: '100%' }} />
                 <Select.Content>
                   <Select.Item value="0">Нет</Select.Item>
                   <Select.Item value="1.8">1.8 м</Select.Item>
-                  <Select.Item value="custom" disabled={!pro}>Свой размер (Pro)</Select.Item>
+                  <Select.Item value="custom">Свой размер{!pro ? ' (Pro)' : ''}</Select.Item>
                 </Select.Content>
               </Select.Root>
               {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
@@ -376,8 +380,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Select.Content>
               </Select.Root>
               <Flex gap="2" mt="2">
-                <Button onClick={addPreset} disabled={!pro} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
-                <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} disabled={!pro} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
+                <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Типовое{!pro ? ' 🔒' : ''}</Button>
+                <Button variant="soft" color="gray" onClick={requirePro(() => setPlanOpen(true))} style={{ flex: 1 }}><Pencil1Icon /> Рисовать{!pro ? ' 🔒' : ''}</Button>
               </Flex>
               {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Расстановка объектов — в Pro. Бесплатно доступен только участок.</Text>}
               <Flex direction="column" gap="1" mt="2">
@@ -397,7 +401,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Flex align="center" justify="between" asChild>
                   <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: pro ? 'pointer' : 'default' }}>
                     <Flex align="center" gap="2"><LayersIcon /> 3D-аналитика поверхностей</Flex>
-                    <Switch checked={pro && analytics} disabled={!pro} onCheckedChange={v => setAnalytics(v)} />
+                    <Switch checked={pro && analytics} onCheckedChange={v => { if (!pro) { openPaywall(); return; } setAnalytics(v); }} />
                   </Text>
                 </Flex>
                 {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Включается в Pro.</Text>}
@@ -420,17 +424,15 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </>}
               </Box>
             </Box>
-            {pro && <>
-              <Separator size="4" />
-              <Box>
-                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОЕКТ</Text>
-                <Flex gap="2" mt="1">
-                  <Button variant="soft" color="gray" onClick={saveProject} style={{ flex: 1 }}><DownloadIcon /> Сохранить</Button>
-                  <Button variant="soft" color="gray" onClick={() => openFile.current.click()} style={{ flex: 1 }}><UploadIcon /> Открыть</Button>
-                  <input ref={openFile} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; }} />
-                </Flex>
-              </Box>
-            </>}
+            <Separator size="4" />
+            <Box>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОЕКТ</Text>
+              <Flex gap="2" mt="1">
+                <Button variant="soft" color="gray" onClick={requirePro(saveProject)} style={{ flex: 1 }}><DownloadIcon /> Сохранить{!pro ? ' 🔒' : ''}</Button>
+                <Button variant="soft" color="gray" onClick={requirePro(() => openFile.current.click())} style={{ flex: 1 }}><UploadIcon /> Открыть{!pro ? ' 🔒' : ''}</Button>
+                <input ref={openFile} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; }} />
+              </Flex>
+            </Box>
           </Flex>
         </Card>
 
@@ -482,7 +484,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           </Box>
           <Box style={{ paddingTop: 22, marginTop: -14, position: 'relative', background: 'linear-gradient(to top, var(--color-panel-solid) 58%, transparent)' }}>
             {!pro
-              ? <Button style={{ width: '100%' }} disabled><FileTextIcon /> Скачать PDF отчёт (Pro)</Button>
+              ? <Button style={{ width: '100%' }} onClick={openPaywall}><FileTextIcon /> Скачать PDF отчёт 🔒</Button>
               : <Dialog.Root>
               <Dialog.Trigger><Button style={{ width: '100%' }}><FileTextIcon /> Скачать PDF отчёт</Button></Dialog.Trigger>
               <Dialog.Content maxWidth="440px">
@@ -516,6 +518,44 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Плавная карта по земле, крышам и фасадам. {anStats.diff ? 'С учётом рассеянного света.' : 'Только прямое солнце.'}</Text>
           </Card>
         )}
+
+        {/* модал тарифов */}
+        <Dialog.Root open={paywall} onOpenChange={setPaywall}>
+          <Dialog.Content maxWidth="820px">
+            <Dialog.Title>Тарифы Инсоляр</Dialog.Title>
+            <Dialog.Description size="2" color="gray" mb="4">Бесплатно — базовый просмотр участка. Pro — расстановка объектов, любые даты, аналитика, документ и сохранение.</Dialog.Description>
+            <Flex gap="3" wrap="wrap">
+              {[
+                { key: 'free', name: 'Free', price: '0 ₽', sub: 'навсегда', accent: 'gray',
+                  feats: ['1 участок (точки или кадастр)', 'Сегодняшняя дата + время суток', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Карта-схема участка'],
+                  cta: pro ? null : 'Текущий план' },
+                { key: 'month', name: 'Pro · месяц', price: '399 ₽', sub: 'в месяц', accent: 'grass',
+                  feats: ['Всё из Free', 'Расстановка домов и построек', 'Рисование и дорожки', 'Любая дата и сезоны', '3D-аналитика поверхностей', 'Свой размер забора', 'Сохранение проектов', 'PDF-отчёт по СанПиН'],
+                  cta: 'Оформить' },
+                { key: 'year', name: 'Pro · год', price: '2 990 ₽', sub: '≈ 249 ₽/мес · выгода 38%', accent: 'grass',
+                  feats: ['Всё из Pro-месяца', 'Экономия ~1 800 ₽ в год', 'Один платёж на 12 месяцев'],
+                  cta: 'Оформить год' },
+              ].map(t => (
+                <Box key={t.key} style={{ flex: '1 1 220px', border: '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.accent === 'grass' ? 'var(--grass-a2)' : 'transparent' }}>
+                  <Text size="2" weight="bold" style={{ display: 'block' }}>{t.name}</Text>
+                  <Flex align="baseline" gap="2" mt="1"><Text size="6" weight="bold">{t.price}</Text><Text size="1" color="gray">{t.sub}</Text></Flex>
+                  <Flex direction="column" gap="1" mt="3">
+                    {t.feats.map((f, i) => <Text key={i} size="1" color="gray" style={{ display: 'flex', gap: 6 }}><CheckIcon /> {f}</Text>)}
+                  </Flex>
+                  {t.cta && <Button mt="3" style={{ width: '100%' }} variant={t.accent === 'grass' ? 'solid' : 'soft'} color={t.accent}
+                    disabled={t.key === 'free' && !pro}
+                    onClick={() => { if (t.key === 'free') { setPaywall(false); } else { setPro(true); setPaywall(false); } }}>{t.cta}</Button>}
+                </Box>
+              ))}
+            </Flex>
+            <Flex justify="between" align="center" mt="4">
+              <Text size="1" color="gray">Цены иллюстративные. Оплата будет подключена позже.</Text>
+              {pro
+                ? <Button variant="soft" color="gray" onClick={() => { setPro(false); setPaywall(false); }}>Отключить Pro (демо)</Button>
+                : <Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close>}
+            </Flex>
+          </Dialog.Content>
+        </Dialog.Root>
 
         {/* timebar */}
         <Card size="2" style={{ position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' }}>
