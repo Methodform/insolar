@@ -593,7 +593,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Box key={t.key} style={{ flex: '1 1 180px', border: t.hero ? '2px solid var(--grass-8)' : '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.hero ? 'var(--grass-a2)' : 'transparent', position: 'relative' }}>
                   {t.badge && <Badge color="grass" style={{ position: 'absolute', top: -10, left: 14 }}>{t.badge}</Badge>}
                   <Text size="2" weight="bold" style={{ display: 'block' }}>{t.name}</Text>
-                  <Flex align="baseline" gap="2" mt="1"><Text size="6" weight="bold">{t.price}</Text><Text size="1" color="gray">{t.sub}</Text></Flex>
+                  <Text size="6" weight="bold" mt="1" style={{ display: 'block', whiteSpace: 'nowrap' }}>{t.price}</Text>
+                  <Text size="1" color="gray" style={{ display: 'block' }}>{t.sub}</Text>
                   <Flex direction="column" gap="1" mt="3">
                     {t.feats.map((f, i) => <Text key={i} size="1" color="gray" style={{ display: 'flex', gap: 6 }}><CheckIcon /> {f}</Text>)}
                   </Flex>
