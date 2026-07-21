@@ -31,7 +31,8 @@ export default function App() {
   const [polyText, setPolyText] = useState(DEFAULT_POLY);
   const [built, setBuilt] = useState(() => parsePoly(DEFAULT_POLY));
   const [tz, setTz] = useState(4);
-  const [fence, setFence] = useState('2');
+  const [fence, setFence] = useState('1.8');
+  const [fenceCustom, setFenceCustom] = useState('2');
   const now = new Date();
   const [date, setDate] = useState(() => new Date(now.getTime()+4*3600000).toISOString().slice(0,10));
   const [minutes, setMinutes] = useState(() => { const d=new Date(now.getTime()+4*3600000); return d.getUTCHours()*60+d.getUTCMinutes(); });
@@ -81,7 +82,7 @@ export default function App() {
   }
 
   function saveProject() {
-    const data = { v: 1, app: 'insolar', polyText, tz, fence, buildings, date, minutes, report: rp };
+    const data = { v: 1, app: 'insolar', polyText, tz, fence, fenceCustom, buildings, date, minutes, report: rp };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'insolar-project.json';
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
@@ -90,7 +91,7 @@ export default function App() {
     const rd = new FileReader();
     rd.onload = () => { try { const d = JSON.parse(rd.result);
       if (d.polyText !== undefined) { setPolyText(d.polyText); setBuilt(parsePoly(d.polyText)); }
-      if (d.tz !== undefined) setTz(d.tz); if (d.fence !== undefined) setFence(String(d.fence));
+      if (d.tz !== undefined) setTz(d.tz); if (d.fence !== undefined) setFence(String(d.fence)); if (d.fenceCustom !== undefined) setFenceCustom(String(d.fenceCustom));
       if (Array.isArray(d.buildings)) setBuildings(d.buildings);
       if (d.date) setDate(d.date); if (d.minutes !== undefined) setMinutes(d.minutes);
       if (d.report) setRp(d.report);
@@ -177,6 +178,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   const winReport = useMemo(() => windowsReport(buildings, lat, lon, tz, y), [buildings, lat, lon, tz, y]);
   const shadowAz = (azDeg + 180) % 360;
   const fmtLen = L => !isFinite(L) ? '∞' : L >= 1000 ? '>1 км' : L.toFixed(1) + ' м';
+  const fenceH = fence === 'custom' ? (parseFloat(fenceCustom) || 0) : (parseFloat(fence) || 0);
 
   useEffect(() => {
     if (!playing) { clearInterval(timer.current); return; }
@@ -192,6 +194,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     const d = new Date(Date.now() + tz * 3600000);
     setDate(d.toISOString().slice(0, 10)); setMinutes(d.getUTCHours() * 60 + d.getUTCMinutes());
   }
+  // бесплатно доступна только сегодняшняя дата — фиксируем её, когда Pro выключен
+  useEffect(() => { if (!pro) { const d = new Date(Date.now() + tz * 3600000); setDate(d.toISOString().slice(0, 10)); } }, [pro, tz]);
   function build() { const p = parsePoly(polyText); if (!p) { alert('Нужно минимум 3 точки: широта долгота'); return; } setBuilt(p); if (p.lon0) setTz(Math.round(p.lon0 / 15)); }
 
   const clock = String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
@@ -206,9 +210,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
-        {planOpen && <PlanEditor poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
+        {planOpen && <PlanEditor poly={poly} fenceH={fenceH} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
         {mapOpen && <MapView polyText={polyText} onClose={() => setMapOpen(false)} />}
-        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={parseFloat(fence) || 0} buildings={buildings} onBuildings={setBuildings}
+        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={fenceH} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
           windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode}
@@ -323,13 +327,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДАТА И ВРЕМЯ</Text>
               <Flex gap="2" mt="1">
-                <TextField.Root type="date" value={date} onChange={e => setDate(e.target.value)} style={{ flex: 1 }} />
+                <TextField.Root type="date" value={date} onChange={e => setDate(e.target.value)} disabled={!pro} style={{ flex: 1 }} />
                 <TextField.Root type="number" value={tz} onChange={e => setTz(parseFloat(e.target.value) || 0)} style={{ width: 84 }} />
               </Flex>
               <Flex gap="2" mt="2">
-                <Button onClick={() => { setPlaying(false); setNow(); }}><ResetIcon /> Сейчас</Button>
-                <Button variant={playing ? 'solid' : 'soft'} color={playing ? 'red' : 'grass'} onClick={() => setPlaying(p => !p)}>{playing ? <><PauseIcon /> Стоп</> : <><PlayIcon /> Реальное время</>}</Button>
+                <Button onClick={setNow}><ResetIcon /> Сейчас</Button>
               </Flex>
+              {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Другая дата — в Pro. Бесплатно: сегодня и время суток на таймбаре.</Text>}
             </Box>
             <Separator size="4" />
             <Box>
@@ -337,10 +341,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Select.Root value={fence} onValueChange={setFence}>
                 <Select.Trigger mt="1" style={{ width: '100%' }} />
                 <Select.Content>
-                  <Select.Item value="0">Нет</Select.Item><Select.Item value="1.8">1.8 м</Select.Item>
-                  <Select.Item value="2">2 м</Select.Item><Select.Item value="2.2">2.2 м</Select.Item>
+                  <Select.Item value="0">Нет</Select.Item>
+                  <Select.Item value="1.8">1.8 м</Select.Item>
+                  <Select.Item value="custom" disabled={!pro}>Свой размер (Pro)</Select.Item>
                 </Select.Content>
               </Select.Root>
+              {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
             </Box>
             <Separator size="4" />
             <Box>
@@ -370,14 +376,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Select.Content>
               </Select.Root>
               <Flex gap="2" mt="2">
-                <Button onClick={addPreset} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
-                <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
+                <Button onClick={addPreset} disabled={!pro} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
+                <Button variant="soft" color="gray" onClick={() => setPlanOpen(true)} disabled={!pro} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
               </Flex>
-              <Flex gap="2" mt="2">
-                <Button size="1" variant={plantMode === 'tree' ? 'solid' : 'soft'} color={plantMode === 'tree' ? 'grass' : 'gray'} onClick={() => setPlantMode(m => m === 'tree' ? null : 'tree')} style={{ flex: 1 }}>🌳 Дерево</Button>
-                <Button size="1" variant={plantMode === 'bush' ? 'solid' : 'soft'} color={plantMode === 'bush' ? 'grass' : 'gray'} onClick={() => setPlantMode(m => m === 'bush' ? null : 'bush')} style={{ flex: 1 }}>🌿 Куст</Button>
-              </Flex>
-              {plantMode && <Text size="1" color="grass" mt="1" style={{ display: 'block' }}>Кликайте по участку, чтобы посадить {plantMode === 'tree' ? 'дерево' : 'куст'}. Кнопку ещё раз — чтобы выйти.</Text>}
+              {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Расстановка объектов — в Pro. Бесплатно доступен только участок.</Text>}
               <Flex direction="column" gap="1" mt="2">
                 {buildings.map((b, i) => (
                   <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
@@ -389,47 +391,46 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               </Flex>
             </Box>
             <Separator size="4" />
-            {pro ? (
-              <Box>
-                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА · PRO</Text>
-                <Box mt="2">
-                  <Flex align="center" justify="between" asChild>
-                    <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                      <Flex align="center" gap="2"><LayersIcon /> 3D-аналитика поверхностей</Flex>
-                      <Switch checked={analytics} onCheckedChange={setAnalytics} />
-                    </Text>
+            <Box>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>3D-АНАЛИТИКА</Text>
+              <Box mt="2">
+                <Flex align="center" justify="between" asChild>
+                  <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: pro ? 'pointer' : 'default' }}>
+                    <Flex align="center" gap="2"><LayersIcon /> 3D-аналитика поверхностей</Flex>
+                    <Switch checked={pro && analytics} disabled={!pro} onCheckedChange={v => setAnalytics(v)} />
+                  </Text>
+                </Flex>
+                {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Включается в Pro.</Text>}
+                {pro && analytics && <>
+                  <Flex gap="2" mt="2" align="center">
+                    <Text size="1" color="gray">Месяцы</Text>
+                    <Select.Root value={String(anM1)} onValueChange={v => setAnM1(+v)}>
+                      <Select.Trigger variant="soft" style={{ flex: 1 }} />
+                      <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
+                    </Select.Root>
+                    <Text size="1" color="gray">–</Text>
+                    <Select.Root value={String(anM2)} onValueChange={v => setAnM2(+v)}>
+                      <Select.Trigger variant="soft" style={{ flex: 1 }} />
+                      <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
+                    </Select.Root>
                   </Flex>
-                  {analytics && <>
-                    <Flex gap="2" mt="2" align="center">
-                      <Text size="1" color="gray">Месяцы</Text>
-                      <Select.Root value={String(anM1)} onValueChange={v => setAnM1(+v)}>
-                        <Select.Trigger variant="soft" style={{ flex: 1 }} />
-                        <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
-                      </Select.Root>
-                      <Text size="1" color="gray">–</Text>
-                      <Select.Root value={String(anM2)} onValueChange={v => setAnM2(+v)}>
-                        <Select.Trigger variant="soft" style={{ flex: 1 }} />
-                        <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
-                      </Select.Root>
-                    </Flex>
-                    <Text as="label" size="1" color="gray" mt="2" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <input type="checkbox" checked={anDiff} onChange={e => setAnDiff(e.target.checked)} /> учитывать рассеянный свет
-                    </Text>
-                  </>}
-                </Box>
-
-                <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ПРОЕКТ</Text>
+                  <Text as="label" size="1" color="gray" mt="2" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <input type="checkbox" checked={anDiff} onChange={e => setAnDiff(e.target.checked)} /> учитывать рассеянный свет
+                  </Text>
+                </>}
+              </Box>
+            </Box>
+            {pro && <>
+              <Separator size="4" />
+              <Box>
+                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОЕКТ</Text>
                 <Flex gap="2" mt="1">
                   <Button variant="soft" color="gray" onClick={saveProject} style={{ flex: 1 }}><DownloadIcon /> Сохранить</Button>
                   <Button variant="soft" color="gray" onClick={() => openFile.current.click()} style={{ flex: 1 }}><UploadIcon /> Открыть</Button>
                   <input ref={openFile} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; }} />
                 </Flex>
               </Box>
-            ) : (
-              <Box style={{ border: '1px dashed var(--gray-a6)', borderRadius: 10, padding: 12 }}>
-                <Text size="1" color="gray">🔒 Pro-режим: 3D-аналитика поверхностей, нормативный отчёт (PDF) и сохранение проекта. Включите кнопкой «Pro» вверху.</Text>
-              </Box>
-            )}
+            </>}
           </Flex>
         </Card>
 
@@ -480,7 +481,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           </Flex>
           </Box>
           <Box style={{ paddingTop: 22, marginTop: -14, position: 'relative', background: 'linear-gradient(to top, var(--color-panel-solid) 58%, transparent)' }}>
-            <Dialog.Root>
+            {!pro
+              ? <Button style={{ width: '100%' }} disabled><FileTextIcon /> Скачать PDF отчёт (Pro)</Button>
+              : <Dialog.Root>
               <Dialog.Trigger><Button style={{ width: '100%' }}><FileTextIcon /> Скачать PDF отчёт</Button></Dialog.Trigger>
               <Dialog.Content maxWidth="440px">
                 <Dialog.Title>Нормативный отчёт по инсоляции</Dialog.Title>
@@ -495,7 +498,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   <Dialog.Close><Button onClick={openReport}><FileTextIcon /> Сформировать</Button></Dialog.Close>
                 </Flex>
               </Dialog.Content>
-            </Dialog.Root>
+            </Dialog.Root>}
           </Box>
         </Card>
 

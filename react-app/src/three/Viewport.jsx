@@ -209,6 +209,11 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const upH = () => { gd.on = false; orbit.drag = false; };
     cvs.addEventListener('mousedown', down); addEventListener('mousemove', move); addEventListener('mouseup', upH);
     cvs.addEventListener('wheel', e => { orbit.r *= (1 + Math.sign(e.deltaY) * 0.08); orbit.r = Math.max(60, Math.min(500, orbit.r)); e.preventDefault(); }, { passive: false });
+    // удаление выбранного объекта клавишей Delete/Backspace
+    const keyH = e => { const t = e.target, tag = t && t.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+      if ((e.key === 'Delete' || e.key === 'Backspace') && sel.ci >= 0) { const i = sel.ci; sel.ci = -1; while (gizmo.children.length) gizmo.remove(gizmo.children[0]);
+        onRef.current && onRef.current(bRef.current.filter((_, k) => k !== i)); } };
+    addEventListener('keydown', keyH);
 
     function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
     resize(); addEventListener('resize', resize);
@@ -219,7 +224,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       renderer.render(scene, camera); })();
 
     api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, dispose() {
-      cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize);
+      cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH);
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
     return () => api.current.dispose();
