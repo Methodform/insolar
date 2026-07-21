@@ -40,7 +40,7 @@ export default function SunPath({ lat = 55.75, lon = 37.62, tz = 3, year = 2025,
   // участок на земле (косая проекция плоскости): С→лево, В→вверх
   let plotPath = null; const base = (poly && poly.length >= 3) ? poly : null;
   if (base) { let mx = 0; base.forEach(p => mx = Math.max(mx, Math.abs(p[0]), Math.abs(p[1])));
-    const s = mx ? 48 / mx : 1;
+    const s = mx ? 72 / mx : 1;
     // центр участка в центре купола (cx, cy); косая проекция плоскости земли
     const gp = ([e, n]) => [cx - n * s + e * s * 0.4, cy - e * s * 0.5];
     plotPath = path(base.map(gp)) + ' Z'; }

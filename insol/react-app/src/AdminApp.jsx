@@ -3,7 +3,8 @@ import { Theme, Flex, Box, Grid, Card, Heading, Text, Badge, Button, IconButton,
   TextField, Select, Separator, Table, Tabs, Tooltip } from '@radix-ui/themes';
 import { DashboardIcon, PersonIcon, BarChartIcon, RocketIcon, ChatBubbleIcon,
   MixIcon, MagnifyingGlassIcon, SunIcon, MoonIcon, ArrowUpIcon, ArrowDownIcon,
-  DownloadIcon, CheckCircledIcon, CrossCircledIcon, ClockIcon, DotFilledIcon } from '@radix-ui/react-icons';
+  DownloadIcon, CheckCircledIcon, CrossCircledIcon, ClockIcon, DotFilledIcon,
+  HomeIcon, FileTextIcon, Share1Icon, EyeOpenIcon, EyeNoneIcon, Pencil2Icon, PlusIcon } from '@radix-ui/react-icons';
 
 /* ======================================================================
    Инсоляр — админ-панель (демо-данные).
@@ -113,6 +114,57 @@ const INIT_PROMOS = [
   { code: 'VESNA24', kind: 'Скидка %', value: 20, uses: 210, limit: 210, expires: new Date('2026-05-01'), active: false },
 ];
 
+// --- проекты участков (сохранённые пользователями планы) ---
+const CITIES = ['Самара', 'Тольятти', 'Казань', 'Уфа', 'Москва', 'Подольск', 'Тюмень', 'Краснодар', 'Ростов-на-Дону', 'Новосибирск', 'Екатеринбург', 'Пермь', 'Воронеж', 'Сызрань', 'Чапаевск'];
+const PROJ_STATUS = {
+  published: { label: 'опубликован', color: 'grass' },
+  shared:    { label: 'по ссылке',   color: 'blue' },
+  draft:     { label: 'черновик',    color: 'gray' },
+  flagged:   { label: 'жалоба',      color: 'amber' },
+  hidden:    { label: 'скрыт',       color: 'red' },
+};
+// проекты выводятся детерминированно из пользователей (у каждого — его участки)
+function genProjects(users) {
+  const r = mulberry32(4242);
+  const out = []; let k = 0;
+  users.forEach(u => {
+    for (let i = 0; i < u.plots; i++) {
+      const area = Math.round((4 + r() * 26) * 100); // 400–3000 м²
+      const objects = Math.floor(r() * 7);
+      const shared = r() < 0.38;
+      const normOk = r() < 0.71;
+      const flagged = r() < 0.05;
+      const hidden = r() < 0.03;
+      const createdAgo = Math.floor(r() * Math.max(1, Math.round((NOW - u.reg) / DAY)));
+      const created = new Date(NOW - createdAgo * DAY);
+      const status = hidden ? 'hidden' : flagged ? 'flagged' : shared ? 'shared' : (u.plan === 'free' ? 'draft' : 'published');
+      out.push({
+        id: 'P' + String(5000 + k++), owner: u.email, ownerName: u.name, segment: u.segment,
+        city: pick(r, CITIES), area, objects, shared, normOk, status,
+        views: shared ? 3 + Math.floor(r() * 120) : 0, created,
+      });
+    }
+  });
+  return out.sort((a, b) => b.created - a.created);
+}
+
+// --- контент / блог (SEO-кластеры из gtm-роадмапа) ---
+const CLUSTERS = ['Куда поставить дом', 'Отступы от забора', 'Тень от дома', 'Инсоляция и СанПиН', 'Сад и огород по солнцу'];
+const INIT_ARTICLES = [
+  { id: 'A1', title: 'Инсоляция участка: что это и зачем считать до стройки', slug: 'insolyaciya', cluster: 'Инсоляция и СанПиН', kw: 'инсоляция участка, нормы инсоляции', status: 'published', author: 'Marat', date: new Date('2026-07-20'), views: 1840 },
+  { id: 'A2', title: 'Куда поставить дом на участке, чтобы не жить в тени', slug: 'kuda-postavit-dom', cluster: 'Куда поставить дом', kw: 'куда поставить дом, ориентация дома по сторонам света', status: 'published', author: 'Marat', date: new Date('2026-07-12'), views: 3120 },
+  { id: 'A3', title: 'Отступы от забора и границ участка: нормы 2026', slug: 'otstupy-ot-zabora', cluster: 'Отступы от забора', kw: 'отступ от забора, СП 53.13330, расстояние до соседа', status: 'published', author: 'Marat', date: new Date('2026-07-04'), views: 2670 },
+  { id: 'A4', title: 'Как посчитать длину тени от дома и забора', slug: 'dlina-teni-ot-doma', cluster: 'Тень от дома', kw: 'длина тени от дома, тень от забора', status: 'published', author: 'Marat', date: new Date('2026-06-22'), views: 1490 },
+  { id: 'A5', title: 'Где разбить огород: солнечные и теневые зоны участка', slug: 'ogorod-po-solncu', cluster: 'Сад и огород по солнцу', kw: 'где разбить огород, солнечная сторона участка', status: 'draft', author: 'Marat', date: new Date('2026-07-19'), views: 0 },
+  { id: 'A6', title: 'СанПиН 1.2.3685-21 по инсоляции простыми словами', slug: 'sanpin-insolyaciya', cluster: 'Инсоляция и СанПиН', kw: 'СанПиН инсоляция, нормы инсоляции жилых помещений', status: 'draft', author: 'Marat', date: new Date('2026-07-21'), views: 0 },
+  { id: 'A7', title: 'Расстояние между домами соседей: противопожарные нормы', slug: 'rasstoyanie-mezhdu-domami', cluster: 'Отступы от забора', kw: 'расстояние между домами, противопожарные нормы СП 4.13130', status: 'review', author: 'Marat', date: new Date('2026-07-17'), views: 0 },
+];
+const ART_STATUS = {
+  published: { label: 'опубликована', color: 'grass' },
+  review:    { label: 'на проверке',  color: 'amber' },
+  draft:     { label: 'черновик',     color: 'gray' },
+};
+
 /* --------------------------- мини-графики (SVG) --------------------------- */
 function StackedBars({ series, keys, height = 170, fmt = shortNum }) {
   const W = 620, H = height, padL = 40, padB = 22, padT = 10;
@@ -207,6 +259,8 @@ export default function AdminApp() {
   const txns = useMemo(() => genTxns(users), [users]);
   const [promos, setPromos] = useState(INIT_PROMOS);
   const [feedback, setFeedback] = useState(FEEDBACK);
+  const [projects, setProjects] = useState(() => genProjects(genUsers(64)));
+  const [articles, setArticles] = useState(INIT_ARTICLES);
 
   // ------- агрегаты -------
   const m = useMemo(() => {
@@ -261,8 +315,10 @@ export default function AdminApp() {
   const NAVI = [
     { k: 'overview', label: 'Обзор', icon: <DashboardIcon /> },
     { k: 'users', label: 'Пользователи', icon: <PersonIcon /> },
+    { k: 'projects', label: 'Проекты участков', icon: <HomeIcon /> },
     { k: 'finance', label: 'Финансы и платежи', icon: <BarChartIcon /> },
     { k: 'analytics', label: 'Продуктовая аналитика', icon: <RocketIcon /> },
+    { k: 'content', label: 'Контент и блог', icon: <FileTextIcon /> },
     { k: 'support', label: 'Поддержка и фидбек', icon: <ChatBubbleIcon /> },
     { k: 'promo', label: 'Промокоды и тарифы', icon: <MixIcon /> },
   ];
@@ -295,8 +351,10 @@ export default function AdminApp() {
         <Box style={{ flex: 1, minWidth: 0, padding: 24, maxWidth: 1180 }}>
           {nav === 'overview' && <Overview m={m} trends={trends} planDist={planDist} funnel={funnel} productKpis={productKpis} />}
           {nav === 'users' && <Users users={users} setUsers={setUsers} />}
+          {nav === 'projects' && <Projects projects={projects} setProjects={setProjects} />}
           {nav === 'finance' && <Finance m={m} trends={trends} txns={txns} />}
           {nav === 'analytics' && <Analytics funnel={funnel} productKpis={productKpis} m={m} trends={trends} />}
+          {nav === 'content' && <Content articles={articles} setArticles={setArticles} />}
           {nav === 'support' && <Support feedback={feedback} setFeedback={setFeedback} />}
           {nav === 'promo' && <Promo promos={promos} setPromos={setPromos} users={users} setUsers={setUsers} />}
         </Box>
@@ -420,6 +478,88 @@ function Users({ users, setUsers }) {
   );
 }
 
+/* --------------------------- ПРОЕКТЫ УЧАСТКОВ --------------------------- */
+function Projects({ projects, setProjects }) {
+  const [q, setQ] = useState('');
+  const [st, setSt] = useState('all');
+  const rows = projects.filter(p =>
+    (st === 'all' || p.status === st) &&
+    (!q || p.owner.toLowerCase().includes(q.toLowerCase()) || p.ownerName.toLowerCase().includes(q.toLowerCase()) ||
+      p.id.toLowerCase().includes(q.toLowerCase()) || p.city.toLowerCase().includes(q.toLowerCase())));
+  const sharedN = projects.filter(p => p.shared).length;
+  const moderation = projects.filter(p => p.status === 'flagged' || p.status === 'hidden').length;
+  const normPct = Math.round(projects.filter(p => p.normOk).length / Math.max(1, projects.length) * 100);
+  const avgObj = (projects.reduce((a, p) => a + p.objects, 0) / Math.max(1, projects.length)).toFixed(1);
+  const toggleHide = id => setProjects(ps => ps.map(p => p.id === id
+    ? { ...p, status: p.status === 'hidden' ? (p.shared ? 'shared' : 'published') : 'hidden' } : p));
+  return (
+    <>
+      <Heading size="6" mb="1">Проекты участков</Heading>
+      <Text size="2" color="gray" as="p" mb="4">Сохранённые пользователями участки: просмотр, шаринг-ссылки и модерация. {rows.length} из {projects.length}.</Text>
+      <Grid columns={{ initial: '2', md: '4' }} gap="3" mb="4">
+        <Kpi label="Всего участков" value={projects.length} delta={9} />
+        <Kpi label="Расшарено ссылкой" value={sharedN} sub={Math.round(sharedN / Math.max(1, projects.length) * 100) + '% от всех'} />
+        <Kpi label="Соответствуют СанПиН" value={normPct + '%'} />
+        <Kpi label="На модерации" value={moderation} sub="жалобы + скрытые" />
+      </Grid>
+      <Section title="" right={
+        <Flex gap="2" wrap="wrap">
+          <TextField.Root placeholder="Поиск: владелец, ID, город" value={q} onChange={e => setQ(e.target.value)} style={{ width: 240 }}>
+            <TextField.Slot><MagnifyingGlassIcon /></TextField.Slot></TextField.Root>
+          <Select.Root value={st} onValueChange={setSt}><Select.Trigger placeholder="Статус" />
+            <Select.Content><Select.Item value="all">Все статусы</Select.Item>
+              {Object.keys(PROJ_STATUS).map(s => <Select.Item key={s} value={s}>{PROJ_STATUS[s].label}</Select.Item>)}</Select.Content></Select.Root>
+        </Flex>
+      }>
+        <Table.Root variant="surface" size="1">
+          <Table.Header><Table.Row>
+            <Table.ColumnHeaderCell>Участок</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Владелец</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Регион</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell align="right">Площадь</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell align="right">Объектов</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Норма</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell align="right">Просм.</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Статус</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Действия</Table.ColumnHeaderCell>
+          </Table.Row></Table.Header>
+          <Table.Body>
+            {rows.slice(0, 40).map(p => (
+              <Table.Row key={p.id}>
+                <Table.Cell>
+                  <Flex align="center" gap="1">
+                    <Text size="2" weight="medium">{p.id}</Text>
+                    {p.shared && <Tooltip content="Открыта по ссылке"><Share1Icon color="var(--blue-9)" /></Tooltip>}
+                  </Flex>
+                  <Text size="1" color="gray">создан {dstr(p.created)}</Text>
+                </Table.Cell>
+                <Table.Cell><Text size="2" style={{ display: 'block' }}>{p.ownerName}</Text><Text size="1" color="gray">{p.segment}</Text></Table.Cell>
+                <Table.Cell><Text size="1">{p.city}</Text></Table.Cell>
+                <Table.Cell align="right"><Text size="2">{p.area.toLocaleString('ru-RU')} м²</Text></Table.Cell>
+                <Table.Cell align="right"><Text size="2">{p.objects}</Text></Table.Cell>
+                <Table.Cell>{p.normOk
+                  ? <Badge variant="soft" color="grass"><CheckCircledIcon width="12" /> ок</Badge>
+                  : <Badge variant="soft" color="red"><CrossCircledIcon width="12" /> ниже</Badge>}</Table.Cell>
+                <Table.Cell align="right"><Text size="1" color="gray">{p.views || '—'}</Text></Table.Cell>
+                <Table.Cell><Badge variant="soft" color={PROJ_STATUS[p.status].color}>{PROJ_STATUS[p.status].label}</Badge></Table.Cell>
+                <Table.Cell>
+                  <Flex gap="1">
+                    <Tooltip content="Открыть участок"><IconButton size="1" variant="soft" color="gray"><EyeOpenIcon /></IconButton></Tooltip>
+                    <Tooltip content={p.status === 'hidden' ? 'Вернуть' : 'Скрыть (модерация)'}>
+                      <IconButton size="1" variant="soft" color={p.status === 'hidden' ? 'grass' : 'amber'} onClick={() => toggleHide(p.id)}>
+                        {p.status === 'hidden' ? <EyeOpenIcon /> : <EyeNoneIcon />}</IconButton></Tooltip>
+                  </Flex>
+                </Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Root>
+        {rows.length > 40 && <Text size="1" color="gray" mt="2" style={{ display: 'block' }}>Показаны первые 40. Уточните фильтр.</Text>}
+      </Section>
+    </>
+  );
+}
+
 /* --------------------------- ФИНАНСЫ И ПЛАТЕЖИ --------------------------- */
 function Finance({ m, trends, txns }) {
   const [f, setF] = useState('all');
@@ -496,6 +636,86 @@ function Analytics({ funnel, productKpis, m, trends }) {
           </Grid>
         </Section>
       </Grid>
+    </>
+  );
+}
+
+/* --------------------------- КОНТЕНТ И БЛОГ --------------------------- */
+function Content({ articles, setArticles }) {
+  const [title, setTitle] = useState('');
+  const [cluster, setCluster] = useState(CLUSTERS[0]);
+  const [kw, setKw] = useState('');
+  const [f, setF] = useState('all');
+  const add = () => {
+    if (!title.trim()) return;
+    const slug = translit(title.trim()).replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 42) || 'novaya-statya';
+    setArticles(a => [{ id: 'A' + (5000 + a.length), title: title.trim(), slug, cluster, kw: kw.trim(), status: 'draft', author: 'Marat', date: new Date(NOW), views: 0 }, ...a]);
+    setTitle(''); setKw('');
+  };
+  const cycle = id => setArticles(a => a.map(x => x.id === id ? { ...x, status: x.status === 'draft' ? 'review' : x.status === 'review' ? 'published' : 'draft' } : x));
+  const list = articles.filter(x => f === 'all' || x.status === f);
+  const published = articles.filter(a => a.status === 'published').length;
+  const pending = articles.filter(a => a.status !== 'published').length;
+  const totalViews = articles.reduce((s, a) => s + a.views, 0);
+  return (
+    <>
+      <Heading size="6" mb="1">Контент и блог</Heading>
+      <Text size="2" color="gray" as="p" mb="4">SEO-статьи под кластеры запросов. Черновик → на проверку → публикация.</Text>
+      <Grid columns={{ initial: '2', md: '4' }} gap="3" mb="4">
+        <Kpi label="Опубликовано" value={published} delta={14} />
+        <Kpi label="В работе" value={pending} sub="черновики + проверка" />
+        <Kpi label="Просмотры (всего)" value={shortNum(totalViews)} delta={22} />
+        <Kpi label="Кластеров" value={CLUSTERS.length} />
+      </Grid>
+
+      <Section title="Новая статья" desc="Быстрое создание черновика под SEO-кластер">
+        <Flex gap="2" wrap="wrap" align="end">
+          <Box style={{ flex: '2 1 260px' }}><Text size="1" color="gray">Заголовок</Text>
+            <TextField.Root placeholder="Напр. Как выбрать место для бани" value={title} onChange={e => setTitle(e.target.value)} /></Box>
+          <Box><Text size="1" color="gray">Кластер</Text>
+            <Select.Root value={cluster} onValueChange={setCluster}><Select.Trigger />
+              <Select.Content>{CLUSTERS.map(c => <Select.Item key={c} value={c}>{c}</Select.Item>)}</Select.Content></Select.Root></Box>
+          <Box style={{ flex: '1 1 200px' }}><Text size="1" color="gray">Ключевые слова</Text>
+            <TextField.Root placeholder="через запятую" value={kw} onChange={e => setKw(e.target.value)} /></Box>
+          <Button onClick={add}><PlusIcon /> Создать черновик</Button>
+        </Flex>
+      </Section>
+
+      <Section title="Статьи" right={
+        <Select.Root value={f} onValueChange={setF}><Select.Trigger placeholder="Статус" />
+          <Select.Content><Select.Item value="all">Все</Select.Item>
+            {Object.keys(ART_STATUS).map(s => <Select.Item key={s} value={s}>{ART_STATUS[s].label}</Select.Item>)}</Select.Content></Select.Root>
+      }>
+        <Table.Root variant="surface" size="1">
+          <Table.Header><Table.Row>
+            <Table.ColumnHeaderCell>Статья</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Кластер</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Дата</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell align="right">Просм.</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell>Статус</Table.ColumnHeaderCell>
+          </Table.Row></Table.Header>
+          <Table.Body>
+            {list.map(x => (
+              <Table.Row key={x.id}>
+                <Table.Cell>
+                  <Text size="2" weight="medium" style={{ display: 'block' }}>{x.title}</Text>
+                  <Text size="1" color="gray">/blog/{x.slug} · {x.kw || 'ключи не заданы'}</Text>
+                </Table.Cell>
+                <Table.Cell><Badge variant="soft" color="grass">{x.cluster}</Badge></Table.Cell>
+                <Table.Cell><Text size="1">{dstr(x.date)}</Text></Table.Cell>
+                <Table.Cell align="right"><Text size="1" color="gray">{x.views ? x.views.toLocaleString('ru-RU') : '—'}</Text></Table.Cell>
+                <Table.Cell>
+                  <Tooltip content="Сменить статус">
+                    <Button size="1" variant="soft" color={ART_STATUS[x.status].color} onClick={() => cycle(x.id)}>
+                      {x.status === 'published' ? <EyeOpenIcon /> : x.status === 'review' ? <ClockIcon /> : <Pencil2Icon />}{ART_STATUS[x.status].label}</Button>
+                  </Tooltip>
+                </Table.Cell>
+              </Table.Row>
+            ))}
+          </Table.Body>
+        </Table.Root>
+        <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Кластеры: {CLUSTERS.join(' · ')}. Контент-план — 10–15 статей (см. gtm-roadmap).</Text>
+      </Section>
     </>
   );
 }
