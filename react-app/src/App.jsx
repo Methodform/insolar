@@ -446,7 +446,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <Flex direction="column" gap="2">
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
-            <SunPath year={y} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} poly={poly} />
+            <SunPath year={y} mo={mo} da={da} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} poly={poly} />
             <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em' }}>ПОЛОЖЕНИЕ СЕЙЧАС</Text>
             <Stat k="Азимут" v={azDeg.toFixed(1) + '°'} />
             <Stat k="Высота" v={altDeg.toFixed(1) + '°'} />

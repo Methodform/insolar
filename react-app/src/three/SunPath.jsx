@@ -3,7 +3,7 @@ import { sunPosition, compassAz, getTimes, localToUTC } from '../engine/astronom
 
 // Небесный купол: горизонт, меридиан, сезонные дуги солнца, стороны света и форма участка.
 // Проекция косая: С(север)→лево, Ю→право, В→вверх(глубина), З→вниз, зенит вверх по центру.
-export default function SunPath({ lat = 55.75, lon = 37.62, tz = 3, year = 2025, curAz = 0, curAlt = -90, poly = null }) {
+export default function SunPath({ lat = 55.75, lon = 37.62, tz = 3, year = 2025, mo = 6, da = 21, curAz = 0, curAlt = -90, poly = null }) {
   const W = 320, H = 250, cx = 160, cy = 158, Rx = 132, Rd = 40, Rz = 128;
   const rad = d => d * Math.PI / 180;
   const proj = (A, h) => { const a = rad(A), hr = rad(h), ch = Math.cos(hr);
@@ -31,6 +31,8 @@ export default function SunPath({ lat = 55.75, lon = 37.62, tz = 3, year = 2025,
     { az: arc(11, 21), label: '22 дек.', col: '#c9761c' },
   ].map(s => { let mx = -1, top = null; s.az.forEach(([A, h]) => { if (h > mx) { mx = h; top = [A, h]; } });
     return { ...s, pts: s.az.map(([A, h]) => proj(A, h)), noon: top ? proj(top[0], top[1]) : null }; });
+  // траектория текущего дня — по ней движется точка солнца
+  const todayArc = arc(mo - 1, da).map(([A, h]) => proj(A, h));
 
   // стороны света
   const dirs = [['С', 0], ['СВ', 45], ['В', 90], ['ЮВ', 135], ['Ю', 180], ['ЮЗ', 225], ['З', 270], ['СЗ', 315]];
@@ -38,8 +40,9 @@ export default function SunPath({ lat = 55.75, lon = 37.62, tz = 3, year = 2025,
   // участок на земле (косая проекция плоскости): С→лево, В→вверх
   let plotPath = null; const base = (poly && poly.length >= 3) ? poly : null;
   if (base) { let mx = 0; base.forEach(p => mx = Math.max(mx, Math.abs(p[0]), Math.abs(p[1])));
-    const s = mx ? 26 / mx : 1, gy = cy + 30;
-    const gp = ([e, n]) => [cx - n * s + e * s * 0.45, gy - e * s * 0.55];
+    const s = mx ? 24 / mx : 1;
+    // центр участка в центре купола (cx, cy); косая проекция плоскости земли
+    const gp = ([e, n]) => [cx - n * s + e * s * 0.4, cy - e * s * 0.5];
     plotPath = path(base.map(gp)) + ' Z'; }
 
   const cur = curAlt > 0 ? proj(curAz, curAlt) : null;
@@ -55,6 +58,8 @@ export default function SunPath({ lat = 55.75, lon = 37.62, tz = 3, year = 2025,
       <path d={path(ewArc)} fill="none" stroke={guide} strokeWidth="1" strokeDasharray="4 4" />
       {/* сезонные дуги */}
       {seasons.map((s, i) => <path key={i} d={path(s.pts)} fill="none" stroke={s.col} strokeWidth="2.2" strokeLinecap="round" />)}
+      {/* траектория текущего дня (по ней идёт точка солнца) */}
+      {todayArc.length > 1 && <path d={path(todayArc)} fill="none" stroke="#ffcf33" strokeWidth="1.4" strokeDasharray="3 3" strokeLinecap="round" />}
       {/* диски солнца в полдень + подпись */}
       {seasons.map((s, i) => s.noon && (
         <g key={'n' + i}>
