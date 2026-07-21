@@ -629,31 +629,24 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
         {/* мобильная нижняя панель вкладок */}
         {mobile && (
-          <Flex gap="1" align="center" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 56, zIndex: 22, background: 'var(--color-panel-solid)', borderTop: '1px solid var(--gray-a4)', padding: '6px 6px' }}>
+          <Flex align="stretch" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 58, zIndex: 22, background: 'var(--color-panel-solid)', borderTop: '1px solid var(--gray-a4)' }}>
             {[
-              { k: 'plot', label: 'Участок', icon: <HomeIcon /> },
-              { k: 'sun', label: 'Солнце', icon: <SunIcon /> },
-            ].map(t => (
-              <Button key={t.k} style={{ flex: 1, flexDirection: 'column', height: 'auto', gap: 2, padding: '4px 0' }} size="1"
-                variant={panel === t.k ? 'solid' : 'soft'} color={panel === t.k ? 'grass' : 'gray'}
-                onClick={() => setPanel(p => p === t.k ? null : t.k)}>
-                {t.icon}<span style={{ fontSize: 10 }}>{t.label}</span>
-              </Button>
-            ))}
-            <Button style={{ flex: '0 0 60px', flexDirection: 'column', height: 48, gap: 1, borderRadius: 12 }}
-              variant={panel === null ? 'solid' : 'soft'} color="grass" onClick={() => setPanel(null)}>
-              <span style={{ fontWeight: 800, fontSize: 15 }}>3D</span><span style={{ fontSize: 9 }}>сцена</span>
-            </Button>
-            {[
-              { k: 'rec', label: 'Советы', icon: <SewingPinFilledIcon /> },
-              { k: 'profile', label: 'Профиль', icon: <PersonIcon /> },
-            ].map(t => (
-              <Button key={t.k} style={{ flex: 1, flexDirection: 'column', height: 'auto', gap: 2, padding: '4px 0' }} size="1"
-                variant={panel === t.k ? 'solid' : 'soft'} color={panel === t.k ? 'grass' : 'gray'}
-                onClick={() => setPanel(p => p === t.k ? null : t.k)}>
-                {t.icon}<span style={{ fontSize: 10 }}>{t.label}</span>
-              </Button>
-            ))}
+              { k: 'plot', label: 'Участок', icon: <HomeIcon width="20" height="20" /> },
+              { k: 'sun', label: 'Солнце', icon: <SunIcon width="20" height="20" /> },
+              { k: null, label: 'сцена', icon: <span style={{ fontWeight: 800, fontSize: 17, lineHeight: 1 }}>3D</span>, big: true },
+              { k: 'rec', label: 'Советы', icon: <SewingPinFilledIcon width="20" height="20" /> },
+              { k: 'profile', label: 'Профиль', icon: <PersonIcon width="20" height="20" /> },
+            ].map((t, i) => { const active = panel === t.k;
+              return (
+                <button key={i} onClick={() => setPanel(t.k === null ? null : (panel === t.k ? null : t.k))}
+                  style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                    background: 'transparent', border: 'none', cursor: 'pointer', padding: 0,
+                    color: active ? 'var(--grass-11)' : 'var(--gray-10)' }}>
+                  {t.icon}
+                  <span style={{ fontSize: 10.5, fontWeight: active ? 600 : 400 }}>{t.label}</span>
+                </button>
+              );
+            })}
           </Flex>
         )}
       </Box>
