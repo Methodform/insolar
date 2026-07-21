@@ -575,7 +575,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           <Dialog.Content maxWidth="820px">
             <Dialog.Title>Ваш участок — под рукой круглый год</Dialog.Title>
             <Dialog.Description size="2" color="gray" mb="4">Планируйте сколько угодно: постройки, посадки, пересадки, разные сезоны и годы. Инсоляр считает солнце и тени вживую, а проект остаётся вашим.</Dialog.Description>
-            <Flex gap="3" wrap="wrap">
+            <Flex gap="3" wrap="wrap" direction={mobile ? 'column' : 'row'} align="stretch">
               {[
                 { key: 'free', name: 'Free', price: '0 ₽', sub: 'навсегда', hero: false, badge: null,
                   feats: ['1 участок (по точкам)', 'Сегодня + время суток', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Карта-схема участка'],
@@ -596,7 +596,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   <Text size="6" weight="bold" mt="1" style={{ display: 'block', whiteSpace: 'nowrap' }}>{t.price}</Text>
                   <Text size="1" color="gray" style={{ display: 'block' }}>{t.sub}</Text>
                   <Flex direction="column" gap="1" mt="3">
-                    {t.feats.map((f, i) => <Text key={i} size="1" color="gray" style={{ display: 'flex', gap: 6 }}><CheckIcon /> {f}</Text>)}
+                    {t.feats.map((f, i) => <Text key={i} size="1" color="gray" style={{ display: 'block' }}>{f}</Text>)}
                   </Flex>
                   {t.cta && <Button mt="3" style={{ width: '100%' }} variant={t.key === 'free' ? 'soft' : t.hero ? 'solid' : 'soft'} color={t.key === 'free' ? 'gray' : 'grass'}
                     disabled={t.key === 'free' && !pro}
