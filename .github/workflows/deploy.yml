@@ -25,7 +25,7 @@ jobs:
           node-version: 20
 
       - name: Build React app
-        working-directory: react-app
+        working-directory: insol/react-app
         env:
           VITE_MAPTILER_KEY: ${{ secrets.MAPTILER_KEY }}
         run: |
@@ -35,10 +35,10 @@ jobs:
       - name: Assemble site (vanilla at root, React at /app)
         run: |
           mkdir -p _site/app
-          cp *.html _site/ 2>/dev/null || true
-          cp robots.txt sitemap.xml _site/ 2>/dev/null || true
-          cp -r img _site/ 2>/dev/null || true
-          cp -r react-app/dist/* _site/app/
+          cp insol/*.html _site/ 2>/dev/null || true
+          cp insol/robots.txt insol/sitemap.xml _site/ 2>/dev/null || true
+          cp -r insol/img _site/ 2>/dev/null || true
+          cp -r insol/react-app/dist/* _site/app/
 
       - uses: actions/upload-pages-artifact@v3
         with:
