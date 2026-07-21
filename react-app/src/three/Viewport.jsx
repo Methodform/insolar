@@ -209,6 +209,14 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const upH = () => { gd.on = false; orbit.drag = false; };
     cvs.addEventListener('mousedown', down); addEventListener('mousemove', move); addEventListener('mouseup', upH);
     cvs.addEventListener('wheel', e => { orbit.r *= (1 + Math.sign(e.deltaY) * 0.08); orbit.r = Math.max(60, Math.min(500, orbit.r)); e.preventDefault(); }, { passive: false });
+    // touch: 1 палец — вращение/перетаскивание, 2 пальца — пинч-зум
+    let pinchD = 0;
+    const dist2 = e => { const a = e.touches[0], b = e.touches[1]; return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY); };
+    const tShim = e => { const t = e.touches[0] || e.changedTouches[0]; return { clientX: t.clientX, clientY: t.clientY, target: e.target, button: 0, preventDefault: () => {} }; };
+    const tstart = e => { if (e.touches.length === 2) { pinchD = dist2(e); return; } down(tShim(e)); };
+    const tmove = e => { if (e.touches.length === 2) { const d = dist2(e); if (pinchD) { orbit.r *= pinchD / d; orbit.r = Math.max(60, Math.min(500, orbit.r)); } pinchD = d; e.preventDefault(); return; } if (orbit.drag || gd.on) e.preventDefault(); move(tShim(e)); };
+    const tend = () => { pinchD = 0; upH(); };
+    cvs.addEventListener('touchstart', tstart, { passive: false }); addEventListener('touchmove', tmove, { passive: false }); addEventListener('touchend', tend);
     // удаление выбранного объекта клавишей Delete/Backspace
     const keyH = e => { const t = e.target, tag = t && t.tagName; if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
       if ((e.key === 'Delete' || e.key === 'Backspace') && sel.ci >= 0) { const i = sel.ci; sel.ci = -1; while (gizmo.children.length) gizmo.remove(gizmo.children[0]);
@@ -224,7 +232,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       renderer.render(scene, camera); })();
 
     api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, dispose() {
-      cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH);
+      cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
     return () => api.current.dispose();

@@ -60,6 +60,9 @@ export default function App() {
   const [showWin, setShowWin] = useState(true);
   const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
+  const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767px)').matches);
+  useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(max-width: 767px)'); const h = e => setMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
+  const [panel, setPanel] = useState(null);  // мобильная шторка: 'plot' | 'sun' | null
   const [plotMode, setPlotMode] = useState('points');
   const [cadCode, setCadCode] = useState('');
   const [cadLoading, setCadLoading] = useState(false);
@@ -211,6 +214,17 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     </Flex>
   );
 
+  const sheetBase = { position: 'fixed', left: 8, right: 8, bottom: 120, zIndex: 20, background: 'var(--color-panel-solid)', maxHeight: 'calc(100dvh - 220px)', borderRadius: 16 };
+  const leftCardStyle = mobile
+    ? { ...sheetBase, overflowY: 'auto', display: panel === 'plot' ? 'block' : 'none' }
+    : { position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' };
+  const rightCardStyle = mobile
+    ? { ...sheetBase, display: panel === 'sun' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }
+    : { position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, background: 'var(--color-panel-solid)', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
+  const timebarStyle = mobile
+    ? { position: 'fixed', left: 8, right: 8, bottom: 60, zIndex: 20, background: 'var(--color-panel-solid)' }
+    : { position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' };
+
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
@@ -226,10 +240,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
           background: 'var(--color-panel-solid)', borderBottom: '1px solid var(--gray-a4)' }}>
           <Heading size="4"><Flex align="center" gap="1"><SunIcon width="20" height="20" /> Инсоляр</Flex></Heading>
-          <Text size="2" color="gray">React + Radix · моделирование солнца</Text>
+          {!mobile && <Text size="2" color="gray">React + Radix · моделирование солнца</Text>}
           <Box style={{ flex: 1 }} />
           <Dialog.Root>
-            <Dialog.Trigger><Button variant="soft" color="gray"><RulerHorizontalIcon /> Отступы</Button></Dialog.Trigger>
+            <Dialog.Trigger><Button variant="soft" color="gray"><RulerHorizontalIcon />{!mobile && ' Отступы'}</Button></Dialog.Trigger>
             <Dialog.Content maxWidth="560px">
               <Dialog.Title><Flex align="center" gap="2"><RulerHorizontalIcon /> Нормативные отступы</Flex></Dialog.Title>
               <Dialog.Description size="1" color="gray" mb="2">Ориентировочные минимумы (ИЖС/СНТ). Точные значения — по действующим редакциям СП и местным ПЗЗ.</Dialog.Description>
@@ -255,7 +269,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             </Dialog.Content>
           </Dialog.Root>
           <Dialog.Root>
-            <Dialog.Trigger><Button variant="soft" color="gray"><SewingPinFilledIcon /> Зонирование</Button></Dialog.Trigger>
+            <Dialog.Trigger><Button variant="soft" color="gray"><SewingPinFilledIcon />{!mobile && ' Зонирование'}</Button></Dialog.Trigger>
             <Dialog.Content maxWidth="560px">
               <Dialog.Title><Flex align="center" gap="2"><SewingPinFilledIcon /> Рекомендации по зонированию</Flex></Dialog.Title>
               <Dialog.Description size="1" color="gray" mb="3">Ориентация по сторонам света: где разместить огород, посадки и зону отдыха.</Dialog.Description>
@@ -272,7 +286,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
-          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> Pro активен</> : <><LockOpen1Icon /> Тарифы</>}</Button>
+          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon />{!mobile && ' Pro активен'}</> : <><LockOpen1Icon />{!mobile && ' Тарифы'}</>}</Button>
           <Select.Root value={themeMode} onValueChange={setThemeMode}>
             <Select.Trigger variant="surface" color="gray" />
             <Select.Content>
@@ -284,7 +298,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Flex>
 
         {/* left panel */}
-        <Card size="2" style={{ position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' }}>
+        <Card size="2" style={leftCardStyle}>
           <Flex direction="column" gap="3">
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>УЧАСТОК</Text>
@@ -429,7 +443,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Card>
 
         {/* right panel */}
-        <Card size="2" style={{ position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, background: 'var(--color-panel-solid)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <Card size="2" style={rightCardStyle}>
           <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <Flex direction="column" gap="2">
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
@@ -558,15 +572,23 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Dialog.Root>
 
         {/* timebar */}
-        <Card size="2" style={{ position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' }}>
-          <Flex align="center" gap="4">
-            <Text size="6" weight="bold" style={{ fontVariantNumeric: 'tabular-nums', minWidth: 92 }}>{clock}</Text>
-            <Text size="2" color="gray" style={{ minWidth: 150 }}>{da} {months[mo - 1]} {y} · UTC{tz >= 0 ? '+' : ''}{tz}</Text>
+        <Card size="2" style={timebarStyle}>
+          <Flex align="center" gap={mobile ? '2' : '4'}>
+            <Text size={mobile ? '4' : '6'} weight="bold" style={{ fontVariantNumeric: 'tabular-nums', minWidth: mobile ? 56 : 92 }}>{clock}</Text>
+            {!mobile && <Text size="2" color="gray" style={{ minWidth: 150 }}>{da} {months[mo - 1]} {y} · UTC{tz >= 0 ? '+' : ''}{tz}</Text>}
             <Box style={{ flex: 1 }}>
               <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
             </Box>
           </Flex>
         </Card>
+
+        {/* мобильная нижняя панель вкладок */}
+        {mobile && (
+          <Flex gap="2" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, height: 52, zIndex: 21, background: 'var(--color-panel-solid)', borderTop: '1px solid var(--gray-a4)', padding: '6px 8px' }}>
+            <Button style={{ flex: 1 }} variant={panel === 'plot' ? 'solid' : 'soft'} color={panel === 'plot' ? 'grass' : 'gray'} onClick={() => setPanel(p => p === 'plot' ? null : 'plot')}>Участок</Button>
+            <Button style={{ flex: 1 }} variant={panel === 'sun' ? 'solid' : 'soft'} color={panel === 'sun' ? 'grass' : 'gray'} onClick={() => setPanel(p => p === 'sun' ? null : 'sun')}>Солнце</Button>
+          </Flex>
+        )}
       </Box>
     </Theme>
   );
