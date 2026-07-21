@@ -8,6 +8,8 @@
   /* скрыть скроллбары во всём приложении, сохранив прокрутку */
   *{scrollbar-width:none;-ms-overflow-style:none}
   *::-webkit-scrollbar{width:0;height:0;display:none}
+  /* панельные карточки без рамки/тени псевдоэлемента Radix (::after) */
+  .panel-card::after,.panel-card::before{box-shadow:none!important;border:0!important}
 </style>
 </head>
 <body>

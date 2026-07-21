@@ -297,7 +297,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Flex>
 
         {/* left panel */}
-        <Card size="2" style={leftCardStyle}>
+        <Card size="2" className="panel-card" style={leftCardStyle}>
           <Flex direction="column" gap="3">
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>УЧАСТОК</Text>
@@ -442,7 +442,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Card>
 
         {/* right panel */}
-        <Card size="2" style={rightCardStyle}>
+        <Card size="2" className="panel-card" style={rightCardStyle}>
           <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <Flex direction="column" gap="2">
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
@@ -511,7 +511,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
         {/* мобильная шторка «Рекомендации» */}
         {mobile && (
-          <Card size="2" style={recCardStyle}>
+          <Card size="2" className="panel-card" style={recCardStyle}>
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>РЕКОМЕНДАЦИИ ПО ЗОНИРОВАНИЮ</Text>
             <Box mt="2"><ZoneMap poly={poly} /></Box>
             <Box mt="2">
@@ -545,7 +545,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
         {/* мобильная шторка «Профиль» */}
         {mobile && (
-          <Card size="2" style={profCardStyle}>
+          <Card size="2" className="panel-card" style={profCardStyle}>
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОФИЛЬ</Text>
             <Flex align="center" gap="2" mt="2">
               <Badge color={pro ? 'grass' : 'gray'} size="2">{pro ? 'Pro активен' : 'Бесплатный доступ'}</Badge>
@@ -617,7 +617,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         </Dialog.Root>
 
         {/* timebar */}
-        <Card size="2" style={timebarStyle}>
+        <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '4'}>
             <Text size={mobile ? '4' : '6'} weight="bold" style={{ fontVariantNumeric: 'tabular-nums', minWidth: mobile ? 56 : 92 }}>{clock}</Text>
             {!mobile && <Text size="2" color="gray" style={{ minWidth: 150 }}>{da} {months[mo - 1]} {y} · UTC{tz >= 0 ? '+' : ''}{tz}</Text>}
