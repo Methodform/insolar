@@ -67,7 +67,6 @@ export default function App() {
   const openFile = useRef(null);
 
   async function fetchCadastre() {
-    if (!pro) { openPaywall(); return; }
     const code = cadCode.trim();
     if (!code) { setCadError('Введите кадастровый номер'); return; }
     if (!CADASTRE_PROXY) { setCadError('Прокси не настроен: задайте CADASTRE_PROXY (см. cadastre-proxy/README.md)'); return; }
@@ -199,7 +198,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     setDate(d.toISOString().slice(0, 10)); setMinutes(d.getUTCHours() * 60 + d.getUTCMinutes());
   }
   // бесплатно доступна только сегодняшняя дата — фиксируем её, когда Pro выключен
-  useEffect(() => { if (!pro) { const d = new Date(Date.now() + tz * 3600000); setDate(d.toISOString().slice(0, 10)); setPlotMode('points'); } }, [pro, tz]);
+  useEffect(() => { if (!pro) { const d = new Date(Date.now() + tz * 3600000); setDate(d.toISOString().slice(0, 10)); } }, [pro, tz]);
   function build() { const p = parsePoly(polyText); if (!p) { alert('Нужно минимум 3 точки: широта долгота'); return; } setBuilt(p); if (p.lon0) setTz(Math.round(p.lon0 / 15)); }
 
   const clock = String(Math.floor(minutes / 60)).padStart(2, '0') + ':' + String(minutes % 60).padStart(2, '0');
@@ -290,7 +289,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>УЧАСТОК</Text>
               <Flex gap="2" mt="1">
                 <Button size="1" variant={plotMode === 'points' ? 'solid' : 'soft'} color={plotMode === 'points' ? 'grass' : 'gray'} onClick={() => setPlotMode('points')} style={{ flex: 1 }}>По точкам</Button>
-                <Button size="1" variant={plotMode === 'cadastre' ? 'solid' : 'soft'} color={plotMode === 'cadastre' ? 'grass' : 'gray'} onClick={requirePro(() => setPlotMode('cadastre'))} style={{ flex: 1 }}>По кад. номеру</Button>
+                <Button size="1" variant={plotMode === 'cadastre' ? 'solid' : 'soft'} color={plotMode === 'cadastre' ? 'grass' : 'gray'} onClick={() => setPlotMode('cadastre')} style={{ flex: 1 }}>По кад. номеру</Button>
               </Flex>
               {plotMode === 'points' ? (
                 <>
@@ -326,6 +325,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   : <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Схема в 3D тянется тайлами MapTiler — нужен бесплатный ключ (maptiler.com).</Text>}
               </>}
             </Box>
+            <Separator size="4" />
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДАТА И ВРЕМЯ</Text>
               <Flex gap="2" mt="1">
@@ -337,6 +337,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Button onClick={setNow}><ResetIcon /> Сейчас</Button>
               </Flex>
             </Box>
+            <Separator size="4" />
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗАБОР ПО ПЕРИМЕТРУ</Text>
               <Select.Root value={fence} onValueChange={v => { if (v === 'custom' && !pro) { openPaywall(); return; } setFence(v); }}>
@@ -349,6 +350,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               </Select.Root>
               {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
             </Box>
+            <Separator size="4" />
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
               <Select.Root value={preset} onValueChange={setPreset}>
@@ -389,6 +391,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
               </Flex>
             </Box>
+            <Separator size="4" />
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>3D-АНАЛИТИКА</Text>
               <Box mt="2">
@@ -417,6 +420,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </>}
               </Box>
             </Box>
+            <Separator size="4" />
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОЕКТ</Text>
               <Flex gap="2" mt="1">
