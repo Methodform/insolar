@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Как посчитать длину тени от дома и забора — формула и таблица — Инсоляр</title>
+<meta name="description" content="Как рассчитать длину тени от дома, забора и дерева: простая формула через высоту солнца, готовая таблица по сезонам и куда падает тень. С примерами и проверкой в 3D.">
+<meta name="keywords" content="длина тени от дома, как рассчитать длину тени, тень от забора, тень от дерева, формула длины тени">
+<link rel="canonical" href="https://methodform.github.io/insolar/article-dlina-teni-ot-doma.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Инсоляр">
+<meta property="og:title" content="Как посчитать длину тени от дома и забора">
+<meta property="og:description" content="Простая формула длины тени через высоту солнца, таблица по сезонам и направление тени. С примерами.">
+<meta property="og:image" content="https://methodform.github.io/insolar/img/Winter-Shot-scaled.jpg">
+<meta property="og:url" content="https://methodform.github.io/insolar/article-dlina-teni-ot-doma.html">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","headline":"Как посчитать длину тени от дома и забора","description":"Формула длины тени через высоту солнца, таблица по сезонам и направление тени с примерами.","image":"https://methodform.github.io/insolar/img/Winter-Shot-scaled.jpg","author":{"@type":"Organization","name":"Инсоляр"},"publisher":{"@type":"Organization","name":"Инсоляр"},"mainEntityOfPage":"https://methodform.github.io/insolar/article-dlina-teni-ot-doma.html"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"По какой формуле считать длину тени?","acceptedAnswer":{"@type":"Answer","text":"Длина тени = высота объекта ÷ тангенс угла высоты солнца над горизонтом. Чем ниже солнце, тем длиннее тень; на закате она стремится к бесконечности."}},{"@type":"Question","name":"Когда тень самая длинная?","acceptedAnswer":{"@type":"Answer","text":"Зимой и утром/вечером, когда солнце стоит низко над горизонтом. В зимний полдень тень от дома в средней полосе России в 2–3 раза длиннее самого дома."}},{"@type":"Question","name":"Куда падает тень от дома?","acceptedAnswer":{"@type":"Answer","text":"В сторону, противоположную солнцу. Утром солнце на востоке — тень уходит на запад; в полдень солнце на юге — тень строго на север; вечером тень падает на восток."}}]}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{--bg:#ffffff;--paper:#F6F5F1;--ink:#0f1310;--muted:#69726a;--green:#1e5c3d;--line:#E7E7E1;--sun:#E8A33D}
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Inter',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;font-size:17px}
+  a{color:var(--green);text-decoration:none}
+  a:hover{text-decoration:underline}
+  .wrap{max-width:760px;margin:0 auto;padding:0 24px}
+  header{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;gap:22px;height:64px;max-width:1120px;margin:0 auto;padding:0 24px}
+  .logo{font-weight:600;font-size:18px}.logo .d{color:var(--green)}
+  .nav .sp{flex:1}.nav a.lnk{color:var(--ink);font-size:14.5px}
+  .pill{display:inline-flex;align-items:center;border-radius:999px;padding:11px 22px;font-size:14.5px;font-weight:500;border:1px solid var(--green);background:var(--green);color:#fff}
+  .pill:hover{filter:brightness(1.1);text-decoration:none}
+  .pill.line{background:transparent;color:var(--ink);border-color:var(--line)}
+  article{padding:48px 0 80px}
+  .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);font-weight:600}
+  h1{font-size:clamp(2rem,4.5vw,3.2rem);line-height:1.05;letter-spacing:-.02em;font-weight:600;margin:14px 0 10px}
+  .meta{color:var(--muted);font-size:14px;margin-bottom:28px}
+  article h2{font-size:clamp(1.4rem,2.6vw,1.9rem);letter-spacing:-.01em;margin:36px 0 10px;font-weight:600}
+  article h3{font-size:1.15rem;margin:22px 0 6px;font-weight:600}
+  article p{margin:12px 0;color:#26302a}
+  article ul{margin:12px 0 12px 22px}article li{margin:6px 0;color:#26302a}
+  .lead{font-size:1.15rem;color:var(--muted)}
+  .callout{background:var(--paper);border:1px solid var(--line);border-left:3px solid var(--green);border-radius:12px;padding:18px 20px;margin:22px 0}
+  .callout b{color:var(--ink)}
+  .formula{background:var(--paper);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin:20px 0;font-size:1.1rem;text-align:center}
+  .cta{background:var(--ink);color:#fff;border-radius:20px;padding:32px;margin:40px 0;text-align:center}
+  .cta h3{color:#fff;font-size:1.5rem;margin-bottom:14px}
+  .cta p{color:#b9c0b6;margin-bottom:20px}
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:15px}
+  th,td{border-bottom:1px solid var(--line);padding:10px 8px;text-align:left;vertical-align:top}
+  th{color:var(--muted);font-weight:500}
+  .note{font-size:13px;color:var(--muted);margin-top:28px;border-top:1px solid var(--line);padding-top:14px}
+  .related{background:var(--paper);border-radius:16px;padding:20px 22px;margin:32px 0}
+  .related h3{font-size:1rem;margin-bottom:8px}
+  .related a{display:block;padding:5px 0}
+  footer{border-top:1px solid var(--line);padding:32px 0;color:var(--muted);font-size:14px}
+</style>
+</head>
+<body>
+<header>
+  <div class="nav">
+    <div class="logo">☉ Инсол<span class="d">яр</span></div>
+    <div class="sp"></div>
+    <a class="lnk" href="landing.html">Главная</a>
+    <a class="lnk" href="blog.html">Блог</a>
+    <a class="pill" href="index.html">Открыть сервис</a>
+  </div>
+</header>
+
+<article class="wrap">
+  <span class="lbl">Тени · расчёт</span>
+  <h1>Как посчитать длину тени от дома и забора</h1>
+  <div class="meta">Формула, таблица по сезонам и примеры · 6 мин чтения</div>
+
+  <p class="lead">Чтобы понять, дотянется ли тень дома до грядок, а забора — до цветника, длину тени можно прикинуть по простой формуле. Разбираем, как рассчитать длину тени через высоту солнца, куда она падает и почему зимой она в разы длиннее, чем летом.</p>
+
+  <h2>Формула длины тени</h2>
+  <p>Длина тени зависит от двух вещей: высоты объекта и того, насколько высоко солнце над горизонтом. Формула такая:</p>
+  <div class="formula"><b>Длина тени = высота объекта ÷ tg(высота солнца)</b></div>
+  <p>Здесь «высота солнца» — угол между солнцем и линией горизонта (от 0° на восходе до максимума в полдень). Чем ниже солнце, тем меньше тангенс и тем длиннее тень. На восходе и закате угол близок к нулю, и тень тянется почти до бесконечности.</p>
+  <div class="callout">
+    <b>Пример.</b> Дом высотой 6 м, солнце на высоте 30°: длина тени = 6 ÷ tg(30°) = 6 ÷ 0,577 ≈ <b>10,4 м</b>. То же солнце на высоте 15° даёт тень уже ≈ 22 м.
+  </div>
+
+  <h2>Таблица: тень от объекта высотой 1 м</h2>
+  <p>Умножьте значение на высоту вашего объекта в метрах — получите длину его тени.</p>
+  <table>
+    <tr><th>Высота солнца</th><th>Тень от 1 м высоты</th></tr>
+    <tr><td>60° (лето, полдень)</td><td>0,6 м</td></tr>
+    <tr><td>45°</td><td>1,0 м</td></tr>
+    <tr><td>30°</td><td>1,7 м</td></tr>
+    <tr><td>20°</td><td>2,7 м</td></tr>
+    <tr><td>15° (зима, полдень)</td><td>3,7 м</td></tr>
+    <tr><td>10°</td><td>5,7 м</td></tr>
+  </table>
+  <p>Так, забор 2 м при низком зимнем солнце (15°) кладёт тень около 7,5 м — это уже половина небольшого участка.</p>
+
+  <h2>Куда падает тень</h2>
+  <p>Тень всегда направлена в сторону, противоположную солнцу:</p>
+  <ul>
+    <li><b>утро</b> — солнце на востоке, тень уходит на запад;</li>
+    <li><b>полдень</b> — солнце на юге, тень строго на север (самая короткая за день);</li>
+    <li><b>вечер</b> — солнце на западе, тень падает на восток.</li>
+  </ul>
+  <p>За день тень «обходит» объект веером с запада через север на восток. Именно северная сторона любого объекта освещается меньше всего — это стоит учитывать, планируя <a href="article-ogorod-po-solncu.html">огород и посадки</a>.</p>
+
+  <h2>Почему зимой тень длиннее</h2>
+  <p>Высота солнца в полдень меняется по сезонам: летом оно поднимается высоко, зимой едва отрывается от горизонта. Поэтому один и тот же дом летом кладёт короткую тень, а в декабре — в 2–3 раза длиннее. Проверять затенение участка нужно именно по «худшему» сезону — обычно это зимнее солнцестояние и периоды вокруг него.</p>
+
+  <h2>Где формула не поможет</h2>
+  <p>Ручной расчёт хорош для быстрой прикидки одного объекта. Но на реальном участке тени накладываются друг на друга, зависят от точной широты, даты и времени, а сложные крыши и деревья дают неровную тень. Здесь удобнее 3D-модель: сервис <a href="index.html">Инсоляр</a> строит участок по координатам и показывает реальные тени от дома, забора и деревьев в любой момент дня и года, а также длину тени каждого объекта «здесь и сейчас».</p>
+
+  <div class="cta">
+    <h3>Посмотрите реальные тени участка</h3>
+    <p>Введите координаты — увидите, докуда дотянется тень дома и забора в любой сезон.</p>
+    <a class="pill" href="index.html" style="border-color:var(--sun);background:var(--sun)">Открыть сервис</a>
+  </div>
+
+  <div class="related">
+    <h3>Читайте также</h3>
+    <a href="article-kuda-postavit-dom.html">→ Куда поставить дом на участке, чтобы не жить в тени</a>
+    <a href="article-ogorod-po-solncu.html">→ Где разбить огород: солнечные и теневые зоны участка</a>
+    <a href="article-insolyaciya.html">→ Инсоляция и стороны света: как расположить дом, комнаты и окна</a>
+  </div>
+
+  <div class="note">
+    Формула даёт длину тени на горизонтальной поверхности и приблизительна: точный угол высоты солнца зависит от широты, даты и времени. Материал носит справочный характер.
+  </div>
+</article>
+
+<footer>
+  <div class="wrap">☉ Инсоляр — моделирование солнца и инсоляции участка · <a href="blog.html">Блог</a> · <a href="index.html">Сервис</a></div>
+</footer>
+</body>
+</html>
