@@ -515,33 +515,46 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <Dialog.Root open={paywall} onOpenChange={setPaywall}>
           <Dialog.Content maxWidth="820px">
             <Dialog.Title>Тарифы Инсоляр</Dialog.Title>
-            <Dialog.Description size="2" color="gray" mb="4">Бесплатно — базовый просмотр участка. Pro — расстановка объектов, любые даты, аналитика, документ и сохранение.</Dialog.Description>
+            <Dialog.Description size="2" color="gray" mb="4">Бесплатно — базовый просмотр участка. Pro — расстановка объектов, любые даты и сезоны, аналитика, документ по СанПиН и сохранение.</Dialog.Description>
             <Flex gap="3" wrap="wrap">
               {[
-                { key: 'free', name: 'Free', price: '0 ₽', sub: 'навсегда', accent: 'gray',
-                  feats: ['1 участок (точки или кадастр)', 'Сегодняшняя дата + время суток', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Карта-схема участка'],
+                { key: 'free', name: 'Free', price: '0 ₽', sub: 'навсегда', hero: false, badge: null,
+                  feats: ['1 участок (по точкам)', 'Сегодня + время суток', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Карта-схема участка'],
                   cta: pro ? null : 'Текущий план' },
-                { key: 'month', name: 'Pro · месяц', price: '399 ₽', sub: 'в месяц', accent: 'grass',
-                  feats: ['Всё из Free', 'Расстановка домов и построек', 'Рисование и дорожки', 'Любая дата и сезоны', '3D-аналитика поверхностей', 'Свой размер забора', 'Сохранение проектов', 'PDF-отчёт по СанПиН'],
-                  cta: 'Оформить' },
-                { key: 'year', name: 'Pro · год', price: '2 990 ₽', sub: '≈ 249 ₽/мес · выгода 38%', accent: 'grass',
-                  feats: ['Всё из Pro-месяца', 'Экономия ~1 800 ₽ в год', 'Один платёж на 12 месяцев'],
+                { key: 'month', name: 'Месяц', price: '490 ₽', sub: 'в месяц', hero: false, badge: null,
+                  feats: ['Всё из Free', 'Расстановка объектов и рисование', 'Любая дата и сезоны', '3D-аналитика поверхностей', 'Кадастр, свой забор', 'Сохранение и PDF-отчёт'],
+                  cta: 'Оформить месяц' },
+                { key: 'season', name: 'Сезон · 6 мес', price: '1 490 ₽', sub: '≈ 248 ₽/мес · весь сезон', hero: true, badge: 'Рекомендуем',
+                  feats: ['Всё из Pro', 'На весь сезон стройки и посадок', 'Выгода ~40% против месяца', 'Один платёж, без продлений'],
+                  cta: 'Взять на сезон' },
+                { key: 'year', name: 'Год', price: '1 990 ₽', sub: '≈ 166 ₽/мес · выгоднее всего', hero: false, badge: null,
+                  feats: ['Всё из Pro', 'Для нескольких участков / лет', 'Максимальная выгода за месяц'],
                   cta: 'Оформить год' },
               ].map(t => (
-                <Box key={t.key} style={{ flex: '1 1 220px', border: '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.accent === 'grass' ? 'var(--grass-a2)' : 'transparent' }}>
+                <Box key={t.key} style={{ flex: '1 1 180px', border: t.hero ? '2px solid var(--grass-8)' : '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.hero ? 'var(--grass-a2)' : 'transparent', position: 'relative' }}>
+                  {t.badge && <Badge color="grass" style={{ position: 'absolute', top: -10, left: 14 }}>{t.badge}</Badge>}
                   <Text size="2" weight="bold" style={{ display: 'block' }}>{t.name}</Text>
                   <Flex align="baseline" gap="2" mt="1"><Text size="6" weight="bold">{t.price}</Text><Text size="1" color="gray">{t.sub}</Text></Flex>
                   <Flex direction="column" gap="1" mt="3">
                     {t.feats.map((f, i) => <Text key={i} size="1" color="gray" style={{ display: 'flex', gap: 6 }}><CheckIcon /> {f}</Text>)}
                   </Flex>
-                  {t.cta && <Button mt="3" style={{ width: '100%' }} variant={t.accent === 'grass' ? 'solid' : 'soft'} color={t.accent}
+                  {t.cta && <Button mt="3" style={{ width: '100%' }} variant={t.key === 'free' ? 'soft' : t.hero ? 'solid' : 'soft'} color={t.key === 'free' ? 'gray' : 'grass'}
                     disabled={t.key === 'free' && !pro}
                     onClick={() => { if (t.key === 'free') { setPaywall(false); } else { setPro(true); setPaywall(false); } }}>{t.cta}</Button>}
                 </Box>
               ))}
             </Flex>
+            <Box mt="4" style={{ border: '1px dashed var(--gray-a6)', borderRadius: 10, padding: 14 }}>
+              <Flex justify="between" align="center" gap="3" wrap="wrap">
+                <Box style={{ flex: '1 1 260px' }}>
+                  <Text size="2" weight="bold" style={{ display: 'block' }}>Разово: паспорт участка + отчёт — 790 ₽</Text>
+                  <Text size="1" color="gray">Без подписки: рассчитать один участок и скачать PDF-паспорт с планом, сезонной инсоляцией и отчётом по СанПиН. Файл остаётся у вас навсегда.</Text>
+                </Box>
+                <Button color="grass" variant="soft" onClick={() => { setPro(true); setPaywall(false); }}>Купить паспорт</Button>
+              </Flex>
+            </Box>
             <Flex justify="between" align="center" mt="4">
-              <Text size="1" color="gray">Цены иллюстративные. Оплата будет подключена позже.</Text>
+              <Text size="1" color="gray">Цены иллюстративные. Оплата будет подключена позже. Скачанные документы остаются у вас после окончания доступа.</Text>
               {pro
                 ? <Button variant="soft" color="gray" onClick={() => { setPro(false); setPaywall(false); }}>Отключить Pro (демо)</Button>
                 : <Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close>}
