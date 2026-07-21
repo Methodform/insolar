@@ -294,7 +294,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               {plotMode === 'points' ? (
                 <>
                   <TextArea mt="2" rows={5} value={polyText} onChange={e => setPolyText(e.target.value)} style={{ fontFamily: 'monospace', fontSize: 12 }} placeholder="широта долгота (по одной точке на строку)" />
-                  <Flex gap="2" mt="2"><Button onClick={build}>Построить участок</Button><Button variant="soft" color="gray" onClick={() => { setBuilt(null); }}>Сбросить</Button></Flex>
+                  <Flex gap="2" mt="2"><Button onClick={build} style={{ width: '100%' }}>Построить участок</Button></Flex>
                 </>
               ) : (
                 <>
@@ -304,7 +304,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Границы загружаются из НСПД (Росреестр). После загрузки участок построится автоматически.</Text>
                 </>
               )}
-              <Button variant="soft" color="gray" mt="2" onClick={() => setMapOpen(true)} disabled={!poly} style={{ width: '100%' }}>🗺 Показать на карте</Button>
               <Flex gap="2" mt="2" align="center">
                 <Text size="1" color="gray">Карта в 3D</Text>
                 <Select.Root value={ground3d} onValueChange={setGround3d}>
@@ -337,7 +336,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex gap="2" mt="2">
                 <Button onClick={setNow}><ResetIcon /> Сейчас</Button>
               </Flex>
-              {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Другая дата — в Pro. Бесплатно: сегодня и время суток на таймбаре.</Text>}
             </Box>
             <Separator size="4" />
             <Box>
@@ -347,7 +345,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Select.Content>
                   <Select.Item value="0">Нет</Select.Item>
                   <Select.Item value="1.8">1.8 м</Select.Item>
-                  <Select.Item value="custom">Свой размер{!pro ? ' (Pro)' : ''}</Select.Item>
+                  <Select.Item value="custom">Свой размер</Select.Item>
                 </Select.Content>
               </Select.Root>
               {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
@@ -380,10 +378,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Select.Content>
               </Select.Root>
               <Flex gap="2" mt="2">
-                <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Типовое{!pro ? ' 🔒' : ''}</Button>
-                <Button variant="soft" color="gray" onClick={requirePro(() => setPlanOpen(true))} style={{ flex: 1 }}><Pencil1Icon /> Рисовать{!pro ? ' 🔒' : ''}</Button>
+                <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
+                <Button variant="soft" color="gray" onClick={requirePro(() => setPlanOpen(true))} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
               </Flex>
-              {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Расстановка объектов — в Pro. Бесплатно доступен только участок.</Text>}
               <Flex direction="column" gap="1" mt="2">
                 {buildings.map((b, i) => (
                   <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
@@ -404,7 +401,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <Switch checked={pro && analytics} onCheckedChange={v => { if (!pro) { openPaywall(); return; } setAnalytics(v); }} />
                   </Text>
                 </Flex>
-                {!pro && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>🔒 Включается в Pro.</Text>}
                 {pro && analytics && <>
                   <Flex gap="2" mt="2" align="center">
                     <Text size="1" color="gray">Месяцы</Text>
@@ -428,8 +424,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОЕКТ</Text>
               <Flex gap="2" mt="1">
-                <Button variant="soft" color="gray" onClick={requirePro(saveProject)} style={{ flex: 1 }}><DownloadIcon /> Сохранить{!pro ? ' 🔒' : ''}</Button>
-                <Button variant="soft" color="gray" onClick={requirePro(() => openFile.current.click())} style={{ flex: 1 }}><UploadIcon /> Открыть{!pro ? ' 🔒' : ''}</Button>
+                <Button variant="soft" color="gray" onClick={requirePro(saveProject)} style={{ flex: 1 }}><DownloadIcon /> Сохранить</Button>
+                <Button variant="soft" color="gray" onClick={requirePro(() => openFile.current.click())} style={{ flex: 1 }}><UploadIcon /> Открыть</Button>
                 <input ref={openFile} type="file" accept="application/json,.json" style={{ display: 'none' }} onChange={e => { if (e.target.files[0]) loadProject(e.target.files[0]); e.target.value = ''; }} />
               </Flex>
             </Box>
@@ -484,7 +480,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           </Box>
           <Box style={{ paddingTop: 22, marginTop: -14, position: 'relative', background: 'linear-gradient(to top, var(--color-panel-solid) 58%, transparent)' }}>
             {!pro
-              ? <Button style={{ width: '100%' }} onClick={openPaywall}><FileTextIcon /> Скачать PDF отчёт 🔒</Button>
+              ? <Button style={{ width: '100%' }} onClick={openPaywall}><FileTextIcon /> Скачать PDF отчёт</Button>
               : <Dialog.Root>
               <Dialog.Trigger><Button style={{ width: '100%' }}><FileTextIcon /> Скачать PDF отчёт</Button></Dialog.Trigger>
               <Dialog.Content maxWidth="440px">
