@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC, plotBasis, clampToPoly } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
@@ -94,8 +95,15 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     scene.fog = new THREE.Fog(0x9fc0e8, 300, 800);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 3000);
 
-    const ambient = new THREE.AmbientLight(0xffffff, 0.3); scene.add(ambient);
-    const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a5a3a, 0.5); scene.add(hemi);
+    // IBL: мягкое заполняющее освещение и лёгкие отражения от окружения — материалы выглядят
+    // «объёмнее» и реалистичнее. Солнце ниже даёт направленный свет и тени.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+    pmrem.dispose();
+
+    // ambient/hemi приглушены, т.к. окружение теперь добавляет заполнение
+    const ambient = new THREE.AmbientLight(0xffffff, 0.12); scene.add(ambient);
+    const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a5a3a, 0.3); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff2d6, 1.4);
     sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
     const sc = sun.shadow.camera; sc.near = 1; sc.far = SUN_DIST * 2 + 200; sc.left = sc.bottom = -60; sc.right = sc.top = 60;
@@ -233,6 +241,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
 
     api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
+      if (scene.environment) scene.environment.dispose();
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
     return () => api.current.dispose();
@@ -316,7 +325,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const v = new THREE.Vector3(Math.sin(az) * ca, Math.sin(p.altitude), -Math.cos(az) * ca);
     a.sun.position.copy(v.clone().multiplyScalar(SUN_DIST)); a.sun.target.position.set(0, 0, 0);
     a.sunSphere.position.copy(v.clone().multiplyScalar(SUN_DIST));
-    const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 0.9 : 1.5) : 0; a.ambient.intensity = up ? 0.3 : 0.12; a.sunSphere.visible = altDeg > -2;
+    const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 0.9 : 1.5) : 0; a.ambient.intensity = up ? 0.2 : 0.06; a.sunSphere.visible = altDeg > -2;
     const top = altDeg <= 0 ? 0x11161f : altDeg < 8 ? 0x6a80a0 : 0x9fc0e8; a.scene.background.setHex(top); a.scene.fog.color.setHex(top);
   }, [utcMs, lat, lon]);
 
