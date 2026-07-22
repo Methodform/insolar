@@ -133,11 +133,11 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
 
     // ambient/hemi приглушены, т.к. окружение теперь добавляет заполнение
     const ambient = new THREE.AmbientLight(0xffffff, 0.12); scene.add(ambient);
-    const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a5a3a, 0.3); scene.add(hemi);
+    const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a5a3a, 0.16); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff2d6, 1.4);
     sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
     const sc = sun.shadow.camera; sc.near = 1; sc.far = SUN_DIST * 2 + 200; sc.left = sc.bottom = -60; sc.right = sc.top = 60;
-    sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.006; sun.shadow.radius = 2;
+    sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.006; sun.shadow.radius = 1;
     scene.add(sun, sun.target);
 
     const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 1 }));
@@ -289,7 +289,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       sc.near = Math.max(1, SUN_DIST - R - 40); sc.far = SUN_DIST + R + 40;   // узкий диапазон глубины → выше точность → нет зазора
       sc.updateProjectionMatrix(); }
     const shape = new THREE.Shape(); base.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
-    const plot = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshStandardMaterial({ color: 0xf5c451, roughness: 0.85, transparent: true, opacity: 0.9, side: THREE.DoubleSide }));
+    const plot = new THREE.Mesh(new THREE.ShapeGeometry(shape), new THREE.MeshStandardMaterial({ color: 0x82a860, roughness: 0.95, transparent: true, opacity: 0.92, side: THREE.DoubleSide }));
     plot.rotation.x = -Math.PI / 2; plot.position.y = 0.05; plot.receiveShadow = true; plot.userData.plot = true; dyn.add(plot);
     if (fenceH > 0) { const fmat = new THREE.MeshStandardMaterial({ color: 0xcdd1d6, roughness: .85, metalness: 0, side: THREE.DoubleSide });
       for (let i = 0; i < base.length; i++) { const A = base[i], B = base[(i + 1) % base.length]; const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.05) continue;
@@ -364,7 +364,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const v = new THREE.Vector3(Math.sin(az) * ca, Math.sin(p.altitude), -Math.cos(az) * ca);
     a.sun.position.copy(v.clone().multiplyScalar(SUN_DIST)); a.sun.target.position.set(0, 0, 0);
     a.sunSphere.position.copy(v.clone().multiplyScalar(SUN_DIST));
-    const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 0.9 : 1.5) : 0; a.ambient.intensity = up ? 0.2 : 0.06; a.sunSphere.visible = altDeg > -2;
+    const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 1.15 : 2.0) : 0; a.ambient.intensity = up ? 0.1 : 0.04; a.sunSphere.visible = altDeg > -2;
     a.scene.background = altDeg <= 0 ? a.skyNight : a.skyDay;
     const fogC = altDeg <= 0 ? 0x2b3a4c : altDeg < 8 ? 0x9fb0c4 : 0xdce8f2; a.scene.fog.color.setHex(fogC);
   }, [utcMs, lat, lon]);
