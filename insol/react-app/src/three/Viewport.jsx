@@ -44,6 +44,34 @@ function inferKind(name) { const n = (name || '').toLowerCase();
 const rotPt = (p, c, a) => { const s = Math.sin(a), co = Math.cos(a), dx = p[0] - c[0], dy = p[1] - c[1]; return [c[0] + dx * co - dy * s, c[1] + dx * s + dy * co]; };
 const scaleAxis = (p, c, ax, f) => { const U = (p[0] - c[0]) * ax[0] + (p[1] - c[1]) * ax[1]; const px = (p[0] - c[0]) - U * ax[0], py = (p[1] - c[1]) - U * ax[1]; return [c[0] + ax[0] * U * f + px, c[1] + ax[1] * U * f + py]; };
 
+// --- процедурные текстуры (без внешних файлов) для более реалистичной сцены ---
+function makeGrassTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
+  g.fillStyle = '#5f7a43'; g.fillRect(0, 0, 256, 256);
+  for (let i = 0; i < 9000; i++) { const s = Math.random();
+    g.fillStyle = `rgba(${60 + s * 45 | 0},${95 + s * 65 | 0},${48 + s * 40 | 0},0.5)`;
+    g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 3); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(80, 80);
+  t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function makePlasterTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  g.fillStyle = '#eae7e0'; g.fillRect(0, 0, 128, 128);
+  for (let i = 0; i < 2400; i++) { const v = Math.random() * 22 - 11;
+    g.fillStyle = `rgba(${212 + v | 0},${208 + v | 0},${200 + v | 0},0.5)`;
+    g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
+  t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function makeSkyTexture(day) {
+  const c = document.createElement('canvas'); c.width = 16; c.height = 256; const g = c.getContext('2d');
+  const grd = g.createLinearGradient(0, 0, 0, 256);
+  if (day) { grd.addColorStop(0, '#3f7fce'); grd.addColorStop(0.55, '#8fb6e6'); grd.addColorStop(1, '#dce8f2'); }
+  else { grd.addColorStop(0, '#0b1a33'); grd.addColorStop(0.7, '#20344f'); grd.addColorStop(1, '#3a4a5e'); }
+  g.fillStyle = grd; g.fillRect(0, 0, 16, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+
 // --- 3D-аналитика поверхностей («тепловизор») ---
 const sunVec = (azDeg, altDeg) => { const a = azDeg * RAD, al = altDeg * RAD, ca = Math.cos(al); return new THREE.Vector3(Math.sin(a) * ca, Math.sin(al), -Math.cos(a) * ca); };
 const THERMAL = [[0, '#3a1f5c'], [0.18, '#6d2f79'], [0.36, '#a8446f'], [0.54, '#d95f4e'], [0.7, '#f0842f'], [0.84, '#ffb02e'], [0.94, '#ffd84d'], [1, '#fff6c8']];
@@ -91,8 +119,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x9fc0e8);
-    scene.fog = new THREE.Fog(0x9fc0e8, 300, 800);
+    const skyDay = makeSkyTexture(true), skyNight = makeSkyTexture(false);
+    const plasterTex = makePlasterTexture();
+    scene.background = skyDay;                       // градиентное небо вместо плоского фона
+    scene.fog = new THREE.Fog(0xdce8f2, 320, 900);
     const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 3000);
 
     // IBL: мягкое заполняющее освещение и лёгкие отражения от окружения — материалы выглядят
@@ -110,7 +140,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.006; sun.shadow.radius = 2;
     scene.add(sun, sun.target);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ color: 0x5a7043, roughness: 1 }));
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 1 }));
     ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
     const grid = new THREE.GridHelper(400, 40, 0x3a4a30, 0x3a4a30); grid.material.opacity = 0.25; grid.material.transparent = true; grid.position.y = 0.02; scene.add(grid);
     const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(6, 20, 20), new THREE.MeshBasicMaterial({ color: 0xffd257 })); scene.add(sunSphere);
@@ -239,9 +269,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
+      skyDay.dispose(); skyNight.dispose(); plasterTex.dispose();
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
     return () => api.current.dispose();
@@ -263,7 +294,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     if (fenceH > 0) { const fmat = new THREE.MeshStandardMaterial({ color: 0xcdd1d6, roughness: .85, metalness: 0, side: THREE.DoubleSide });
       for (let i = 0; i < base.length; i++) { const A = base[i], B = base[(i + 1) % base.length]; const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.05) continue;
         const m = new THREE.Mesh(new THREE.PlaneGeometry(len, fenceH), fmat); m.position.set((ax + bx) / 2, fenceH / 2, (az + bz) / 2); m.rotation.y = Math.atan2(-dz, dx); m.castShadow = true; m.receiveShadow = true; dyn.add(m); } }
-    const cmat = new THREE.MeshStandardMaterial({ color: 0xe9e6df, roughness: 0.7 });
+    const cmat = new THREE.MeshStandardMaterial({ map: a.plasterTex, color: 0xffffff, roughness: 0.85 });
     const rmat = new THREE.MeshStandardMaterial({ color: 0x8f4a34, roughness: 0.75, side: THREE.DoubleSide });
     const woodMat = new THREE.MeshStandardMaterial({ color: 0xb08b57, roughness: 0.85 });
     const postMat = new THREE.MeshStandardMaterial({ color: 0x6b5a3c, roughness: 0.8 });
@@ -326,7 +357,8 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.sun.position.copy(v.clone().multiplyScalar(SUN_DIST)); a.sun.target.position.set(0, 0, 0);
     a.sunSphere.position.copy(v.clone().multiplyScalar(SUN_DIST));
     const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 0.9 : 1.5) : 0; a.ambient.intensity = up ? 0.2 : 0.06; a.sunSphere.visible = altDeg > -2;
-    const top = altDeg <= 0 ? 0x11161f : altDeg < 8 ? 0x6a80a0 : 0x9fc0e8; a.scene.background.setHex(top); a.scene.fog.color.setHex(top);
+    a.scene.background = altDeg <= 0 ? a.skyNight : a.skyDay;
+    const fogC = altDeg <= 0 ? 0x2b3a4c : altDeg < 8 ? 0x9fb0c4 : 0xdce8f2; a.scene.fog.color.setHex(fogC);
   }, [utcMs, lat, lon]);
 
   // 3D-аналитика поверхностей
