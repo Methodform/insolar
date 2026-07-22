@@ -318,10 +318,18 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (kind === 'tree' || kind === 'bush') {
         let rad = 0.8; bd.pts.forEach(p => rad = Math.max(rad, Math.hypot(p[0] - cx, p[1] - cy)));
         const H = bd.height || (kind === 'tree' ? 5 : 1.2);
-        if (kind === 'tree') { const trunkH = H * 0.45;
-          const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.13, 0.18, trunkH, 8), trunkMat); tr.position.set(cx, by + trunkH / 2, -cy); tag(tr);
-          const fr = Math.max(0.9, rad * 0.95);
-          [[by + H * 0.62, fr], [by + H * 0.85, fr * 0.72]].forEach(([yy, r]) => { const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 12), foliageMat); s.position.set(cx, yy, -cy); tag(s); });
+        if (kind === 'tree') {
+          // ель ярусами: ствол + несколько конусов убывающего радиуса
+          const trunkH = H * 0.22;
+          const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.16, trunkH, 8), trunkMat); tr.position.set(cx, by + trunkH / 2, -cy); tag(tr);
+          const baseR = Math.max(0.85, rad * 1.05), tiers = 4;
+          const crownBottom = by + trunkH * 0.6, crownH = H - trunkH * 0.6, tierH = crownH / tiers * 1.6;
+          for (let i = 0; i < tiers; i++) {
+            const t = i / tiers;
+            const cr = baseR * (1 - t * 0.72);
+            const cone = new THREE.Mesh(new THREE.ConeGeometry(cr, tierH, 12), foliageMat);
+            cone.position.set(cx, crownBottom + crownH * t + tierH * 0.32, -cy); tag(cone);
+          }
         } else { const r = Math.max(0.6, rad); const s = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), foliageMat); s.position.set(cx, by + r * 0.65, -cy); s.scale.y = 0.7; tag(s); }
         return;
       }
