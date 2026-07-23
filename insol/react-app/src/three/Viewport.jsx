@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC, plotBasis, clampToPoly } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
@@ -99,15 +100,29 @@ function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
   analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [], plantMode = null,
-  groundKey = '', groundStyle = 'off' }) {
+  groundKey = '', groundStyle = 'off', wind = { on: false, dirDeg: 315 } }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
   const onRef = useRef(onBuildings); onRef.current = onBuildings;
   const polyRef = useRef(poly); polyRef.current = poly;
   const plantRef = useRef(plantMode); plantRef.current = plantMode;
+  const [treeReady, setTreeReady] = useState(false);   // готова ли внешняя GLTF-модель дерева
+
+  // загрузка опциональной CC0-модели дерева (models/tree.glb). Нет файла — тихо остаёмся на ёлках-конусах.
+  useEffect(() => {
+    let cancelled = false;
+    const url = (import.meta.env && import.meta.env.BASE_URL ? import.meta.env.BASE_URL : './') + 'models/tree.glb';
+    new GLTFLoader().load(url, gltf => {
+      if (cancelled) return;
+      if (api.current) api.current.treeModel = gltf.scene;
+      setTreeReady(true);
+    }, undefined, () => {});
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => { const c = mount.current && mount.current.querySelector('canvas'); if (c) c.style.cursor = plantMode ? 'crosshair' : ''; }, [plantMode]);
+  useEffect(() => { if (api.current) api.current.wind = wind; }, [wind]);
 
   useEffect(() => {
     const el = mount.current;
@@ -152,6 +167,13 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       g.fillStyle = col; g.font = 'bold 44px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(txt, 32, 34);
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false })); sp.renderOrder = 900;
       scene.add(sp); compassSprites.push({ sp, dx, dz }); });
+
+    // поток ветра: частицы, дующие с господствующего направления (этап 2, качественно)
+    const WIND_N = 500, windPos = new Float32Array(WIND_N * 3);
+    for (let i = 0; i < WIND_N; i++) { windPos[i * 3] = (Math.random() * 2 - 1) * 130; windPos[i * 3 + 1] = 1 + Math.random() * 8; windPos[i * 3 + 2] = (Math.random() * 2 - 1) * 130; }
+    const windGeo = new THREE.BufferGeometry(); windGeo.setAttribute('position', new THREE.BufferAttribute(windPos, 3));
+    const windPoints = new THREE.Points(windGeo, new THREE.PointsMaterial({ color: 0xbfe0ff, size: 1.1, transparent: true, opacity: 0.7, depthWrite: false }));
+    windPoints.visible = false; scene.add(windPoints);
 
     const dyn = new THREE.Group(); scene.add(dyn);
     const gizmo = new THREE.Group(); scene.add(gizmo);
@@ -267,12 +289,26 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const { az, el: e2, r } = orbit; camera.position.set(r * Math.cos(e2) * Math.sin(az), r * Math.sin(e2), r * Math.cos(e2) * Math.cos(az)); camera.lookAt(0, 6, 0);
       const R = (api.current.plotHalf || 12) + 8 + r * 0.14, csc = Math.max(8, Math.min(22, r * 0.055));
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
+      const w = api.current.wind;
+      if (w && w.on) {
+        windPoints.visible = true;
+        const A = (w.dirDeg + 180) * Math.PI / 180, vx = Math.sin(A), vz = -Math.cos(A);   // куда дует
+        const WR = (api.current.plotHalf || 12) + 30, spd = 0.4;
+        for (let i = 0; i < WIND_N; i++) {
+          let x = windPos[i * 3] + vx * spd, z = windPos[i * 3 + 2] + vz * spd;
+          if (x > WR) x -= 2 * WR; else if (x < -WR) x += 2 * WR;
+          if (z > WR) z -= 2 * WR; else if (z < -WR) z += 2 * WR;
+          windPos[i * 3] = x; windPos[i * 3 + 2] = z;
+        }
+        windGeo.attributes.position.needsUpdate = true;
+      } else if (windPoints.visible) windPoints.visible = false;
       renderer.render(scene, camera); })();
 
     api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
       skyDay.dispose(); skyNight.dispose(); plasterTex.dispose();
+      windGeo.dispose(); windPoints.material.dispose();
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
     return () => api.current.dispose();
@@ -319,7 +355,15 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         let rad = 0.8; bd.pts.forEach(p => rad = Math.max(rad, Math.hypot(p[0] - cx, p[1] - cy)));
         const H = bd.height || (kind === 'tree' ? 5 : 1.2);
         if (kind === 'tree') {
-          // ель ярусами: ствол + несколько конусов убывающего радиуса
+          if (a.treeModel) {   // внешняя CC0-модель, если загрузилась
+            const m = a.treeModel.clone(true);
+            const box = new THREE.Box3().setFromObject(m), size = new THREE.Vector3(); box.getSize(size);
+            const s = H / (size.y || 1); m.scale.setScalar(s);
+            m.position.set(cx, by - box.min.y * s, -cy); m.rotation.y = ci * 1.3;
+            m.traverse(o => { if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; o.userData.ci = ci; } });
+            m.userData.ci = ci; dyn.add(m); return;
+          }
+          // ель ярусами: ствол + несколько конусов убывающего радиуса (фолбэк)
           const trunkH = H * 0.22;
           const tr = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.16, trunkH, 8), trunkMat); tr.position.set(cx, by + trunkH / 2, -cy); tag(tr);
           const baseR = Math.max(0.85, rad * 1.05), tiers = 4;
@@ -355,7 +399,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (bd.pts.length === 4 && rh > 0) { const roof = gableRoofMesh(bd.pts, bd.height, rh, rmat, !!bd.ridge); if (roof) { roof.position.y = by; roof.userData.ci = ci; dyn.add(roof); } }
     });
     if (a.sel && a.sel.ci >= 0 && a.sel.ci < (buildings || []).length) a.makeGizmo(); else if (a.gizmo) { while (a.gizmo.children.length) a.gizmo.remove(a.gizmo.children[0]); }
-  }, [poly, fenceH, buildings]);
+  }, [poly, fenceH, buildings, treeReady]);
 
   // sun update
   useEffect(() => {

@@ -1,0 +1,356 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+<title>THRESHOLD — интерактивный вход</title>
+<style>
+  :root{
+    --bg:#f5f3ee;
+    --ink:#111111;
+    --muted:#8a877f;
+    --line:#dcd8cf;
+    --track:#e9e6df;
+    --accent:#111111;
+    --paper:#fbfaf7;
+    --ease:cubic-bezier(.16,1,.3,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:"Helvetica Neue",Helvetica,Arial,"Segoe UI",sans-serif;
+    -webkit-font-smoothing:antialiased;
+    overflow:hidden;
+    position:fixed;inset:0;
+  }
+
+  /* ---------- GATE ---------- */
+  #gate{
+    position:fixed;inset:0;
+    display:flex;flex-direction:column;
+    align-items:center;justify-content:center;
+    padding:32px;
+    z-index:20;
+    transition:opacity .9s var(--ease), transform 1s var(--ease), filter .9s var(--ease);
+    will-change:opacity,transform;
+  }
+  #gate.open{
+    opacity:0;
+    transform:scale(1.06);
+    filter:blur(6px);
+    pointer-events:none;
+  }
+
+  .kicker{
+    font-size:11px;
+    letter-spacing:.42em;
+    text-transform:uppercase;
+    color:var(--muted);
+    margin-bottom:34px;
+    text-indent:.42em;
+  }
+
+  .headline{
+    text-align:center;
+    line-height:.92;
+    font-weight:700;
+    letter-spacing:-.03em;
+    font-size:clamp(52px,15vw,150px);
+    margin-bottom:22px;
+  }
+  .headline .row{display:block;overflow:hidden;}
+  .headline .row span{
+    display:block;
+    transform:translateY(105%);
+    animation:rise 1s var(--ease) forwards;
+  }
+  .headline .row:nth-child(2) span{animation-delay:.09s;}
+  @keyframes rise{to{transform:translateY(0);}}
+
+  .subline{
+    text-align:center;
+    max-width:420px;
+    font-size:15px;
+    line-height:1.55;
+    color:var(--muted);
+    margin-bottom:56px;
+    opacity:0;
+    animation:fade 1s var(--ease) .35s forwards;
+  }
+  @keyframes fade{to{opacity:1;}}
+
+  /* ---------- SLIDER ---------- */
+  .slider{
+    position:relative;
+    width:min(460px,86vw);
+    height:74px;
+    border-radius:999px;
+    background:var(--track);
+    border:1px solid var(--line);
+    display:flex;align-items:center;
+    user-select:none;
+    opacity:0;
+    animation:fade 1s var(--ease) .5s forwards;
+    overflow:hidden;
+  }
+  .slider .fill{
+    position:absolute;left:0;top:0;bottom:0;
+    width:74px;
+    background:var(--accent);
+    border-radius:999px;
+    transition:width 0s;
+  }
+  .slider .label{
+    position:absolute;
+    left:0;right:0;
+    text-align:center;
+    font-size:12px;
+    letter-spacing:.32em;
+    text-transform:uppercase;
+    color:var(--muted);
+    padding-left:60px;
+    pointer-events:none;
+    transition:opacity .3s var(--ease);
+  }
+  .slider .label .shimmer{
+    background:linear-gradient(90deg,var(--muted) 30%,#c9c5bc 50%,var(--muted) 70%);
+    background-size:200% 100%;
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;
+    animation:shimmer 2.4s linear infinite;
+  }
+  @keyframes shimmer{to{background-position:-200% 0;}}
+
+  .handle{
+    position:relative;
+    z-index:3;
+    width:66px;height:66px;
+    margin:4px;
+    border-radius:50%;
+    background:var(--ink);
+    color:var(--paper);
+    display:flex;align-items:center;justify-content:center;
+    cursor:grab;
+    touch-action:none;
+    flex:0 0 auto;
+    transition:transform .18s var(--ease), background .2s var(--ease);
+    box-shadow:0 6px 22px rgba(0,0,0,.16);
+  }
+  .handle:active{cursor:grabbing;}
+  .handle svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+  .handle .arrows{display:flex;gap:-6px;}
+  .slider.done .handle{background:#1c7a4a;}
+  .slider.done .label{opacity:0;}
+
+  .hint{
+    margin-top:26px;
+    font-size:11px;
+    letter-spacing:.3em;
+    text-transform:uppercase;
+    color:var(--line);
+    opacity:0;
+    animation:fade 1s var(--ease) .8s forwards;
+  }
+
+  /* ---------- REVEALED SITE ---------- */
+  #site{
+    position:fixed;inset:0;
+    z-index:10;
+    background:var(--paper);
+    opacity:0;
+    transform:translateY(24px);
+    pointer-events:none;
+    overflow:auto;
+    transition:opacity 1s var(--ease) .3s, transform 1.1s var(--ease) .3s;
+  }
+  #site.show{opacity:1;transform:none;pointer-events:auto;}
+
+  .site-nav{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:26px 40px;
+    border-bottom:1px solid var(--line);
+    position:sticky;top:0;background:var(--paper);z-index:2;
+  }
+  .site-nav .brand{font-weight:700;letter-spacing:-.02em;font-size:18px;}
+  .site-nav .links{display:flex;gap:30px;font-size:13px;color:var(--muted);letter-spacing:.04em;}
+  .site-nav .links span{cursor:pointer;transition:color .2s;}
+  .site-nav .links span:hover{color:var(--ink);}
+
+  .hero{
+    padding:min(16vh,140px) 40px 80px;
+    max-width:1000px;margin:0 auto;
+  }
+  .hero h1{
+    font-size:clamp(40px,8vw,92px);
+    font-weight:700;letter-spacing:-.035em;line-height:.98;
+    margin-bottom:28px;
+  }
+  .hero p{font-size:18px;line-height:1.6;color:var(--muted);max-width:560px;}
+  .grid{
+    display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));
+    gap:1px;background:var(--line);
+    border-top:1px solid var(--line);border-bottom:1px solid var(--line);
+    margin-top:70px;
+  }
+  .grid .cell{background:var(--paper);padding:38px 30px;min-height:180px;}
+  .grid .cell .n{font-size:12px;color:var(--muted);letter-spacing:.2em;}
+  .grid .cell h3{margin:14px 0 10px;font-size:22px;letter-spacing:-.02em;}
+  .grid .cell p{font-size:14px;line-height:1.55;color:var(--muted);}
+
+  .relock{
+    display:block;margin:60px auto;
+    background:none;border:1px solid var(--line);
+    color:var(--muted);
+    padding:14px 26px;border-radius:999px;
+    font-size:11px;letter-spacing:.28em;text-transform:uppercase;
+    cursor:pointer;transition:all .2s;
+  }
+  .relock:hover{color:var(--ink);border-color:var(--ink);}
+
+  /* subtle grain */
+  #gate::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(circle at 50% 30%,rgba(0,0,0,0) 60%,rgba(0,0,0,.03));
+  }
+</style>
+</head>
+<body>
+
+  <!-- THE GATE -->
+  <section id="gate">
+    <div class="kicker">Порог&nbsp;·&nbsp;Threshold</div>
+    <h1 class="headline">
+      <span class="row"><span>ТЕБЯ</span></span>
+      <span class="row"><span>НЕ ЖДАЛИ</span></span>
+    </h1>
+    <p class="subline">Этот сайт закрыт по умолчанию. Он откроется только тому, кто сделает жест. Потяни — и докажи, что ты здесь.</p>
+
+    <div class="slider" id="slider">
+      <div class="fill" id="fill"></div>
+      <div class="handle" id="handle">
+        <div class="arrows">
+          <svg viewBox="0 0 24 24"><polyline points="8 6 14 12 8 18"/><polyline points="14 6 20 12 14 18"/></svg>
+        </div>
+      </div>
+      <div class="label" id="label"><span class="shimmer">Потяни, чтобы войти</span></div>
+    </div>
+
+    <div class="hint">Свайп вправо · Drag to enter</div>
+  </section>
+
+  <!-- REVEALED SITE -->
+  <main id="site">
+    <nav class="site-nav">
+      <div class="brand">THRESHOLD</div>
+      <div class="links"><span>Работы</span><span>О нас</span><span>Контакт</span></div>
+    </nav>
+    <section class="hero">
+      <h1>Ты внутри.<br>Теперь всё иначе.</h1>
+      <p>Ты только что совершил действие, которое не совершают машинально. Всё, что здесь есть, ты открыл сам. Это и есть суть входа: не клик, а намерение.</p>
+      <div class="grid">
+        <div class="cell"><div class="n">01</div><h3>Жест</h3><p>Интерфейс, который требует усилия, запоминается сильнее пассивного.</p></div>
+        <div class="cell"><div class="n">02</div><h3>Порог</h3><p>Граница между «снаружи» и «внутри» — это самый заряженный момент опыта.</p></div>
+        <div class="cell"><div class="n">03</div><h3>Награда</h3><p>Контент, к которому пришлось приложить руку, ценится выше.</p></div>
+      </div>
+      <button class="relock" id="relock">← Закрыть снова</button>
+    </section>
+  </main>
+
+<script>
+(function(){
+  var slider = document.getElementById('slider');
+  var handle = document.getElementById('handle');
+  var fill   = document.getElementById('fill');
+  var label  = document.getElementById('label');
+  var gate   = document.getElementById('gate');
+  var site   = document.getElementById('site');
+  var relock = document.getElementById('relock');
+
+  var dragging=false, startX=0, current=0, max=0, done=false;
+
+  function measure(){
+    // travel distance = slider width - handle width - margins
+    max = slider.clientWidth - handle.offsetWidth - 8;
+    if(max<0) max=0;
+  }
+  window.addEventListener('resize', function(){ if(!done){ measure(); setPos(0);} });
+  measure();
+
+  function setPos(x){
+    x = Math.max(0, Math.min(max, x));
+    current = x;
+    handle.style.transform = 'translateX(' + x + 'px)';
+    fill.style.width = (x + handle.offsetWidth) + 'px';
+    var ratio = max ? x/max : 0;
+    label.style.opacity = String(1 - ratio*1.4);
+  }
+
+  function pointerDown(e){
+    if(done) return;
+    dragging=true;
+    handle.style.transition='none';
+    fill.style.transition='none';
+    startX = (e.touches?e.touches[0].clientX:e.clientX) - current;
+  }
+  function pointerMove(e){
+    if(!dragging||done) return;
+    if(e.cancelable) e.preventDefault();
+    var cx = e.touches?e.touches[0].clientX:e.clientX;
+    setPos(cx - startX);
+  }
+  function pointerUp(){
+    if(!dragging||done) return;
+    dragging=false;
+    if(current >= max*0.92){
+      unlock();
+    }else{
+      // snap back
+      handle.style.transition='transform .4s cubic-bezier(.16,1,.3,1)';
+      fill.style.transition='width .4s cubic-bezier(.16,1,.3,1)';
+      setPos(0);
+    }
+  }
+
+  function unlock(){
+    done=true;
+    slider.classList.add('done');
+    handle.style.transition='transform .35s cubic-bezier(.16,1,.3,1)';
+    fill.style.transition='width .35s cubic-bezier(.16,1,.3,1)';
+    setPos(max);
+    // swap arrow for check
+    handle.querySelector('.arrows').innerHTML =
+      '<svg viewBox="0 0 24 24"><polyline points="4 12 10 18 20 6"/></svg>';
+    if(navigator.vibrate) navigator.vibrate(30);
+    setTimeout(function(){
+      gate.classList.add('open');
+      site.classList.add('show');
+    }, 520);
+  }
+
+  // mouse
+  handle.addEventListener('mousedown', pointerDown);
+  window.addEventListener('mousemove', pointerMove);
+  window.addEventListener('mouseup', pointerUp);
+  // touch
+  handle.addEventListener('touchstart', pointerDown, {passive:true});
+  window.addEventListener('touchmove', pointerMove, {passive:false});
+  window.addEventListener('touchend', pointerUp);
+
+  // reset / relock
+  relock.addEventListener('click', function(){
+    done=false;
+    slider.classList.remove('done');
+    site.classList.remove('show');
+    gate.classList.remove('open');
+    handle.querySelector('.arrows').innerHTML =
+      '<svg viewBox="0 0 24 24"><polyline points="8 6 14 12 8 18"/><polyline points="14 6 20 12 14 18"/></svg>';
+    measure();
+    handle.style.transition='none';fill.style.transition='none';
+    setPos(0);
+  });
+})();
+</script>
+</body>
+</html>

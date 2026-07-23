@@ -9,6 +9,8 @@ import SunPath from './three/SunPath.jsx';
 import PlanEditor from './three/PlanEditor.jsx';
 import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
+import WindRose from './three/WindRose.jsx';
+import { fetchWindRose, prevailingDir } from './engine/wind.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
 
@@ -45,6 +47,12 @@ export default function App() {
   const openPaywall = () => setPaywall(true);
   const requirePro = fn => () => { if (pro) fn(); else openPaywall(); };
   const [planOpen, setPlanOpen] = useState(false);
+  const [windOpen, setWindOpen] = useState(false);
+  const [windFlow, setWindFlow] = useState(false);
+  const [windDeg, setWindDeg] = useState(315);
+  const toggleWind = () => { if (!pro) { openPaywall(); return; }
+    const nv = !windFlow; setWindFlow(nv);
+    if (nv) fetchWindRose(lat, lon).then(d => setWindDeg(prevailingDir(d.seasons.year).index * 45)).catch(() => {}); };
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
@@ -236,7 +244,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
           windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode}
-          groundKey={mapKey} groundStyle={ground3d} />
+          groundKey={mapKey} groundStyle={ground3d} wind={{ on: windFlow, dirDeg: windDeg }} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -289,6 +297,16 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
+          <Button variant="soft" color="gray" onClick={requirePro(() => setWindOpen(true))}>🌀{!mobile && ' Роза ветров'}</Button>
+          <Dialog.Root open={windOpen} onOpenChange={setWindOpen}>
+            <Dialog.Content maxWidth="440px">
+              <Dialog.Title>Роза ветров</Dialog.Title>
+              <Dialog.Description size="1" color="gray" mb="3">Откуда и как часто дует ветер по сезонам — под координаты вашего участка.</Dialog.Description>
+              {windOpen && <WindRose lat={lat} lon={lon} />}
+              <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
+            </Dialog.Content>
+          </Dialog.Root>
+          <Button variant={windFlow ? 'solid' : 'soft'} color={windFlow ? 'grass' : 'gray'} onClick={toggleWind}>🌬{!mobile && ' Поток'}</Button>
           <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> Pro активен</> : <><LockOpen1Icon /> Тарифы</>}</Button>
           </>}
           <IconButton variant="soft" color="gray" title="Тема" onClick={() => setThemeMode(appearance === 'dark' ? 'light' : 'dark')}>
