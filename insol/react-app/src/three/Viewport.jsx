@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { Line2 } from 'three/examples/jsm/lines/Line2.js';
+import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
+import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC, plotBasis, clampToPoly } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
@@ -99,37 +102,51 @@ function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
     return { corners: c, normal: n }; }); }
 
 // --- линии тока ветра: упрощённое потенциальное обтекание строений-цилиндров (качественно) ---
-const WSTOPS = [[0, [0.48, 0.82, 0.42]], [0.4, [0.91, 0.82, 0.29]], [0.7, [0.91, 0.52, 0.24]], [1, [0.82, 0.27, 0.23]]];
-function windSpeedColor(t) { t = Math.max(0, Math.min(1, t));
+// градиент: обычная скорость — жёлтый, ускорение у боков препятствий — красный
+const WSTOPS = [[0, [0.96, 0.80, 0.25]], [0.5, [0.95, 0.58, 0.25]], [1, [0.90, 0.26, 0.24]]];
+function windColor(t) { t = Math.max(0, Math.min(1, t));
   for (let i = 1; i < WSTOPS.length; i++) { if (t <= WSTOPS[i][0]) { const a = WSTOPS[i - 1], b = WSTOPS[i], k = (t - a[0]) / ((b[0] - a[0]) || 1);
     return [a[1][0] + (b[1][0] - a[1][0]) * k, a[1][1] + (b[1][1] - a[1][1]) * k, a[1][2] + (b[1][2] - a[1][2]) * k]; } }
   return WSTOPS[WSTOPS.length - 1][1];
 }
+// возвращает { lines:[{pos[],col[],end{x,y,z,dx,dz,col[]}}], maxH }
 function buildStreamlines(dirDeg, base, buildings, plotHalf) {
   const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
   const obs = [];
   (buildings || []).forEach(b => { if (!b.pts || b.pts.length < 3) return; const k = b.kind;
-    if (k === 'path' || k === 'tree' || k === 'bush') return;
+    if (k === 'path' || k === 'bush') return;
     let cx = 0, cy = 0; b.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= b.pts.length; cy /= b.pts.length;
-    let a = 2; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
-    obs.push({ x: cx, z: -cy, a: a * 1.15 }); });
+    let a = 1.5; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
+    const top = k === 'tree' ? (b.height || 5) : (b.height || 3) + (b.roofH || 0);
+    obs.push({ x: cx, z: -cy, a: a * 1.15, top }); });
+  const maxH = obs.length ? Math.max(3, ...obs.map(o => o.top)) : 6;
   const U = 1;
-  const vel = (x, z) => { let vx = U * fx, vz = U * fz;
-    for (const o of obs) { const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
+  const vel = (x, z, y) => { let vx = U * fx, vz = U * fz;
+    for (const o of obs) { if (y > o.top) continue;      // выше объекта ветер идёт поверх — не отклоняется
+      const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
       if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
       vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
     return [vx, vz]; };
-  const R = plotHalf + 18, M = 26, N = 130, ds = (2 * R) / N;
-  const raw = []; let maxSpd = U * 1.2;
-  for (let m = 0; m < M; m++) { const t = (m / (M - 1)) * 2 - 1;
-    let x = -fx * R + px * t * R, z = -fz * R + pz * t * R; const pos = [], spd = [];
-    for (let s = 0; s < N; s++) {
-      for (const o of obs) { const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz) || 1e-6; if (d < o.a) { x = o.x + dx / d * o.a; z = o.z + dz / d * o.a; } }
-      const [vx, vz] = vel(x, z), sp = Math.hypot(vx, vz) || 1e-6;
-      pos.push(x, 1.6, z); spd.push(sp); if (sp > maxSpd) maxSpd = sp;
-      x += vx / sp * ds; z += vz / sp * ds; }
-    raw.push({ pos, spd }); }
-  return raw.map(ln => { const col = []; ln.spd.forEach(sp => { const c = windSpeedColor((sp / maxSpd) * 0.95); col.push(c[0], c[1], c[2]); }); return { pos: ln.pos, col }; });
+  const R = plotHalf + 18, N = 120, ds = (2 * R) / N;
+  const L = Math.max(2, Math.min(5, Math.round(maxH / 2.5))), M = 15;
+  const lines = [];
+  for (let l = 0; l < L; l++) {
+    const y = 1.4 + (maxH - 1.4) * (L === 1 ? 0 : l / (L - 1));
+    for (let m = 0; m < M; m++) {
+      const t = (m / (M - 1)) * 2 - 1; let x = -fx * R + px * t * R, z = -fz * R + pz * t * R;
+      const pos = [], col = []; let lvx = U * fx, lvz = U * fz;
+      for (let s = 0; s < N; s++) {
+        for (const o of obs) { if (y > o.top) continue; const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz) || 1e-6; if (d < o.a) { x = o.x + dx / d * o.a; z = o.z + dz / d * o.a; } }
+        const [vx, vz] = vel(x, z, y); const sp = Math.hypot(vx, vz) || 1e-6; lvx = vx; lvz = vz;
+        const c = windColor((sp / U - 1) / 0.9);   // sp<=U → жёлтый, быстрее → красный
+        pos.push(x, y, z); col.push(c[0], c[1], c[2]);
+        x += vx / sp * ds; z += vz / sp * ds;
+      }
+      const n = Math.hypot(lvx, lvz) || 1, li = pos.length;
+      lines.push({ pos, col, end: { x: pos[li - 3], y, z: pos[li - 1], dx: lvx / n, dz: lvz / n, col: col.slice(li - 3) } });
+    }
+  }
+  return { lines, maxH };
 }
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
@@ -156,7 +173,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
   }, []);
 
   useEffect(() => { const c = mount.current && mount.current.querySelector('canvas'); if (c) c.style.cursor = plantMode ? 'crosshair' : ''; }, [plantMode]);
-  // линии тока ветра: строим полилинии обтекания и красим по скорости
+  // линии тока ветра: толстые линии (Line2) обтекания + стрелки-наконечники, градиент по скорости
   useEffect(() => {
     const a = api.current; if (!a.scene || !a.windGroup) return;
     const g = a.windGroup;
@@ -165,11 +182,19 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     if (!wind.on) return;
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const ph = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
-    buildStreamlines(wind.dirDeg, base, buildings, ph).forEach(ln => {
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(ln.pos, 3));
-      geo.setAttribute('color', new THREE.Float32BufferAttribute(ln.col, 3));
-      g.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, toneMapped: false })));
+    const rw = a.size.w || 1000, rh = a.size.h || 700;
+    const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph);
+    lines.forEach(ln => {
+      const geo = new LineGeometry(); geo.setPositions(ln.pos); geo.setColors(ln.col);
+      const mat = new LineMaterial({ linewidth: 3.5, vertexColors: true, transparent: true, opacity: 0.92, worldUnits: false, dashed: false });
+      mat.resolution.set(rw, rh);
+      g.add(new Line2(geo, mat));
+      // стрелка-наконечник по направлению ветра
+      const e = ln.end, cone = new THREE.Mesh(new THREE.ConeGeometry(0.7, 2.1, 10),
+        new THREE.MeshBasicMaterial({ color: new THREE.Color(e.col[0], e.col[1], e.col[2]), toneMapped: false }));
+      cone.position.set(e.x, e.y, e.z);
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(e.dx, 0, e.dz).normalize());
+      g.add(cone);
     });
   }, [wind.on, wind.dirDeg, poly, fenceH, buildings]);
 
@@ -327,7 +352,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         onRef.current && onRef.current(bRef.current.filter((_, k) => k !== i)); } };
     addEventListener('keydown', keyH);
 
-    function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix(); }
+    const sizeRef = { w: 1, h: 1 };
+    function resize() { const w = el.clientWidth, h = el.clientHeight; renderer.setSize(w, h); camera.aspect = w / h; camera.updateProjectionMatrix();
+      sizeRef.w = w; sizeRef.h = h; windGroup.children.forEach(o => { if (o.material && o.material.resolution) o.material.resolution.set(w, h); }); }
     resize(); addEventListener('resize', resize);
     let raf; (function loop() { raf = requestAnimationFrame(loop);
       const { az, el: e2, r } = orbit; camera.position.set(r * Math.cos(e2) * Math.sin(az), r * Math.sin(e2), r * Math.cos(e2) * Math.cos(az)); camera.lookAt(0, 6, 0);
@@ -335,7 +362,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, size: sizeRef, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
       skyDay.dispose(); skyNight.dispose(); plasterTex.dispose();
