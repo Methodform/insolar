@@ -98,6 +98,40 @@ function roofSlopes3D(pts, base, rh, flip) { if (pts.length !== 4) return [];
     const n = new THREE.Vector3().subVectors(c[1], c[0]).cross(new THREE.Vector3().subVectors(c[2], c[0])).normalize(); if (n.y < 0) n.negate();
     return { corners: c, normal: n }; }); }
 
+// --- линии тока ветра: упрощённое потенциальное обтекание строений-цилиндров (качественно) ---
+const WSTOPS = [[0, [0.48, 0.82, 0.42]], [0.4, [0.91, 0.82, 0.29]], [0.7, [0.91, 0.52, 0.24]], [1, [0.82, 0.27, 0.23]]];
+function windSpeedColor(t) { t = Math.max(0, Math.min(1, t));
+  for (let i = 1; i < WSTOPS.length; i++) { if (t <= WSTOPS[i][0]) { const a = WSTOPS[i - 1], b = WSTOPS[i], k = (t - a[0]) / ((b[0] - a[0]) || 1);
+    return [a[1][0] + (b[1][0] - a[1][0]) * k, a[1][1] + (b[1][1] - a[1][1]) * k, a[1][2] + (b[1][2] - a[1][2]) * k]; } }
+  return WSTOPS[WSTOPS.length - 1][1];
+}
+function buildStreamlines(dirDeg, base, buildings, plotHalf) {
+  const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
+  const obs = [];
+  (buildings || []).forEach(b => { if (!b.pts || b.pts.length < 3) return; const k = b.kind;
+    if (k === 'path' || k === 'tree' || k === 'bush') return;
+    let cx = 0, cy = 0; b.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= b.pts.length; cy /= b.pts.length;
+    let a = 2; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
+    obs.push({ x: cx, z: -cy, a: a * 1.15 }); });
+  const U = 1;
+  const vel = (x, z) => { let vx = U * fx, vz = U * fz;
+    for (const o of obs) { const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
+      if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
+      vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
+    return [vx, vz]; };
+  const R = plotHalf + 18, M = 26, N = 130, ds = (2 * R) / N;
+  const raw = []; let maxSpd = U * 1.2;
+  for (let m = 0; m < M; m++) { const t = (m / (M - 1)) * 2 - 1;
+    let x = -fx * R + px * t * R, z = -fz * R + pz * t * R; const pos = [], spd = [];
+    for (let s = 0; s < N; s++) {
+      for (const o of obs) { const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz) || 1e-6; if (d < o.a) { x = o.x + dx / d * o.a; z = o.z + dz / d * o.a; } }
+      const [vx, vz] = vel(x, z), sp = Math.hypot(vx, vz) || 1e-6;
+      pos.push(x, 1.6, z); spd.push(sp); if (sp > maxSpd) maxSpd = sp;
+      x += vx / sp * ds; z += vz / sp * ds; }
+    raw.push({ pos, spd }); }
+  return raw.map(ln => { const col = []; ln.spd.forEach(sp => { const c = windSpeedColor((sp / maxSpd) * 0.95); col.push(c[0], c[1], c[2]); }); return { pos: ln.pos, col }; });
+}
+
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
   analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [], plantMode = null,
   groundKey = '', groundStyle = 'off', wind = { on: false, dirDeg: 315 } }) {
@@ -122,7 +156,22 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
   }, []);
 
   useEffect(() => { const c = mount.current && mount.current.querySelector('canvas'); if (c) c.style.cursor = plantMode ? 'crosshair' : ''; }, [plantMode]);
-  useEffect(() => { if (api.current) api.current.wind = wind; }, [wind]);
+  // линии тока ветра: строим полилинии обтекания и красим по скорости
+  useEffect(() => {
+    const a = api.current; if (!a.scene || !a.windGroup) return;
+    const g = a.windGroup;
+    while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); g.remove(c); }
+    g.visible = !!wind.on;
+    if (!wind.on) return;
+    const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
+    const ph = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
+    buildStreamlines(wind.dirDeg, base, buildings, ph).forEach(ln => {
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(ln.pos, 3));
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(ln.col, 3));
+      g.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.9, toneMapped: false })));
+    });
+  }, [wind.on, wind.dirDeg, poly, fenceH, buildings]);
 
   useEffect(() => {
     const el = mount.current;
@@ -168,12 +217,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(cv), transparent: true, depthTest: false })); sp.renderOrder = 900;
       scene.add(sp); compassSprites.push({ sp, dx, dz }); });
 
-    // поток ветра: частицы, дующие с господствующего направления (этап 2, качественно)
-    const WIND_N = 500, windPos = new Float32Array(WIND_N * 3);
-    for (let i = 0; i < WIND_N; i++) { windPos[i * 3] = (Math.random() * 2 - 1) * 130; windPos[i * 3 + 1] = 1 + Math.random() * 8; windPos[i * 3 + 2] = (Math.random() * 2 - 1) * 130; }
-    const windGeo = new THREE.BufferGeometry(); windGeo.setAttribute('position', new THREE.BufferAttribute(windPos, 3));
-    const windPoints = new THREE.Points(windGeo, new THREE.PointsMaterial({ color: 0xbfe0ff, size: 1.1, transparent: true, opacity: 0.7, depthWrite: false }));
-    windPoints.visible = false; scene.add(windPoints);
+    const windGroup = new THREE.Group(); windGroup.visible = false; scene.add(windGroup);   // линии тока ветра
 
     const dyn = new THREE.Group(); scene.add(dyn);
     const gizmo = new THREE.Group(); scene.add(gizmo);
@@ -289,26 +333,13 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const { az, el: e2, r } = orbit; camera.position.set(r * Math.cos(e2) * Math.sin(az), r * Math.sin(e2), r * Math.cos(e2) * Math.cos(az)); camera.lookAt(0, 6, 0);
       const R = (api.current.plotHalf || 12) + 8 + r * 0.14, csc = Math.max(8, Math.min(22, r * 0.055));
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
-      const w = api.current.wind;
-      if (w && w.on) {
-        windPoints.visible = true;
-        const A = (w.dirDeg + 180) * Math.PI / 180, vx = Math.sin(A), vz = -Math.cos(A);   // куда дует
-        const WR = (api.current.plotHalf || 12) + 30, spd = 0.4;
-        for (let i = 0; i < WIND_N; i++) {
-          let x = windPos[i * 3] + vx * spd, z = windPos[i * 3 + 2] + vz * spd;
-          if (x > WR) x -= 2 * WR; else if (x < -WR) x += 2 * WR;
-          if (z > WR) z -= 2 * WR; else if (z < -WR) z += 2 * WR;
-          windPos[i * 3] = x; windPos[i * 3 + 2] = z;
-        }
-        windGeo.attributes.position.needsUpdate = true;
-      } else if (windPoints.visible) windPoints.visible = false;
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
       skyDay.dispose(); skyNight.dispose(); plasterTex.dispose();
-      windGeo.dispose(); windPoints.material.dispose();
+      windGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
     return () => api.current.dispose();
