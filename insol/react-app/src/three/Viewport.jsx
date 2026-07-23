@@ -127,13 +127,14 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
       if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
       vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
     return [vx, vz]; };
-  const R = plotHalf + 18, N = 120, ds = (2 * R) / N;
-  const L = Math.max(2, Math.min(5, Math.round(maxH / 2.5))), M = 15;
+  const R = plotHalf + 9, N = 120, ds = (2 * R) / N;
+  const spread = plotHalf + 2;                 // ширина «веера» линий ≈ участок + небольшой отступ
+  const L = Math.max(2, Math.min(5, Math.round(maxH / 2.5))), M = 13;
   const lines = [];
   for (let l = 0; l < L; l++) {
     const y = 1.4 + (maxH - 1.4) * (L === 1 ? 0 : l / (L - 1));
     for (let m = 0; m < M; m++) {
-      const t = (m / (M - 1)) * 2 - 1; let x = -fx * R + px * t * R, z = -fz * R + pz * t * R;
+      const t = (m / (M - 1)) * 2 - 1; let x = -fx * R + px * t * spread, z = -fz * R + pz * t * spread;
       const pos = [], col = []; let lvx = U * fx, lvz = U * fz;
       for (let s = 0; s < N; s++) {
         for (const o of obs) { if (y > o.top) continue; const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz) || 1e-6; if (d < o.a) { x = o.x + dx / d * o.a; z = o.z + dz / d * o.a; } }
@@ -188,7 +189,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     lines.forEach(ln => {
       const geo = new LineGeometry(); geo.setPositions(ln.pos); geo.setColors(ln.col);
       // пунктир в мировых единицах: короткие сегменты фикс. длины, которые «бегут» по руслу (анимация dashOffset)
-      const mat = new LineMaterial({ linewidth: 0.55, vertexColors: true, transparent: true, opacity: 1, worldUnits: true, dashed: true, dashSize: 3.5, gapSize: 6 });
+      const mat = new LineMaterial({ linewidth: 0.55, vertexColors: true, transparent: true, opacity: 1, worldUnits: true, dashed: true, dashSize: 2.5, gapSize: 4.5 });
       mat.resolution.set(rw, rh);
       const line = new Line2(geo, mat); line.computeLineDistances(); g.add(line); a.windMats.push(mat);
       // стрелка-наконечник по направлению ветра
@@ -362,7 +363,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const { az, el: e2, r } = orbit; camera.position.set(r * Math.cos(e2) * Math.sin(az), r * Math.sin(e2), r * Math.cos(e2) * Math.cos(az)); camera.lookAt(0, 6, 0);
       const R = (api.current.plotHalf || 12) + 8 + r * 0.14, csc = Math.max(8, Math.min(22, r * 0.055));
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
-      if (windGroup.visible && api.current.windMats) { for (let i = 0; i < api.current.windMats.length; i++) api.current.windMats[i].dashOffset -= 0.22; }
+      if (windGroup.visible && api.current.windMats) { for (let i = 0; i < api.current.windMats.length; i++) api.current.windMats[i].dashOffset -= 0.45; }
       renderer.render(scene, camera); })();
 
     api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, windMats: [], size: sizeRef, dispose() {
