@@ -179,6 +179,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const g = a.windGroup;
     while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); g.remove(c); }
     g.visible = !!wind.on;
+    a.windMats = [];
     if (!wind.on) return;
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const ph = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
@@ -186,9 +187,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph);
     lines.forEach(ln => {
       const geo = new LineGeometry(); geo.setPositions(ln.pos); geo.setColors(ln.col);
-      const mat = new LineMaterial({ linewidth: 3.5, vertexColors: true, transparent: true, opacity: 0.92, worldUnits: false, dashed: false });
+      // пунктир в мировых единицах: короткие сегменты фикс. длины, которые «бегут» по руслу (анимация dashOffset)
+      const mat = new LineMaterial({ linewidth: 0.55, vertexColors: true, transparent: true, opacity: 1, worldUnits: true, dashed: true, dashSize: 3.5, gapSize: 6 });
       mat.resolution.set(rw, rh);
-      g.add(new Line2(geo, mat));
+      const line = new Line2(geo, mat); line.computeLineDistances(); g.add(line); a.windMats.push(mat);
       // стрелка-наконечник по направлению ветра
       const e = ln.end, cone = new THREE.Mesh(new THREE.ConeGeometry(0.7, 2.1, 10),
         new THREE.MeshBasicMaterial({ color: new THREE.Color(e.col[0], e.col[1], e.col[2]), toneMapped: false }));
@@ -360,9 +362,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const { az, el: e2, r } = orbit; camera.position.set(r * Math.cos(e2) * Math.sin(az), r * Math.sin(e2), r * Math.cos(e2) * Math.cos(az)); camera.lookAt(0, 6, 0);
       const R = (api.current.plotHalf || 12) + 8 + r * 0.14, csc = Math.max(8, Math.min(22, r * 0.055));
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
+      if (windGroup.visible && api.current.windMats) { for (let i = 0; i < api.current.windMats.length; i++) api.current.windMats[i].dashOffset -= 0.22; }
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, size: sizeRef, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, windMats: [], size: sizeRef, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
       skyDay.dispose(); skyNight.dispose(); plasterTex.dispose();
