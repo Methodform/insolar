@@ -2,9 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { Line2 } from 'three/examples/jsm/lines/Line2.js';
-import { LineGeometry } from 'three/examples/jsm/lines/LineGeometry.js';
-import { LineMaterial } from 'three/examples/jsm/lines/LineMaterial.js';
 import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC, plotBasis, clampToPoly } from '../engine/astronomy.js';
 
 const SUN_DIST = 400;
@@ -109,7 +106,7 @@ function windColor(t) { t = Math.max(0, Math.min(1, t));
     return [a[1][0] + (b[1][0] - a[1][0]) * k, a[1][1] + (b[1][1] - a[1][1]) * k, a[1][2] + (b[1][2] - a[1][2]) * k]; } }
   return WSTOPS[WSTOPS.length - 1][1];
 }
-// возвращает { lines:[{pos[],col[],end{x,y,z,dx,dz,col[]}}], maxH }
+// возвращает { lines:[{pos[x,y,z...], spd[]}] } — линии тока, обрезанные по границам участка (+отступ)
 function buildStreamlines(dirDeg, base, buildings, plotHalf) {
   const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
   const obs = [];
@@ -120,34 +117,63 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
     const top = k === 'tree' ? (b.height || 5) : (b.height || 3) + (b.roofH || 0);
     obs.push({ x: cx, z: -cy, a: a * 1.15, top }); });
   const maxH = obs.length ? Math.max(3, ...obs.map(o => o.top)) : 6;
+  // границы участка в координатах сцены (x=e, z=-n) + отступ; линии рисуем только внутри
+  let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9;
+  base.forEach(p => { minx = Math.min(minx, p[0]); maxx = Math.max(maxx, p[0]); minz = Math.min(minz, -p[1]); maxz = Math.max(maxz, -p[1]); });
+  const mg = 7; minx -= mg; maxx += mg; minz -= mg; maxz += mg;
+  const inside = (x, z) => x >= minx && x <= maxx && z >= minz && z <= maxz;
   const U = 1;
   const vel = (x, z, y) => { let vx = U * fx, vz = U * fz;
-    for (const o of obs) { if (y > o.top) continue;      // выше объекта ветер идёт поверх — не отклоняется
+    for (const o of obs) { if (y > o.top) continue;
       const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
       if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
       vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
     return [vx, vz]; };
-  const R = plotHalf + 9, N = 120, ds = (2 * R) / N;
-  const spread = plotHalf + 2;                 // ширина «веера» линий ≈ участок + небольшой отступ
+  const R = plotHalf + 14, N = 200, ds = (2 * R) / N;
+  const spread = plotHalf + 1;
   const L = Math.max(2, Math.min(5, Math.round(maxH / 2.5))), M = 13;
   const lines = [];
   for (let l = 0; l < L; l++) {
     const y = 1.4 + (maxH - 1.4) * (L === 1 ? 0 : l / (L - 1));
     for (let m = 0; m < M; m++) {
       const t = (m / (M - 1)) * 2 - 1; let x = -fx * R + px * t * spread, z = -fz * R + pz * t * spread;
-      const pos = [], col = []; let lvx = U * fx, lvz = U * fz;
+      const pos = [], spd = [];
       for (let s = 0; s < N; s++) {
         for (const o of obs) { if (y > o.top) continue; const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz) || 1e-6; if (d < o.a) { x = o.x + dx / d * o.a; z = o.z + dz / d * o.a; } }
-        const [vx, vz] = vel(x, z, y); const sp = Math.hypot(vx, vz) || 1e-6; lvx = vx; lvz = vz;
-        const c = windColor((sp / U - 1) / 0.9);   // sp<=U → жёлтый, быстрее → красный
-        pos.push(x, y, z); col.push(c[0], c[1], c[2]);
+        const [vx, vz] = vel(x, z, y); const sp = Math.hypot(vx, vz) || 1e-6;
+        if (inside(x, z)) { pos.push(x, y, z); spd.push(sp); }   // только в пределах участка
         x += vx / sp * ds; z += vz / sp * ds;
       }
-      const n = Math.hypot(lvx, lvz) || 1, li = pos.length;
-      lines.push({ pos, col, end: { x: pos[li - 3], y, z: pos[li - 1], dx: lvx / n, dz: lvz / n, col: col.slice(li - 3) } });
+      if (pos.length >= 6) lines.push({ pos, spd });
     }
   }
-  return { lines, maxH };
+  return { lines };
+}
+
+// «кометы»: движущийся отрезок линии тока с затуханием прозрачности к хвосту (шейдер) и скруглением
+const COMET_K = 20;
+const COMET_VS = 'attribute float aT; varying float vT; void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+const COMET_FS = 'uniform vec3 uColor; uniform float uOpacity; varying float vT; void main(){ float a = pow(1.0 - vT, 1.3) * uOpacity; if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }';
+function updateComet(c) {
+  const n = c.n; if (n < 2) return;
+  c.phase += c.speed; if (c.phase > n - 1) c.phase -= (n - 1);
+  const pos = c.mesh.geometry.attributes.position.array, path = c.path, K = COMET_K;
+  for (let i = 0; i < K; i++) {
+    let idx = c.phase - i * c.spacing; if (idx < 0) idx = 0; else if (idx > n - 1) idx = n - 1;
+    const i0 = Math.floor(idx), f = idx - i0, i1 = Math.min(n - 1, i0 + 1);
+    const x = path[i0 * 3] + (path[i1 * 3] - path[i0 * 3]) * f;
+    const y = path[i0 * 3 + 1];
+    const z = path[i0 * 3 + 2] + (path[i1 * 3 + 2] - path[i0 * 3 + 2]) * f;
+    let dxx = path[i1 * 3] - path[i0 * 3], dzz = path[i1 * 3 + 2] - path[i0 * 3 + 2];
+    let pxx = -dzz, pzz = dxx; const pl = Math.hypot(pxx, pzz) || 1; pxx /= pl; pzz /= pl;
+    const w = c.width * (0.25 + 0.75 * (1 - i / (K - 1)));   // сужение к хвосту (скруглённый вид)
+    const o = i * 6;
+    pos[o] = x + pxx * w; pos[o + 1] = y; pos[o + 2] = z + pzz * w;
+    pos[o + 3] = x - pxx * w; pos[o + 4] = y; pos[o + 5] = z - pzz * w;
+  }
+  c.mesh.geometry.attributes.position.needsUpdate = true;
+  const hi = Math.min(n - 1, Math.round(c.phase)), col = windColor((c.spd[hi] / 1 - 1) / 0.9);
+  c.mesh.material.uniforms.uColor.value.setRGB(col[0], col[1], col[2]);
 }
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
@@ -174,30 +200,31 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
   }, []);
 
   useEffect(() => { const c = mount.current && mount.current.querySelector('canvas'); if (c) c.style.cursor = plantMode ? 'crosshair' : ''; }, [plantMode]);
-  // линии тока ветра: толстые линии (Line2) обтекания + стрелки-наконечники, градиент по скорости
+  // ветер: «кометы» — движущиеся отрезки линий тока со скруглением и затуханием прозрачности к хвосту
   useEffect(() => {
     const a = api.current; if (!a.scene || !a.windGroup) return;
     const g = a.windGroup;
     while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); g.remove(c); }
     g.visible = !!wind.on;
-    a.windMats = [];
+    a.comets = [];
     if (!wind.on) return;
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const ph = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
-    const rw = a.size.w || 1000, rh = a.size.h || 700;
     const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph);
+    const K = COMET_K;
     lines.forEach(ln => {
-      const geo = new LineGeometry(); geo.setPositions(ln.pos); geo.setColors(ln.col);
-      // пунктир в мировых единицах: короткие сегменты фикс. длины, которые «бегут» по руслу (анимация dashOffset)
-      const mat = new LineMaterial({ linewidth: 0.55, vertexColors: true, transparent: true, opacity: 1, worldUnits: true, dashed: true, dashSize: 2.5, gapSize: 4.5 });
-      mat.resolution.set(rw, rh);
-      const line = new Line2(geo, mat); line.computeLineDistances(); g.add(line); a.windMats.push(mat);
-      // стрелка-наконечник по направлению ветра
-      const e = ln.end, cone = new THREE.Mesh(new THREE.ConeGeometry(0.7, 2.1, 10),
-        new THREE.MeshBasicMaterial({ color: new THREE.Color(e.col[0], e.col[1], e.col[2]), toneMapped: false }));
-      cone.position.set(e.x, e.y, e.z);
-      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(e.dx, 0, e.dz).normalize());
-      g.add(cone);
+      const n = ln.pos.length / 3; if (n < 3) return;
+      const positions = new Float32Array(K * 2 * 3), aT = new Float32Array(K * 2);
+      for (let i = 0; i < K; i++) { aT[i * 2] = i / (K - 1); aT[i * 2 + 1] = i / (K - 1); }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+      geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+      const idx = []; for (let i = 0; i < K - 1; i++) { const A = i * 2, B = i * 2 + 1, C = (i + 1) * 2, D = (i + 1) * 2 + 1; idx.push(A, B, C, B, D, C); }
+      geo.setIndex(idx);
+      const mat = new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0.95, 0.8, 0.25) }, uOpacity: { value: 0.95 } },
+        vertexShader: COMET_VS, fragmentShader: COMET_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+      const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; g.add(mesh);
+      a.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: Math.random() * (n - 1), speed: 0.6, spacing: 1.1, width: 0.6 });
     });
   }, [wind.on, wind.dirDeg, poly, fenceH, buildings]);
 
@@ -363,10 +390,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const { az, el: e2, r } = orbit; camera.position.set(r * Math.cos(e2) * Math.sin(az), r * Math.sin(e2), r * Math.cos(e2) * Math.cos(az)); camera.lookAt(0, 6, 0);
       const R = (api.current.plotHalf || 12) + 8 + r * 0.14, csc = Math.max(8, Math.min(22, r * 0.055));
       compassSprites.forEach(c => { c.sp.position.set(c.dx * R, 3, c.dz * R); c.sp.scale.set(csc, csc, 1); });
-      if (windGroup.visible && api.current.windMats) { for (let i = 0; i < api.current.windMats.length; i++) api.current.windMats[i].dashOffset -= 0.45; }
+      if (windGroup.visible && api.current.comets) { for (let i = 0; i < api.current.comets.length; i++) updateComet(api.current.comets[i]); }
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, windMats: [], size: sizeRef, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, comets: [], size: sizeRef, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
       skyDay.dispose(); skyNight.dispose(); plasterTex.dispose();
