@@ -131,7 +131,7 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
     return [vx, vz]; };
   const R = plotHalf + 14, N = 200, ds = (2 * R) / N;
   const spread = plotHalf + 1;
-  const L = Math.max(2, Math.min(4, Math.round(maxH / 3))), M = 9;   // меньше линий → легче для системы
+  const L = Math.max(2, Math.min(4, Math.round(maxH / 3))), M = 13;
   const lines = [];
   for (let l = 0; l < L; l++) {
     const y = 1.4 + (maxH - 1.4) * (L === 1 ? 0 : l / (L - 1));
@@ -148,6 +148,38 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
     }
   }
   return { lines };
+}
+
+// зоны комфорта по ветру: затишье (за постройками) и продувание (по бокам, ускорение)
+// возвращает { pos[x,y,z...], col[r,g,b...] } — плоская сетка-оверлей на земле в пределах участка
+function buildWindComfort(dirDeg, base, buildings) {
+  const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
+  const obs = [];
+  (buildings || []).forEach(b => { if (!b.pts || b.pts.length < 3) return; const k = b.kind; if (k === 'path' || k === 'bush') return;
+    let cx = 0, cy = 0; b.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= b.pts.length; cy /= b.pts.length;
+    let a = 1.5; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
+    const top = k === 'tree' ? (b.height || 5) : (b.height || 3) + (b.roofH || 0);
+    obs.push({ x: cx, z: -cy, a: a * 1.15, top }); });
+  if (!obs.length) return { pos: [], col: [] };
+  const U = 1;
+  const spd = (x, z) => { let vx = U * fx, vz = U * fz;
+    for (const o of obs) { const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
+      if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
+      vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
+    return Math.hypot(vx, vz) / U; };
+  let mne = 1e9, mxe = -1e9, mnn = 1e9, mxn = -1e9;
+  base.forEach(p => { mne = Math.min(mne, p[0]); mxe = Math.max(mxe, p[0]); mnn = Math.min(mnn, p[1]); mxn = Math.max(mxn, p[1]); });
+  const step = Math.max(1.2, Math.min(2.5, Math.max(mxe - mne, mxn - mnn) / 26));
+  const CALM = [0.30, 0.55, 0.90], WINDY = [0.90, 0.40, 0.24], pos = [], col = [], y = 0.13;
+  for (let e = mne; e < mxe; e += step) for (let nn = mnn; nn < mxn; nn += step) {
+    const ce = e + step / 2, cn = nn + step / 2; if (!pointInPoly(ce, cn, base)) continue;
+    const s = spd(ce, -cn); let c = null;
+    if (s < 0.55) c = CALM; else if (s > 1.3) c = WINDY; else continue;
+    const q = [[e, -nn], [e + step, -nn], [e + step, -(nn + step)], [e, -(nn + step)]];
+    const tri = (A, B, C) => { [A, B, C].forEach(P => { pos.push(P[0], y, P[1]); col.push(c[0], c[1], c[2]); }); };
+    tri(q[0], q[1], q[2]); tri(q[0], q[2], q[3]);
+  }
+  return { pos, col };
 }
 
 // «кометы»: движущийся отрезок линии тока с затуханием прозрачности к хвосту (шейдер) и скруглением
@@ -210,21 +242,32 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     if (!wind.on) return;
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const ph = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
+    // оверлей зон комфорта: затишье (синий) / продувание (оранжевый)
+    const cf = buildWindComfort(wind.dirDeg, base, buildings);
+    if (cf.pos.length) {
+      const cg = new THREE.BufferGeometry();
+      cg.setAttribute('position', new THREE.Float32BufferAttribute(cf.pos, 3));
+      cg.setAttribute('color', new THREE.Float32BufferAttribute(cf.col, 3));
+      const cmesh = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+      cmesh.renderOrder = 1; g.add(cmesh);
+    }
     const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph);
     const K = COMET_K;
     lines.forEach(ln => {
       const n = ln.pos.length / 3; if (n < 3) return;
-      const positions = new Float32Array(K * 2 * 3), aT = new Float32Array(K * 2);
-      for (let i = 0; i < K; i++) { aT[i * 2] = i / (K - 1); aT[i * 2 + 1] = i / (K - 1); }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-      geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
-      const idx = []; for (let i = 0; i < K - 1; i++) { const A = i * 2, B = i * 2 + 1, C = (i + 1) * 2, D = (i + 1) * 2 + 1; idx.push(A, B, C, B, D, C); }
-      geo.setIndex(idx);
-      const mat = new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0.95, 0.8, 0.25) }, uOpacity: { value: 0.95 } },
-        vertexShader: COMET_VS, fragmentShader: COMET_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-      const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; g.add(mesh);
-      a.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: Math.random() * (n - 1), speed: 0.9, spacing: 2.75, width: 0.28 });
+      for (let ci = 0; ci < 2; ci++) {              // по 2 кометы на линию → выше частота
+        const positions = new Float32Array(K * 2 * 3), aT = new Float32Array(K * 2);
+        for (let i = 0; i < K; i++) { aT[i * 2] = i / (K - 1); aT[i * 2 + 1] = i / (K - 1); }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+        geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+        const idx = []; for (let i = 0; i < K - 1; i++) { const A = i * 2, B = i * 2 + 1, C = (i + 1) * 2, D = (i + 1) * 2 + 1; idx.push(A, B, C, B, D, C); }
+        geo.setIndex(idx);
+        const mat = new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0.95, 0.8, 0.25) }, uOpacity: { value: 0.95 } },
+          vertexShader: COMET_VS, fragmentShader: COMET_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+        const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 2; g.add(mesh);
+        a.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.28 });
+      }
     });
   }, [wind.on, wind.dirDeg, poly, fenceH, buildings]);
 

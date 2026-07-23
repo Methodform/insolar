@@ -455,7 +455,11 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <Switch checked={pro && windFlow} onCheckedChange={setWindOn} />
                   </Text>
                 </Flex>
-                {pro && windFlow && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Линии тока с господствующего направления, огибают строения.</Text>}
+                {pro && windFlow && <Box mt="2">
+                  <Text size="1" color="gray" style={{ display: 'block' }}>Линии тока с господствующего направления, огибают строения.</Text>
+                  <Flex align="center" gap="2" mt="2"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#4d8be6', display: 'inline-block' }} /><Text size="1" color="gray">Затишье — беседку и зону отдыха сюда</Text></Flex>
+                  <Flex align="center" gap="2" mt="1"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#e6663d', display: 'inline-block' }} /><Text size="1" color="gray">Продувание — грядки/теплицу защитить</Text></Flex>
+                </Box>}
               </Box>
             </Box>
             <Box>
