@@ -131,7 +131,7 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
     return [vx, vz]; };
   const R = plotHalf + 14, N = 200, ds = (2 * R) / N;
   const spread = plotHalf + 1;
-  const L = Math.max(2, Math.min(5, Math.round(maxH / 2.5))), M = 13;
+  const L = Math.max(2, Math.min(4, Math.round(maxH / 3))), M = 9;   // меньше линий → легче для системы
   const lines = [];
   for (let l = 0; l < L; l++) {
     const y = 1.4 + (maxH - 1.4) * (L === 1 ? 0 : l / (L - 1));
@@ -151,7 +151,7 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
 }
 
 // «кометы»: движущийся отрезок линии тока с затуханием прозрачности к хвосту (шейдер) и скруглением
-const COMET_K = 20;
+const COMET_K = 16;
 const COMET_VS = 'attribute float aT; varying float vT; void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
 const COMET_FS = 'uniform vec3 uColor; uniform float uOpacity; varying float vT; void main(){ float a = pow(1.0 - vT, 1.3) * uOpacity; if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }';
 function updateComet(c) {
@@ -224,7 +224,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const mat = new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0.95, 0.8, 0.25) }, uOpacity: { value: 0.95 } },
         vertexShader: COMET_VS, fragmentShader: COMET_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide });
       const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; g.add(mesh);
-      a.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: Math.random() * (n - 1), speed: 0.6, spacing: 1.1, width: 0.6 });
+      a.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: Math.random() * (n - 1), speed: 0.9, spacing: 2.75, width: 0.28 });
     });
   }, [wind.on, wind.dirDeg, poly, fenceH, buildings]);
 

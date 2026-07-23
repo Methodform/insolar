@@ -50,9 +50,8 @@ export default function App() {
   const [windOpen, setWindOpen] = useState(false);
   const [windFlow, setWindFlow] = useState(false);
   const [windDeg, setWindDeg] = useState(315);
-  const toggleWind = () => { if (!pro) { openPaywall(); return; }
-    const nv = !windFlow; setWindFlow(nv);
-    if (nv) fetchWindRose(lat, lon).then(d => setWindDeg(prevailingDir(d.seasons.year).index * 45)).catch(() => {}); };
+  const setWindOn = (v) => { if (!pro) { openPaywall(); return; } setWindFlow(v);
+    if (v) fetchWindRose(lat, lon).then(d => setWindDeg(prevailingDir(d.seasons.year).index * 45)).catch(() => {}); };
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
@@ -306,7 +305,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
-          <Button variant={windFlow ? 'solid' : 'soft'} color={windFlow ? 'grass' : 'gray'} onClick={toggleWind}>🌬{!mobile && ' Поток'}</Button>
           <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> Pro активен</> : <><LockOpen1Icon /> Тарифы</>}</Button>
           </>}
           <IconButton variant="soft" color="gray" title="Тема" onClick={() => setThemeMode(appearance === 'dark' ? 'light' : 'dark')}>
@@ -446,6 +444,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <input type="checkbox" checked={anDiff} onChange={e => setAnDiff(e.target.checked)} /> учитывать рассеянный свет
                   </Text>
                 </>}
+              </Box>
+            </Box>
+            <Box>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ВЕТЕР</Text>
+              <Box mt="2">
+                <Flex align="center" justify="between" asChild>
+                  <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: pro ? 'pointer' : 'default' }}>
+                    <Flex align="center" gap="2">🌬 Поток ветра</Flex>
+                    <Switch checked={pro && windFlow} onCheckedChange={setWindOn} />
+                  </Text>
+                </Flex>
+                {pro && windFlow && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Линии тока с господствующего направления, огибают строения.</Text>}
               </Box>
             </Box>
             <Box>
