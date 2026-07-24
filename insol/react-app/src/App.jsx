@@ -11,6 +11,7 @@ import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import { fetchWindRose, prevailingDir } from './engine/wind.js';
+import { loginWithYandex } from './yandexAuth.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
 
@@ -18,6 +19,8 @@ import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parse
 const CADASTRE_PROXY = '';
 // общий ключ MapTiler, встроенный в сборку (GitHub secret → VITE_MAPTILER_KEY). Ограничьте его по домену в MapTiler.
 const MAPTILER_KEY = (import.meta.env && import.meta.env.VITE_MAPTILER_KEY) || '';
+// Яндекс ID: вставьте client_id зарегистрированного OAuth-приложения (oauth.yandex.ru). Пусто — кнопка подскажет.
+const YANDEX_CLIENT_ID = (import.meta.env && import.meta.env.VITE_YANDEX_CLIENT_ID) || '';
 
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
@@ -52,6 +55,14 @@ export default function App() {
   const [windDeg, setWindDeg] = useState(315);
   const setWindOn = (v) => { if (!pro) { openPaywall(); return; } setWindFlow(v);
     if (v) fetchWindRose(lat, lon).then(d => setWindDeg(prevailingDir(d.seasons.year).index * 45)).catch(() => {}); };
+
+  const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem('insolar_user') || 'null'); } catch (e) { return null; } });
+  const loginYandex = async () => {
+    if (!YANDEX_CLIENT_ID) { alert('Не задан YANDEX_CLIENT_ID: зарегистрируйте приложение на oauth.yandex.ru и укажите client_id (VITE_YANDEX_CLIENT_ID).'); return; }
+    try { const { user } = await loginWithYandex(YANDEX_CLIENT_ID); setUser(user); try { localStorage.setItem('insolar_user', JSON.stringify(user)); } catch (e) {} }
+    catch (e) { console.warn('Yandex ID login:', e); }
+  };
+  const logoutYandex = () => { setUser(null); try { localStorage.removeItem('insolar_user'); } catch (e) {} };
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
@@ -306,6 +317,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             </Dialog.Content>
           </Dialog.Root>
           <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> Pro активен</> : <><LockOpen1Icon /> Тарифы</>}</Button>
+          {user
+            ? <Button variant="soft" color="gray" onClick={logoutYandex} title={(user.email || user.login || '') + ' — выйти'}><PersonIcon />{!mobile && ' ' + (user.name || 'Профиль')}</Button>
+            : <Button variant="soft" color="red" onClick={loginYandex}><PersonIcon />{!mobile && ' Войти с Яндекс ID'}</Button>}
           </>}
           <IconButton variant="soft" color="gray" title="Тема" onClick={() => setThemeMode(appearance === 'dark' ? 'light' : 'dark')}>
             {appearance === 'dark' ? <SunIcon /> : <MoonIcon />}
