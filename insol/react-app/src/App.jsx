@@ -10,7 +10,7 @@ import PlanEditor from './three/PlanEditor.jsx';
 import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
-import { fetchWindRose, prevailingDir } from './engine/wind.js';
+import { fetchWindRose, prevailingDir, fetchWindNow } from './engine/wind.js';
 import { loginWithYandex } from './yandexAuth.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
@@ -21,6 +21,8 @@ const CADASTRE_PROXY = '';
 const MAPTILER_KEY = (import.meta.env && import.meta.env.VITE_MAPTILER_KEY) || '';
 // Яндекс ID: вставьте client_id зарегистрированного OAuth-приложения (oauth.yandex.ru). Пусто — кнопка подскажет.
 const YANDEX_CLIENT_ID = (import.meta.env && import.meta.env.VITE_YANDEX_CLIENT_ID) || '';
+const COMPASS8 = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
+const compassFrom = deg => COMPASS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 
 const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
@@ -53,8 +55,17 @@ export default function App() {
   const [windOpen, setWindOpen] = useState(false);
   const [windFlow, setWindFlow] = useState(false);
   const [windDeg, setWindDeg] = useState(315);
+  const [windMode, setWindMode] = useState('climate');   // 'climate' | 'now'
+  const [windNow, setWindNow] = useState(null);           // { dirDeg, speed, time }
+  const loadClimate = () => fetchWindRose(lat, lon).then(d => setWindDeg(prevailingDir(d.seasons.year).index * 45)).catch(() => {});
+  const loadNow = () => fetchWindNow(lat, lon).then(n => { setWindNow(n); setWindDeg(n.dirDeg); }).catch(() => {});
   const setWindOn = (v) => { if (!pro) { openPaywall(); return; } setWindFlow(v);
-    if (v) fetchWindRose(lat, lon).then(d => setWindDeg(prevailingDir(d.seasons.year).index * 45)).catch(() => {}); };
+    if (v) { windMode === 'now' ? loadNow() : loadClimate(); } };
+  // режим «Сейчас»: тянем текущий ветер и обновляем каждые 10 минут, пока включено
+  useEffect(() => {
+    if (!(pro && windFlow && windMode === 'now')) return;
+    loadNow(); const id = setInterval(loadNow, 10 * 60 * 1000); return () => clearInterval(id);
+  }, [pro, windFlow, windMode, lat, lon]);
 
   const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem('insolar_user') || 'null'); } catch (e) { return null; } });
   const loginYandex = async () => {
@@ -470,7 +481,17 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Text>
                 </Flex>
                 {pro && windFlow && <Box mt="2">
-                  <Text size="1" color="gray" style={{ display: 'block' }}>Линии тока с господствующего направления, огибают строения.</Text>
+                  <Flex gap="1" mb="2">
+                    <Button size="1" style={{ flex: 1 }} variant={windMode === 'climate' ? 'solid' : 'soft'} color={windMode === 'climate' ? 'grass' : 'gray'}
+                      onClick={() => { setWindMode('climate'); loadClimate(); }}>Климат (год)</Button>
+                    <Button size="1" style={{ flex: 1 }} variant={windMode === 'now' ? 'solid' : 'soft'} color={windMode === 'now' ? 'grass' : 'gray'}
+                      onClick={() => { setWindMode('now'); loadNow(); }}>Сейчас</Button>
+                  </Flex>
+                  {windMode === 'climate'
+                    ? <Text size="1" color="gray" style={{ display: 'block' }}>Линии тока с господствующего направления за год, огибают строения.</Text>
+                    : (windNow
+                        ? <Text size="1" color="gray" style={{ display: 'block' }}>Ветер сейчас: с {compassFrom(windNow.dirDeg)}{windNow.speed != null ? `, ${windNow.speed.toFixed(1)} м/с` : ''} · данные на {String(windNow.time || '').slice(11, 16)} <Text size="1" color="gray" style={{ opacity: .7 }}>(ближайший узел прогноза, не датчик на участке)</Text></Text>
+                        : <Text size="1" color="gray" style={{ display: 'block' }}>Загружаю текущий ветер…</Text>)}
                   <Flex align="center" gap="2" mt="2"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#4d8be6', display: 'inline-block' }} /><Text size="1" color="gray">Затишье — беседку и зону отдыха сюда</Text></Flex>
                   <Flex align="center" gap="2" mt="1"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#e6663d', display: 'inline-block' }} /><Text size="1" color="gray">Продувание — грядки/теплицу защитить</Text></Flex>
                 </Box>}

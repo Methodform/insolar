@@ -65,6 +65,19 @@ export async function fetchWindRose(lat, lon, years = 2) {
   };
 }
 
+// текущий ветер «сейчас» — прогнозный эндпоинт Open-Meteo (ближайший час, сетка ~11 км).
+// Возвращает { dirDeg (откуда дует, °), speed (м/с), time (ISO) }. Не датчик на участке — ближайший узел прогноза.
+export async function fetchWindNow(lat, lon) {
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}` +
+    `&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms&timezone=auto`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('forecast http ' + r.status);
+  const d = await r.json();
+  const c = d && d.current;
+  if (!c || c.wind_direction_10m == null) throw new Error('нет данных о текущем ветре');
+  return { dirDeg: ((c.wind_direction_10m % 360) + 360) % 360, speed: c.wind_speed_10m, time: c.time };
+}
+
 // доминирующее направление сезона (индекс сектора с макс частотой)
 export function prevailingDir(season) {
   let mi = 0; season.freq.forEach((f, i) => { if (f > season.freq[mi]) mi = i; });
