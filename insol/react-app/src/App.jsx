@@ -72,7 +72,7 @@ export default function App() {
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
-  const [ground3d, setGround3d] = useState('streets');  // off | streets — по умолчанию схема включена
+  const [ground3d] = useState('off');  // без схемы сторонних карт по умолчанию (выпадающий список убран)
   const [keyDraft, setKeyDraft] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const applyKey = () => setMapKey(keyDraft.trim());
   const [analytics, setAnalytics] = useState(false);
@@ -360,26 +360,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Границы загружаются из НСПД (Росреестр). После загрузки участок построится автоматически.</Text>
                 </>
               )}
-              <Flex gap="2" mt="2" align="center">
-                <Text size="1" color="gray">Карта в 3D</Text>
-                <Select.Root value={ground3d} onValueChange={setGround3d}>
-                  <Select.Trigger style={{ flex: 1 }} />
-                  <Select.Content>
-                    <Select.Item value="off">Нет</Select.Item>
-                    <Select.Item value="streets">Схема</Select.Item>
-                  </Select.Content>
-                </Select.Root>
-              </Flex>
-              {ground3d === 'streets' && !MAPTILER_KEY && <>
-                <Flex gap="2" mt="2">
-                  <TextField.Root placeholder="Ключ MapTiler (бесплатный)" value={keyDraft} onChange={e => setKeyDraft(e.target.value)}
-                    onKeyDown={e => { if (e.key === 'Enter') applyKey(); }} onBlur={applyKey} style={{ flex: 1 }} />
-                  <Button variant="soft" onClick={applyKey}>Применить</Button>
-                </Flex>
-                {keyDraft.trim() && keyDraft.trim() === mapKey
-                  ? <Text size="1" color="grass" mt="1" style={{ display: 'block' }}>Ключ применён ✓</Text>
-                  : <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Схема в 3D тянется тайлами MapTiler — нужен бесплатный ключ (maptiler.com).</Text>}
-              </>}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДАТА И ВРЕМЯ</Text>
