@@ -61,11 +61,6 @@ export default function App() {
   const loadNow = () => fetchWindNow(lat, lon).then(n => { setWindNow(n); setWindDeg(n.dirDeg); }).catch(() => {});
   const setWindOn = (v) => { if (!pro) { openPaywall(); return; } setWindFlow(v);
     if (v) { windMode === 'now' ? loadNow() : loadClimate(); } };
-  // режим «Сейчас»: тянем текущий ветер и обновляем каждые 10 минут, пока включено
-  useEffect(() => {
-    if (!(pro && windFlow && windMode === 'now')) return;
-    loadNow(); const id = setInterval(loadNow, 10 * 60 * 1000); return () => clearInterval(id);
-  }, [pro, windFlow, windMode, lat, lon]);
 
   const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem('insolar_user') || 'null'); } catch (e) { return null; } });
   const loginYandex = async () => {
@@ -176,6 +171,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
   const lat = built ? built.lat0 : 55.75, lon = built ? built.lon0 : 37.62;
   const poly = built ? built.local : null;
+
+  // режим «Сейчас»: тянем текущий ветер и обновляем каждые 10 минут, пока включено (после объявления lat/lon)
+  useEffect(() => {
+    if (!(pro && windFlow && windMode === 'now')) return;
+    loadNow(); const id = setInterval(loadNow, 10 * 60 * 1000); return () => clearInterval(id);
+  }, [pro, windFlow, windMode, lat, lon]);
 
   function addPreset() {
     const [kind, name, dims] = preset.split('|');
