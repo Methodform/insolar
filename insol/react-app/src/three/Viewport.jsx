@@ -107,8 +107,34 @@ function windColor(t) { t = Math.max(0, Math.min(1, t));
   return WSTOPS[WSTOPS.length - 1][1];
 }
 // возвращает { lines:[{pos[x,y,z...], spd[]}] } — линии тока, обрезанные по границам участка (+отступ)
-function buildStreamlines(dirDeg, base, buildings, plotHalf) {
+// расстояние от точки P внутри участка ВВЕРХ по ветру до наветренного забора (пересечение луча с полигоном, сцен. коорд.)
+function rayExitDist(px, pz, dx, dz, polyS) {
+  let best = Infinity;
+  for (let i = 0; i < polyS.length; i++) {
+    const A = polyS[i], B = polyS[(i + 1) % polyS.length];
+    const ex = B[0] - A[0], ez = B[1] - A[1], den = dx * ez - dz * ex;
+    if (Math.abs(den) < 1e-9) continue;
+    const t = ((A[0] - px) * ez - (A[1] - pz) * ex) / den;
+    const u = ((A[0] - px) * dz - (A[1] - pz) * dx) / den;
+    if (t > 1e-6 && u >= -1e-6 && u <= 1 + 1e-6) best = Math.min(best, t);
+  }
+  return best;
+}
+// забор — проницаемый барьер: не отклоняет поток, а гасит скорость у земли с подветренной стороны.
+// ветер идёт поверх забора (выше fenceH влияния нет); затишье тянется вглубь участка ~7·высот, затухая.
+function fenceShelter(x, z, y, polyS, fenceH, fx, fz) {
+  if (!(fenceH > 0) || y >= fenceH) return 1;
+  const shelterLen = fenceH * 7;
+  const du = rayExitDist(x, z, -fx, -fz, polyS);   // как далеко вглубь от наветренного забора
+  if (!isFinite(du) || du >= shelterLen) return 1;
+  const k = 1 - du / shelterLen;                   // 1 у забора → 0 на глубине shelterLen
+  const hf = 1 - y / fenceH;                        // 1 у земли → 0 на верху забора
+  return 1 - 0.85 * k * hf;                         // у земли прямо за забором скорость падает до ~15%
+}
+
+function buildStreamlines(dirDeg, base, buildings, plotHalf, fenceH) {
   const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
+  const polyS = base.map(p => [p[0], -p[1]]);
   const obs = [];
   (buildings || []).forEach(b => { if (!b.pts || b.pts.length < 3) return; const k = b.kind;
     if (k === 'path' || k === 'bush') return;
@@ -128,7 +154,7 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
       const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
       if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
       vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
-    return [vx, vz]; };
+    const sf = fenceShelter(x, z, y, polyS, fenceH, fx, fz); return [vx * sf, vz * sf]; };
   const R = plotHalf + 14, N = 200, ds = (2 * R) / N;
   const spread = plotHalf + 1;
   const L = Math.max(2, Math.min(4, Math.round(maxH / 3))), M = 13;
@@ -152,21 +178,22 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf) {
 
 // зоны комфорта по ветру: затишье (за постройками) и продувание (по бокам, ускорение)
 // возвращает { pos[x,y,z...], col[r,g,b...] } — плоская сетка-оверлей на земле в пределах участка
-function buildWindComfort(dirDeg, base, buildings) {
+function buildWindComfort(dirDeg, base, buildings, fenceH) {
   const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
+  const polyS = base.map(p => [p[0], -p[1]]);
   const obs = [];
   (buildings || []).forEach(b => { if (!b.pts || b.pts.length < 3) return; const k = b.kind; if (k === 'path' || k === 'bush') return;
     let cx = 0, cy = 0; b.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= b.pts.length; cy /= b.pts.length;
     let a = 1.5; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
     const top = k === 'tree' ? (b.height || 5) : (b.height || 3) + (b.roofH || 0);
     obs.push({ x: cx, z: -cy, a: a * 1.15, top }); });
-  if (!obs.length) return { pos: [], col: [] };
+  if (!obs.length && !(fenceH > 0)) return { pos: [], col: [] };
   const U = 1;
   const spd = (x, z) => { let vx = U * fx, vz = U * fz;
     for (const o of obs) { const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
       if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
       vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
-    return Math.hypot(vx, vz) / U; };
+    return Math.hypot(vx, vz) / U * fenceShelter(x, z, 0, polyS, fenceH, fx, fz); };
   let mne = 1e9, mxe = -1e9, mnn = 1e9, mxn = -1e9;
   base.forEach(p => { mne = Math.min(mne, p[0]); mxe = Math.max(mxe, p[0]); mnn = Math.min(mnn, p[1]); mxn = Math.max(mxn, p[1]); });
   const step = Math.max(1.2, Math.min(2.5, Math.max(mxe - mne, mxn - mnn) / 26));
@@ -243,7 +270,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const ph = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
     // оверлей зон комфорта: затишье (синий) / продувание (оранжевый)
-    const cf = buildWindComfort(wind.dirDeg, base, buildings);
+    const cf = buildWindComfort(wind.dirDeg, base, buildings, fenceH);
     if (cf.pos.length) {
       const cg = new THREE.BufferGeometry();
       cg.setAttribute('position', new THREE.Float32BufferAttribute(cf.pos, 3));
@@ -251,7 +278,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const cmesh = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
       cmesh.renderOrder = 1; g.add(cmesh);
     }
-    const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph);
+    const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph, fenceH);
     const K = COMET_K;
     lines.forEach(ln => {
       const n = ln.pos.length / 3; if (n < 3) return;
