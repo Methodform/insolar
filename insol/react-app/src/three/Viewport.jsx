@@ -690,7 +690,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; } };
     clear();
     const key = (groundKey || '').trim();
-    if (!groundStyle || groundStyle === 'off' || !poly || poly.length < 3) return;
+    if (!groundStyle || groundStyle === 'off' || !key || !poly || poly.length < 3) return;
     const latR = lat * Math.PI / 180, mLat = 110540, mLon = 111320 * Math.cos(latR);
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; poly.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
     const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max((mxx - mnx) * 6, 320), spanN = Math.max((mxy - mny) * 6, 320);
@@ -704,12 +704,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 36) break; }
     const nx = xmax - xmin + 1, ny = ymax - ymin + 1;
     const cv = document.createElement('canvas'); cv.width = nx * 256; cv.height = ny * 256; const g = cv.getContext('2d');
-    // с ключом MapTiler — качественные тайлы; без ключа — бесплатные растровые тайлы OSM (дороги)
-    const styleUrl = (x, y) => key
-      ? (groundStyle === 'streets'
-        ? `https://api.maptiler.com/maps/basic-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
-        : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${encodeURIComponent(key)}`)
-      : `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
+    // только MapTiler (ключ зашит): basic — дороги/кварталы, satellite — снимок
+    const styleUrl = (x, y) => groundStyle === 'streets'
+      ? `https://api.maptiler.com/maps/basic-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
+      : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${encodeURIComponent(key)}`;
     let done = 0, total = nx * ny, cancelled = false;
     const build = () => {
       if (cancelled) return;
