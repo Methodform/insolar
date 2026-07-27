@@ -4,6 +4,25 @@
 
 const M_LAT = 110540;
 
+// зеркала Overpass: публичный сервер часто отдаёт 504/429 под нагрузкой — перебираем с повтором
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+  'https://overpass.private.coffee/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+];
+async function overpass(q) {
+  let lastErr;
+  for (const url of OVERPASS_ENDPOINTS) {
+    try {
+      const r = await fetch(url, { method: 'POST', body: q });
+      if (r.ok) return await r.json();
+      lastErr = new Error(r.status + '');
+    } catch (e) { lastErr = e; }
+  }
+  throw new Error('сервер карт занят, попробуйте ещё раз' + (lastErr ? ' (' + lastErr.message + ')' : ''));
+}
+
 function distToSeg(px, pz, ax, az, bx, bz) {
   const dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1e-9;
   let t = ((px - ax) * dx + (pz - az) * dz) / l2; t = Math.max(0, Math.min(1, t));
@@ -26,9 +45,7 @@ export async function fetchNeighbors(lat0, lon0, localPoly, radius = 20) {
   const w = lon0 + (mnx - pad) / mLon, e = lon0 + (mxx + pad) / mLon;
   const s = lat0 + (mnz - pad) / M_LAT, n = lat0 + (mxz + pad) / M_LAT;
   const q = `[out:json][timeout:25];(way["building"](${s},${w},${n},${e});relation["building"](${s},${w},${n},${e}););out geom 300;`;
-  const r = await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: q });
-  if (!r.ok) throw new Error('overpass ' + r.status);
-  const d = await r.json();
+  const d = await overpass(q);
   const toXZ = (la, lo) => [(lo - lon0) * mLon, (la - lat0) * M_LAT];
   const raw = [];
   for (const el of (d.elements || [])) {

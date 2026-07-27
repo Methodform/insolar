@@ -318,8 +318,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const scene = new THREE.Scene();
     const skyDay = makeSkyTexture(true), skyNight = makeSkyTexture(false);
     const plasterTex = makePlasterTexture();
-    scene.background = skyDay;                       // градиентное небо вместо плоского фона
-    scene.fog = new THREE.Fog(0xdce8f2, 320, 900);
+    scene.background = new THREE.Color(0xdfe7f2);    // плоское небо, без облаков и тумана
     const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 3000);
 
     // IBL: мягкое заполняющее освещение и лёгкие отражения от окружения — материалы выглядят
@@ -337,8 +336,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     sun.shadow.bias = -0.00015; sun.shadow.normalBias = 0.006; sun.shadow.radius = 1;
     scene.add(sun, sun.target);
 
-    const ground = new THREE.Mesh(new THREE.PlaneGeometry(1000, 1000), new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 1 }));
-    ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+    // базовая земля — большая и нейтральная под цвет карты OSM (без травы), край за дальней плоскостью камеры → без обрезки
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(8000, 8000), new THREE.MeshStandardMaterial({ color: 0xeceae3, roughness: 1 }));
+    ground.rotation.x = -Math.PI / 2; ground.position.y = -0.02; ground.receiveShadow = true; scene.add(ground);
     const grid = new THREE.GridHelper(400, 40, 0x3a4a30, 0x3a4a30); grid.material.opacity = 0.25; grid.material.transparent = true; grid.position.y = 0.02; scene.add(grid);
     const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(6, 20, 20), new THREE.MeshBasicMaterial({ color: 0xffd257 })); scene.add(sunSphere);
 
@@ -600,8 +600,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.sun.position.copy(v.clone().multiplyScalar(SUN_DIST)); a.sun.target.position.set(0, 0, 0);
     a.sunSphere.position.copy(v.clone().multiplyScalar(SUN_DIST));
     const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 1.15 : 2.0) : 0; a.ambient.intensity = up ? 0.1 : 0.04; a.sunSphere.visible = altDeg > -2;
-    a.scene.background = altDeg <= 0 ? a.skyNight : a.skyDay;
-    const fogC = altDeg <= 0 ? 0x2b3a4c : altDeg < 8 ? 0x9fb0c4 : 0xdce8f2; a.scene.fog.color.setHex(fogC);
+    a.scene.background = new THREE.Color(altDeg <= 0 ? 0x243244 : altDeg < 8 ? 0xb8c6d6 : 0xdfe7f2);
   }, [utcMs, lat, lon]);
 
   // 3D-аналитика поверхностей
@@ -691,10 +690,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; } };
     clear();
     const key = (groundKey || '').trim();
-    if (!groundStyle || groundStyle === 'off' || !key || !poly || poly.length < 3) return;
+    if (!groundStyle || groundStyle === 'off' || !poly || poly.length < 3) return;
     const latR = lat * Math.PI / 180, mLat = 110540, mLon = 111320 * Math.cos(latR);
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; poly.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
-    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max((mxx - mnx) * 4, 160), spanN = Math.max((mxy - mny) * 4, 160);
+    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max((mxx - mnx) * 6, 320), spanN = Math.max((mxy - mny) * 6, 320);
     const lonMin = lon + (cE - spanE / 2) / mLon, lonMax = lon + (cE + spanE / 2) / mLon, latMin = lat + (cN - spanN / 2) / mLat, latMax = lat + (cN + spanN / 2) / mLat;
     const lon2tx = (L, z) => Math.floor((L + 180) / 360 * Math.pow(2, z));
     const lat2ty = (D, z) => { const r = D * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); };
@@ -702,15 +701,19 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const ty2lat = (y, z) => { const n = Math.PI * (1 - 2 * y / Math.pow(2, z)); return Math.atan(Math.sinh(n)) * 180 / Math.PI; };
     let z = 19, xmin, xmax, ymin, ymax;
     for (; z >= 1; z--) { xmin = lon2tx(lonMin, z); xmax = lon2tx(lonMax, z); ymin = lat2ty(latMax, z); ymax = lat2ty(latMin, z);
-      if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 25) break; }
+      if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 36) break; }
     const nx = xmax - xmin + 1, ny = ymax - ymin + 1;
     const cv = document.createElement('canvas'); cv.width = nx * 256; cv.height = ny * 256; const g = cv.getContext('2d');
-    const styleUrl = (x, y) => groundStyle === 'streets'
-      ? `https://api.maptiler.com/maps/streets-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
-      : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${encodeURIComponent(key)}`;
+    // с ключом MapTiler — качественные тайлы; без ключа — бесплатные растровые тайлы OSM (дороги)
+    const styleUrl = (x, y) => key
+      ? (groundStyle === 'streets'
+        ? `https://api.maptiler.com/maps/streets-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
+        : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${encodeURIComponent(key)}`)
+      : `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
     let done = 0, total = nx * ny, cancelled = false;
     const build = () => {
       if (cancelled) return;
+      try {
       const left = tx2lon(xmin, z), right = tx2lon(xmax + 1, z), top = ty2lat(ymin, z), bot = ty2lat(ymax + 1, z);
       const lE = (left - lon) * mLon, rE = (right - lon) * mLon, tN = (top - lat) * mLat, bN = (bot - lat) * mLat;
       const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
@@ -725,6 +728,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const olp = poly.concat([poly[0]]).map(p => new THREE.Vector3(p[0], 0.1, -p[1]));
       const ol = new THREE.Line(new THREE.BufferGeometry().setFromPoints(olp), new THREE.LineBasicMaterial({ color: 0xffd257, toneMapped: false }));
       a.scene.add(ol); a.groundOutline = ol;
+      } catch (e) { /* тайлы без CORS «портят» канвас — оставляем нейтральную землю */ }
     };
     for (let x = xmin; x <= xmax; x++) for (let y = ymin; y <= ymax; y++) {
       const img = new Image(); img.crossOrigin = 'anonymous';

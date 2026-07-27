@@ -87,7 +87,7 @@ export default function App() {
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
-  const [ground3d] = useState('off');  // без схемы сторонних карт по умолчанию (выпадающий список убран)
+  const [ground3d] = useState('streets');  // карта дорог по умолчанию (OSM без ключа / MapTiler при наличии ключа)
   const [keyDraft, setKeyDraft] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const applyKey = () => setMapKey(keyDraft.trim());
   const [analytics, setAnalytics] = useState(false);
@@ -651,17 +651,20 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Flex gap="3" wrap="wrap" direction={mobile ? 'column' : 'row'} align="stretch">
               {[
                 { key: 'free', name: 'Free', price: '0 ₽', sub: 'навсегда', hero: false, badge: null,
-                  feats: ['1 участок (по точкам)', 'Сегодня + время суток', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Карта-схема участка'],
+                  feats: ['1 участок по точкам', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Соседние дома и роза ветров', 'Без сохранения и PDF'],
                   cta: pro ? null : 'Текущий план' },
-                { key: 'month', name: 'Месяц', price: '490 ₽', sub: 'в месяц · попробовать', hero: false, badge: null,
-                  feats: ['Всё из Free', 'Расстановка объектов', 'Любая дата и сезоны', '3D-аналитика, кадастр, свой забор', 'Сохранение и PDF-отчёт'],
-                  cta: 'Попробовать месяц' },
+                { key: 'month', name: 'Месяц', price: '490 ₽', sub: 'в месяц', hero: false, badge: null,
+                  feats: ['Всё из Free', 'Расстановка объектов, любые даты и сезоны', 'Кадастр, свой забор, поток ветра', 'Сохранение проектов', 'Скачивание PDF-паспорта'],
+                  cta: 'Оформить месяц' },
                 { key: 'season', name: 'Сезон · 6 мес', price: '1 490 ₽', sub: '≈ 248 ₽/мес', hero: false, badge: null,
-                  feats: ['Всё из Pro', 'На весь сезон стройки и посадок', 'Один платёж, без продлений'],
+                  feats: ['Всё из тарифа «Месяц»', 'На весь сезон стройки и посадок', 'Скачивание PDF-паспорта', 'Один платёж'],
                   cta: 'Взять на сезон' },
-                { key: 'year', name: 'Год', price: '1 990 ₽', sub: '≈ 166 ₽/мес · лучшая цена', hero: true, badge: 'Рекомендуем',
-                  feats: ['Всё из Pro без ограничений', 'Планируйте весь год: стройка, посадки, пересадки', 'Сколько угодно вариантов и объектов', 'Участок эволюционирует вместе с вами', 'Максимальная выгода за месяц'],
+                { key: 'year', name: 'Год', price: '1 990 ₽', sub: '≈ 166 ₽/мес · выгодно', hero: true, badge: 'Популярный',
+                  feats: ['Всё из тарифа «Месяц»', 'Весь год: стройка, посадки, пересадки', 'Сколько угодно участков и вариантов', 'Участок эволюционирует вместе с вами', 'Скачивание PDF-паспорта'],
                   cta: 'Планировать год' },
+                { key: 'b2b', name: 'B2B · риелторам', price: '10 000 ₽', sub: 'в год · для агентств', hero: false, badge: 'Бизнес',
+                  feats: ['Безлимит участков', 'PDF-паспорт с вашим брендом', 'Ссылки-презентации для клиентов', 'Для риелторов и агентств', 'Приоритетная поддержка'],
+                  cta: 'Подключить B2B' },
               ].map(t => (
                 <Box key={t.key} style={{ flex: '1 1 180px', border: t.hero ? '2px solid var(--grass-8)' : '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.hero ? 'var(--grass-a2)' : 'transparent', position: 'relative' }}>
                   {t.badge && <Badge color="grass" style={{ position: 'absolute', top: -10, left: 14 }}>{t.badge}</Badge>}
@@ -679,8 +682,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             </Flex>
             <Flex justify="between" align="center" mt="4" gap="3" wrap="wrap">
               <Text size="1" color="gray" style={{ flex: '1 1 300px' }}>
-                Когда доступ закончится, участок и проекты не пропадут — останутся для просмотра, а скачанные документы навсегда ваши.
-                Нужен только документ разово? <a href="#" onClick={e => { e.preventDefault(); setPro(true); setPaywall(false); }} style={{ color: 'var(--grass-11)' }}>Скачать паспорт участка за 790 ₽</a>.
+                Инсоляр — не разовый отчёт, а инструмент, в который возвращаешься к каждому сезону и решению. PDF-паспорт входит во все платные тарифы. Когда подписка закончится, участок и проекты не пропадут — останутся для просмотра, а скачанные PDF навсегда ваши.
               </Text>
               {pro
                 ? <Button variant="soft" color="gray" onClick={() => { setPro(false); setPaywall(false); }}>Отключить Pro (демо)</Button>

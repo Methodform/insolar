@@ -25,6 +25,7 @@ const PLANS = {
   month:  { label: 'Месяц',       color: 'blue',  price: 490,  monthly: 490 },
   season: { label: 'Сезон · 6м',  color: 'amber', price: 1490, monthly: 1490 / 6 },
   year:   { label: 'Год',         color: 'grass', price: 1990, monthly: 1990 / 12 },
+  b2b:    { label: 'B2B риелторам', color: 'purple', price: 10000, monthly: 10000 / 12 },
 };
 const STATUS = {
   active:   { label: 'активна',   color: 'grass' },
@@ -368,7 +369,7 @@ function Overview({ m, trends, planDist, funnel, productKpis }) {
   return (
     <>
       <Heading size="6" mb="1">Обзор</Heading>
-      <Text size="2" color="gray" as="p" mb="4">Демо-данные. Ключевой фокус монетизации — разовый «паспорт участка» (боль частника разовая), подписка вторична.</Text>
+      <Text size="2" color="gray" as="p" mb="4">Демо-данные. Модель монетизации — подписка (Месяц / Сезон / Год / B2B для риелторов), PDF-паспорт входит во все платные тарифы; ядро — интерактив и постоянное взаимодействие с участком.</Text>
       <Grid columns={{ initial: '2', md: '4' }} gap="3" mb="4">
         <Kpi label="MRR (подписки)" value={rub(m.mrr)} delta={8} sub="активных подписок" />
         <Kpi label="Разовые (паспорта, 30д)" value={rub(m.reportRev30)} delta={17} sub="главный доход" />
