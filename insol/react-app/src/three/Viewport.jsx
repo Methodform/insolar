@@ -132,7 +132,7 @@ function fenceShelter(x, z, y, polyS, fenceH, fx, fz) {
   return 1 - 0.85 * k * hf;                         // у земли прямо за забором скорость падает до ~15%
 }
 
-function buildStreamlines(dirDeg, base, buildings, plotHalf, fenceH) {
+function buildStreamlines(dirDeg, base, buildings, plotHalf, fenceH, neighbors) {
   const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
   const polyS = base.map(p => [p[0], -p[1]]);
   const obs = [];
@@ -142,6 +142,10 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf, fenceH) {
     let a = 1.5; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
     const top = k === 'tree' ? (b.height || 5) : (b.height || 3) + (b.roofH || 0);
     obs.push({ x: cx, z: -cy, a: a * 1.15, top }); });
+  (neighbors || []).forEach(b => { if (!b.pts || b.pts.length < 3) return;
+    let cx = 0, cy = 0; b.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= b.pts.length; cy /= b.pts.length;
+    let a = 1.5; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
+    obs.push({ x: cx, z: -cy, a: a * 1.1, top: b.height || 5 }); });
   const maxH = obs.length ? Math.max(3, ...obs.map(o => o.top)) : 6;
   // границы участка в координатах сцены (x=e, z=-n) + отступ; линии рисуем только внутри
   let minx = 1e9, maxx = -1e9, minz = 1e9, maxz = -1e9;
@@ -178,7 +182,7 @@ function buildStreamlines(dirDeg, base, buildings, plotHalf, fenceH) {
 
 // зоны комфорта по ветру: затишье (за постройками) и продувание (по бокам, ускорение)
 // возвращает { pos[x,y,z...], col[r,g,b...] } — плоская сетка-оверлей на земле в пределах участка
-function buildWindComfort(dirDeg, base, buildings, fenceH) {
+function buildWindComfort(dirDeg, base, buildings, fenceH, neighbors) {
   const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
   const polyS = base.map(p => [p[0], -p[1]]);
   const obs = [];
@@ -187,7 +191,11 @@ function buildWindComfort(dirDeg, base, buildings, fenceH) {
     let a = 1.5; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
     const top = k === 'tree' ? (b.height || 5) : (b.height || 3) + (b.roofH || 0);
     obs.push({ x: cx, z: -cy, a: a * 1.15, top }); });
-  if (!obs.length && !(fenceH > 0)) return { pos: [], col: [] };
+  (neighbors || []).forEach(b => { if (!b.pts || b.pts.length < 3) return;
+    let cx = 0, cy = 0; b.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= b.pts.length; cy /= b.pts.length;
+    let a = 1.5; b.pts.forEach(p => a = Math.max(a, Math.hypot(p[0] - cx, p[1] - cy)));
+    obs.push({ x: cx, z: -cy, a: a * 1.1, top: b.height || 5 }); });
+  if (!obs.length && !(fenceH > 0) && !(neighbors && neighbors.length)) return { pos: [], col: [] };
   const U = 1;
   const spd = (x, z) => { let vx = U * fx, vz = U * fz;
     for (const o of obs) { const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
@@ -270,7 +278,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const base = (poly && poly.length >= 3) ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     const ph = Math.max(...base.map(p => Math.hypot(p[0], p[1])), 12);
     // оверлей зон комфорта: затишье (синий) / продувание (оранжевый)
-    const cf = buildWindComfort(wind.dirDeg, base, buildings, fenceH);
+    const cf = buildWindComfort(wind.dirDeg, base, buildings, fenceH, neighbors);
     if (cf.pos.length) {
       const cg = new THREE.BufferGeometry();
       cg.setAttribute('position', new THREE.Float32BufferAttribute(cf.pos, 3));
@@ -278,7 +286,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const cmesh = new THREE.Mesh(cg, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.32, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
       cmesh.renderOrder = 1; g.add(cmesh);
     }
-    const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph, fenceH);
+    const { lines } = buildStreamlines(wind.dirDeg, base, buildings, ph, fenceH, neighbors);
     const K = COMET_K;
     lines.forEach(ln => {
       const n = ln.pos.length / 3; if (n < 3) return;
@@ -296,7 +304,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         a.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.28 });
       }
     });
-  }, [wind.on, wind.dirDeg, poly, fenceH, buildings]);
+  }, [wind.on, wind.dirDeg, poly, fenceH, buildings, neighbors]);
 
   useEffect(() => {
     const el = mount.current;
@@ -556,14 +564,29 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const rh = bd.roofH || 0;
       if (bd.pts.length === 4 && rh > 0) { const roof = gableRoofMesh(bd.pts, bd.height, rh, rmat, !!bd.ridge); if (roof) { roof.position.y = by; roof.userData.ci = ci; dyn.add(roof); } }
     });
-    // соседние здания с карты (OSM) — серые коробки, отбрасывают тень
+    // соседние здания с карты (OSM) — серые коробки + двускатная/шатровая крыша 1.5 м, отбрасывают тень
     if (neighbors && neighbors.length) {
       const nmat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.9 });
+      const nRoof = new THREE.MeshStandardMaterial({ color: 0x7e848c, roughness: 0.85, side: THREE.DoubleSide });
+      const RH = 1.5;
       neighbors.forEach(nb => {
         if (!nb.pts || nb.pts.length < 3) return;
+        const h = nb.height || 5;
         const sh = new THREE.Shape(); nb.pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
-        const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: nb.height || 5, bevelEnabled: false }), nmat);
+        const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: h, bevelEnabled: false }), nmat);
         m.rotation.x = -Math.PI / 2; m.position.y = 0; m.castShadow = true; m.receiveShadow = true; m.userData.neighbor = true; dyn.add(m);
+        // крыша по количеству точек: 4 → двускатная, иначе → шатёр к центроиду
+        if (nb.pts.length === 4) {
+          const roof = gableRoofMesh(nb.pts, h, RH, nRoof, false);
+          if (roof) { roof.userData.neighbor = true; dyn.add(roof); }
+        } else {
+          let cx = 0, cy = 0; nb.pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= nb.pts.length; cy /= nb.pts.length;
+          const apex = new THREE.Vector3(cx, h + RH, -cy), pos = [];
+          for (let i = 0; i < nb.pts.length; i++) { const A = nb.pts[i], B = nb.pts[(i + 1) % nb.pts.length];
+            pos.push(A[0], h, -A[1], B[0], h, -B[1], apex.x, apex.y, apex.z); }
+          const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+          const rm = new THREE.Mesh(geo, nRoof); rm.castShadow = true; rm.receiveShadow = true; rm.userData.neighbor = true; dyn.add(rm);
+        }
       });
     }
     if (a.sel && a.sel.ci >= 0 && a.sel.ci < (buildings || []).length) a.makeGizmo(); else if (a.gizmo) { while (a.gizmo.children.length) a.gizmo.remove(a.gizmo.children[0]); }
