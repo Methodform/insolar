@@ -707,7 +707,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     // с ключом MapTiler — качественные тайлы; без ключа — бесплатные растровые тайлы OSM (дороги)
     const styleUrl = (x, y) => key
       ? (groundStyle === 'streets'
-        ? `https://api.maptiler.com/maps/streets-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
+        ? `https://api.maptiler.com/maps/basic-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
         : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${encodeURIComponent(key)}`)
       : `https://tile.openstreetmap.org/${z}/${x}/${y}.png`;
     let done = 0, total = nx * ny, cancelled = false;
