@@ -18,7 +18,7 @@ import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parse
 // URL Cloudflare Worker'а (см. react-app/cadastre-proxy/README.md). Заменить после деплоя:
 const CADASTRE_PROXY = '';
 // общий ключ MapTiler, встроенный в сборку (GitHub secret → VITE_MAPTILER_KEY). Ограничьте его по домену в MapTiler.
-const MAPTILER_KEY = (import.meta.env && import.meta.env.VITE_MAPTILER_KEY) || '';
+const MAPTILER_KEY = (import.meta.env && import.meta.env.VITE_MAPTILER_KEY) || '2JUaUmt135fOwdifLWxv';
 // Яндекс ID: вставьте client_id зарегистрированного OAuth-приложения (oauth.yandex.ru). Пусто — кнопка подскажет.
 const YANDEX_CLIENT_ID = (import.meta.env && import.meta.env.VITE_YANDEX_CLIENT_ID) || '';
 const COMPASS8 = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
