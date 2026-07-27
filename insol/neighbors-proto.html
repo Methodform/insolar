@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Прототип · участок по точкам + соседи из OSM — SunPlan3D</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<style>
+  :root{--ink:#1a1d22;--muted:#6b7280;--line:#e4e7ec;--sun:#F2A93B;--green:#2f7d4f;--azure:#2f6bd4}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;color:var(--ink);font-size:14px}
+  header{padding:10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  header b{font-size:15px}
+  header .hint{color:var(--muted);font-size:12.5px}
+  header .sp{flex:1}
+  button{font:inherit;cursor:pointer;border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 12px}
+  button.pri{background:var(--green);color:#fff;border-color:var(--green)}
+  button.warn{color:#b23}
+  .wrap{display:grid;grid-template-columns:1fr 1fr;height:calc(100vh - 52px)}
+  #map{height:100%}
+  #view{position:relative;background:#dfe3e8}
+  #view canvas{display:block}
+  .ctrl{position:absolute;left:12px;right:12px;bottom:12px;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);
+    border:1px solid var(--line);border-radius:12px;padding:10px 12px;display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
+  .ctrl .row{display:flex;align-items:center;gap:8px}
+  .ctrl label{font-size:12px;color:var(--muted);min-width:74px}
+  .ctrl input[type=range]{flex:1}
+  .ctrl .v{font-variant-numeric:tabular-nums;font-weight:600;min-width:42px;text-align:right}
+  #log{position:absolute;top:12px;left:12px;right:12px;background:rgba(26,29,34,.86);color:#eaf0f6;font-size:12px;
+    padding:8px 11px;border-radius:9px;max-height:80px;overflow:auto;line-height:1.4;display:none}
+  .badge{position:absolute;top:12px;right:12px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px 9px;font-size:12px;color:var(--muted)}
+</style>
+</head>
+<body>
+<header>
+  <b>☀ SunPlan3D · прототип</b>
+  <span class="hint">Кликайте по карте, отмечая углы участка. Затем «Построить».</span>
+  <span class="sp"></span>
+  <button id="undo">↶ Убрать точку</button>
+  <button id="clear" class="warn">Очистить</button>
+  <button id="build" class="pri">Построить участок + соседей</button>
+</header>
+<div class="wrap">
+  <div id="map"></div>
+  <div id="view">
+    <div class="badge" id="badge">соседи: OSM · высота ≈ типовая</div>
+    <div id="log"></div>
+    <div class="ctrl">
+      <div class="row"><label>Время (ч)</label><input id="hour" type="range" min="4" max="21" step="0.25" value="12"><span class="v" id="hourV">12:00</span></div>
+      <div class="row"><label>Азимут ☀</label><input id="az" type="range" min="60" max="300" step="1" value="180"><span class="v" id="azV">180°</span></div>
+      <div class="row"><label>Высота ☀</label><input id="el" type="range" min="5" max="75" step="1" value="45"><span class="v" id="elV">45°</span></div>
+      <div class="row"><label>Этажей у соседей</label><input id="floors" type="range" min="1" max="3" step="1" value="2"><span class="v" id="floorsV">2</span></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ---------- карта ----------
+const map = L.map('map').setView([55.9285, 37.6132], 18);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:20,attribution:'© OpenStreetMap'}).addTo(map);
+let pts=[], markers=[], poly=null;
+function redraw(){
+  markers.forEach(m=>map.removeLayer(m)); markers=[];
+  pts.forEach((p,i)=>{ const m=L.circleMarker(p,{radius:6,color:'#2f7d4f',fillColor:'#2f7d4f',fillOpacity:1}).addTo(map); markers.push(m); });
+  if(poly){map.removeLayer(poly);poly=null;}
+  if(pts.length>=2) poly=L.polygon(pts,{color:'#2f7d4f',weight:2,fillOpacity:.12}).addTo(map);
+}
+map.on('click',e=>{ pts.push([e.latlng.lat,e.latlng.lng]); redraw(); });
+document.getElementById('undo').onclick=()=>{ pts.pop(); redraw(); };
+document.getElementById('clear').onclick=()=>{ pts=[]; redraw(); clear3D(); };
+
+// ---------- геометрия / проекция ----------
+let lat0,lon0,mLat,mLon;
+function toXZ(lat,lon){ return [ (lon-lon0)*mLon, -(lat-lat0)*mLat ]; } // x=восток, z=север(-)
+function polyArea(p){ let a=0; for(let i=0;i<p.length;i++){const [x1,z1]=p[i],[x2,z2]=p[(i+1)%p.length]; a+=x1*z2-x2*z1;} return Math.abs(a)/2; }
+function centroidLL(list){ let la=0,lo=0; list.forEach(p=>{la+=p[0];lo+=p[1];}); return [la/list.length,lo/list.length]; }
+// расстояние точки до полигона (в метрах, в XZ)
+function distToSeg(px,pz,ax,az,bx,bz){ const dx=bx-ax,dz=bz-az; const l2=dx*dx+dz*dz||1e-9; let t=((px-ax)*dx+(pz-az)*dz)/l2; t=Math.max(0,Math.min(1,t)); const cx=ax+t*dx,cz=az+t*dz; return Math.hypot(px-cx,pz-cz); }
+function distPolyPoly(A,B){ let m=1e9; for(const p of A) for(let i=0;i<B.length;i++){ const a=B[i],b=B[(i+1)%B.length]; m=Math.min(m,distToSeg(p[0],p[1],a[0],a[1],b[0],b[1])); } return m; }
+
+// ---------- Overpass ----------
+async function fetchBuildings(bbox){
+  const q=`[out:json][timeout:25];(way["building"](${bbox});relation["building"](${bbox}););out geom 300;`;
+  const r=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',body:q});
+  if(!r.ok) throw new Error('Overpass '+r.status);
+  const d=await r.json();
+  const out=[];
+  for(const el of d.elements){
+    if(el.type==='way'&&el.geometry) out.push({geom:el.geometry.map(g=>[g.lat,g.lon]),tags:el.tags||{}});
+    if(el.type==='relation'&&el.members) el.members.forEach(mm=>{ if(mm.geometry&&mm.role==='outer') out.push({geom:mm.geometry.map(g=>[g.lat,g.lon]),tags:el.tags||{}}); });
+  }
+  return out;
+}
+
+// ---------- 3D ----------
+let renderer,scene,cam,dyn,sunLight,animId, sceneR=60;
+function init3D(){
+  const host=document.getElementById('view');
+  renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio);
+  renderer.setSize(host.clientWidth,host.clientHeight); renderer.shadowMap.enabled=true; renderer.shadowMap.type=THREE.PCFSoftShadowMap;
+  host.insertBefore(renderer.domElement,host.firstChild);
+  scene=new THREE.Scene(); scene.background=new THREE.Color(0xdfe7f2);
+  cam=new THREE.PerspectiveCamera(50,host.clientWidth/host.clientHeight,0.5,4000);
+  scene.add(new THREE.HemisphereLight(0xffffff,0x9aa6a0,0.55));
+  const amb=new THREE.AmbientLight(0xffffff,0.25); scene.add(amb);
+  sunLight=new THREE.DirectionalLight(0xfff4e0,1.6); sunLight.castShadow=true;
+  sunLight.shadow.mapSize.set(2048,2048); sunLight.shadow.camera.near=1; sunLight.shadow.camera.far=2000; sunLight.shadow.bias=-0.0004;
+  scene.add(sunLight); scene.add(sunLight.target);
+  dyn=new THREE.Group(); scene.add(dyn);
+  addEventListener('resize',()=>{ renderer.setSize(host.clientWidth,host.clientHeight); cam.aspect=host.clientWidth/host.clientHeight; cam.updateProjectionMatrix(); });
+  initOrbit(host);
+  (function loop(){ animId=requestAnimationFrame(loop); renderer.render(scene,cam); })();
+}
+let orbit={az:-0.7,el:0.85,r:120,tx:0,tz:0,drag:false,px:0,py:0};
+function initOrbit(host){
+  host.addEventListener('mousedown',e=>{orbit.drag=true;orbit.px=e.clientX;orbit.py=e.clientY;});
+  addEventListener('mouseup',()=>orbit.drag=false);
+  addEventListener('mousemove',e=>{ if(!orbit.drag)return; orbit.az-=(e.clientX-orbit.px)*0.006; orbit.el+=(e.clientY-orbit.py)*0.006; orbit.el=Math.max(0.15,Math.min(1.45,orbit.el)); orbit.px=e.clientX;orbit.py=e.clientY; updCam(); });
+  host.addEventListener('wheel',e=>{ orbit.r*=(1+Math.sign(e.deltaY)*0.1); orbit.r=Math.max(20,Math.min(1500,orbit.r)); updCam(); e.preventDefault(); },{passive:false});
+}
+function updCam(){ if(!cam)return; const {az,el,r,tx,tz}=orbit; cam.position.set(tx+r*Math.cos(el)*Math.sin(az), r*Math.sin(el), tz+r*Math.cos(el)*Math.cos(az)); cam.lookAt(tx,0,tz); }
+function clear3D(){ if(dyn){ while(dyn.children.length) dyn.remove(dyn.children[0]); } }
+
+function shapeFrom(xz){ const s=new THREE.Shape(); xz.forEach((p,i)=>i?s.lineTo(p[0],p[1]):s.moveTo(p[0],p[1])); s.closePath(); return s; }
+
+function build3D(plotXZ, neighbors){
+  if(!renderer) init3D();
+  clear3D();
+  // размер сцены
+  let R=0; plotXZ.forEach(p=>R=Math.max(R,Math.hypot(p[0],p[1]))); neighbors.forEach(n=>n.xz.forEach(p=>R=Math.max(R,Math.hypot(p[0],p[1]))));
+  sceneR=Math.max(30,R+15);
+  // земля
+  const ground=new THREE.Mesh(new THREE.PlaneGeometry(sceneR*6,sceneR*6), new THREE.MeshStandardMaterial({color:0xc9d3c4,roughness:1}));
+  ground.rotation.x=-Math.PI/2; ground.position.y=-0.02; ground.receiveShadow=true; dyn.add(ground);
+  // участок (плоский зелёный)
+  const pg=new THREE.Mesh(new THREE.ShapeGeometry(shapeFrom(plotXZ)), new THREE.MeshStandardMaterial({color:0x82a860,roughness:.95,side:THREE.DoubleSide}));
+  pg.rotation.x=-Math.PI/2; pg.position.y=0.03; pg.receiveShadow=true; dyn.add(pg);
+  // контур участка
+  const pts3=plotXZ.map(p=>new THREE.Vector3(p[0],0.06,p[1])); pts3.push(pts3[0].clone());
+  dyn.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3), new THREE.LineBasicMaterial({color:0x2f7d4f})));
+  // соседи (серые коробки)
+  const gmat=new THREE.MeshStandardMaterial({color:0x9a9ea6,roughness:.9});
+  neighbors.forEach(n=>{
+    const geo=new THREE.ExtrudeGeometry(shapeFrom(n.xz),{depth:n.h,bevelEnabled:false});
+    geo.rotateX(-Math.PI/2);
+    const m=new THREE.Mesh(geo,gmat); m.castShadow=true; m.receiveShadow=true; dyn.add(m);
+  });
+  // тени: направить теневую камеру на сцену
+  const sc=sunLight.shadow.camera; sc.left=sc.bottom=-sceneR; sc.right=sc.top=sceneR; sc.updateProjectionMatrix();
+  orbit.r=sceneR*2.1; orbit.tx=0; orbit.tz=0; updCam(); updateSun();
+}
+
+function updateSun(){
+  if(!sunLight)return;
+  const az=+document.getElementById('az').value*Math.PI/180, el=+document.getElementById('el').value*Math.PI/180;
+  const D=sceneR*3;
+  // x=восток=sin(az), север=cos(az)→ z=-cos(az)
+  sunLight.position.set(D*Math.cos(el)*Math.sin(az), D*Math.sin(el), -D*Math.cos(el)*Math.cos(az));
+  sunLight.target.position.set(0,0,0); sunLight.target.updateMatrixWorld();
+  sunLight.intensity = 0.5+1.4*Math.sin(el);
+}
+['az','el'].forEach(id=>document.getElementById(id).addEventListener('input',e=>{document.getElementById(id+'V').textContent=e.target.value+'°';updateSun();}));
+document.getElementById('hour').addEventListener('input',e=>{ const h=+e.target.value; const hh=Math.floor(h),mm=Math.round((h-hh)*60); document.getElementById('hourV').textContent=`${hh}:${String(mm).padStart(2,'0')}`;
+  // грубая привязка азимута/высоты к часу (прототип): полдень=180°/макс
+  const t=(h-12)/7; document.getElementById('az').value=Math.round(180+t*110); document.getElementById('el').value=Math.round(Math.max(6,60*Math.cos(t*1.3)));
+  document.getElementById('azV').textContent=document.getElementById('az').value+'°'; document.getElementById('elV').textContent=document.getElementById('el').value+'°'; updateSun(); });
+document.getElementById('floors').addEventListener('input',e=>{document.getElementById('floorsV').textContent=e.target.value;});
+
+// ---------- сборка ----------
+function log(m){const l=document.getElementById('log');l.style.display='block';l.innerHTML=m;}
+document.getElementById('build').onclick=async()=>{
+  if(pts.length<3){ alert('Отметьте минимум 3 точки — углы участка.'); return; }
+  const c=centroidLL(pts); lat0=c[0]; lon0=c[1]; mLat=111320; mLon=111320*Math.cos(lat0*Math.PI/180);
+  const plotXZ=pts.map(p=>toXZ(p[0],p[1]));
+  const floors=+document.getElementById('floors').value, defH=floors*3;
+  log('Запрашиваю соседние здания из OpenStreetMap…');
+  // bbox участка + ~40 м запас
+  let mnLa=1e9,mxLa=-1e9,mnLo=1e9,mxLo=-1e9; pts.forEach(p=>{mnLa=Math.min(mnLa,p[0]);mxLa=Math.max(mxLa,p[0]);mnLo=Math.min(mnLo,p[1]);mxLo=Math.max(mxLo,p[1]);});
+  const dLa=40/mLat, dLo=40/mLon; const bbox=`${mnLa-dLa},${mnLo-dLo},${mxLa+dLa},${mxLo+dLo}`;
+  let raw=[];
+  try{ raw=await fetchBuildings(bbox); }
+  catch(err){ log('Не удалось получить данные OSM ('+err.message+'). Попробуйте ещё раз — у Overpass бывают лимиты.'); build3D(plotXZ,[]); return; }
+  // конвертируем, оставляем в радиусе 20 м от границы участка
+  const RAD=20, neighbors=[];
+  for(const b of raw){
+    const xz=b.geom.map(g=>toXZ(g[0],g[1]));
+    if(xz.length<3) continue;
+    if(distPolyPoly(xz,plotXZ) > RAD) continue;                 // только в 20 м
+    let h=defH;
+    const t=b.tags;
+    if(t['height']) h=parseFloat(t['height'])||defH;
+    else if(t['building:levels']) h=(parseFloat(t['building:levels'])||floors)*3;
+    neighbors.push({xz,h});
+  }
+  log(`Найдено соседних построек в 20 м: <b>${neighbors.length}</b>. ${neighbors.length? 'Серые — из OSM, высота по этажам/типовая.' : 'В OSM тут пусто — в этом районе здания не нанесены. Высоту/дома можно будет задать вручную.'}`);
+  document.getElementById('badge').textContent = `соседей: ${neighbors.length} · радиус 20 м · OSM`;
+  build3D(plotXZ,neighbors);
+};
+</script>
+</body>
+</html>

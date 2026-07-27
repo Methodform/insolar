@@ -6,12 +6,12 @@ import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHor
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
-import PlanEditor from './three/PlanEditor.jsx';
 import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow } from './engine/wind.js';
 import { loginWithYandex } from './yandexAuth.js';
+import { fetchNeighbors } from './engine/osm.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
 
@@ -51,7 +51,6 @@ export default function App() {
   const [paywall, setPaywall] = useState(false);
   const openPaywall = () => setPaywall(true);
   const requirePro = fn => () => { if (pro) fn(); else openPaywall(); };
-  const [planOpen, setPlanOpen] = useState(false);
   const [windOpen, setWindOpen] = useState(false);
   const [windFlow, setWindFlow] = useState(false);
   const [windDeg, setWindDeg] = useState(315);
@@ -69,6 +68,22 @@ export default function App() {
     catch (e) { console.warn('Yandex ID login:', e); }
   };
   const logoutYandex = () => { setUser(null); try { localStorage.removeItem('insolar_user'); } catch (e) {} };
+
+  // соседние здания с карты (OSM)
+  const [neighOn, setNeighOn] = useState(false);
+  const [neighbors, setNeighbors] = useState([]);
+  const [neighMsg, setNeighMsg] = useState('');
+  const loadNeighbors = async (v) => {
+    setNeighOn(v);
+    if (!v) return;
+    if (!built || !built.local) { setNeighMsg('Сначала постройте участок'); return; }
+    setNeighMsg('Загружаю соседние здания с карты…');
+    try {
+      const nb = await fetchNeighbors(built.lat0, built.lon0, built.local, 20);
+      setNeighbors(nb);
+      setNeighMsg(nb.length ? `Найдено рядом: ${nb.length}` : 'Рядом в OSM зданий нет — их можно добавить вручную');
+    } catch (e) { setNeighMsg('Не удалось загрузить карту: ' + e.message); }
+  };
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
@@ -260,13 +275,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
-        {planOpen && <PlanEditor poly={poly} fenceH={fenceH} buildings={buildings} onBuildings={setBuildings} onClose={() => setPlanOpen(false)} />}
         {mapOpen && <MapView polyText={polyText} onClose={() => setMapOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={fenceH} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
           windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode}
-          groundKey={mapKey} groundStyle={ground3d} wind={{ on: windFlow, dirDeg: windDeg }} />
+          groundKey={mapKey} groundStyle={ground3d} wind={{ on: windFlow, dirDeg: windDeg }} neighbors={neighOn ? neighbors : []} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -411,8 +425,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Select.Content>
               </Select.Root>
               <Flex gap="2" mt="2">
-                <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Типовое</Button>
-                <Button variant="soft" color="gray" onClick={requirePro(() => setPlanOpen(true))} style={{ flex: 1 }}><Pencil1Icon /> Рисовать</Button>
+                <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Добавить объект</Button>
               </Flex>
               <Flex direction="column" gap="1" mt="2">
                 {buildings.map((b, i) => (
@@ -450,6 +463,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <input type="checkbox" checked={anDiff} onChange={e => setAnDiff(e.target.checked)} /> учитывать рассеянный свет
                   </Text>
                 </>}
+              </Box>
+            </Box>
+            <Box>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ОКРУЖЕНИЕ</Text>
+              <Box mt="2">
+                <Flex align="center" justify="between" asChild>
+                  <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <Flex align="center" gap="2">🏘 Соседние дома с карты</Flex>
+                    <Switch checked={neighOn} onCheckedChange={loadNeighbors} />
+                  </Text>
+                </Flex>
+                {neighOn && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>{neighMsg || 'Здания в 20 м вокруг участка из OpenStreetMap (серые, отбрасывают тень).'}</Text>}
               </Box>
             </Box>
             <Box>
@@ -629,7 +654,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   feats: ['1 участок (по точкам)', 'Сегодня + время суток', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Карта-схема участка'],
                   cta: pro ? null : 'Текущий план' },
                 { key: 'month', name: 'Месяц', price: '490 ₽', sub: 'в месяц · попробовать', hero: false, badge: null,
-                  feats: ['Всё из Free', 'Расстановка объектов и рисование', 'Любая дата и сезоны', '3D-аналитика, кадастр, свой забор', 'Сохранение и PDF-отчёт'],
+                  feats: ['Всё из Free', 'Расстановка объектов', 'Любая дата и сезоны', '3D-аналитика, кадастр, свой забор', 'Сохранение и PDF-отчёт'],
                   cta: 'Попробовать месяц' },
                 { key: 'season', name: 'Сезон · 6 мес', price: '1 490 ₽', sub: '≈ 248 ₽/мес', hero: false, badge: null,
                   feats: ['Всё из Pro', 'На весь сезон стройки и посадок', 'Один платёж, без продлений'],

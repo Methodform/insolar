@@ -237,7 +237,7 @@ function updateComet(c) {
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
   analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [], plantMode = null,
-  groundKey = '', groundStyle = 'off', wind = { on: false, dirDeg: 315 } }) {
+  groundKey = '', groundStyle = 'off', wind = { on: false, dirDeg: 315 }, neighbors = [] }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
@@ -376,7 +376,6 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const B = plotBasis((polyRef.current && polyRef.current.length >= 3) ? polyRef.current : [[-12, -12], [12, -12], [12, 12], [-12, 12]]);
       gizmo.add(arrow(new THREE.Vector3(B.ux, 0, -B.uy), L, 0xff1f1f, 'tx'));   // вдоль стороны участка
       gizmo.add(arrow(new THREE.Vector3(B.vx, 0, -B.vy), L, 0x1f8bff, 'tz'));   // поперёк участка
-      gizmo.add(arrow(new THREE.Vector3(0, 1, 0), L * 0.7, 0x16d13a, 'ty'));
       const ringB = new THREE.Mesh(new THREE.TorusGeometry(ext + 1.7, 0.28, 10, 56), gmat(0x0a0a0a)); ringB.rotation.x = Math.PI / 2; ringB.userData.giz = 'rot'; ringB.renderOrder = 998; gizmo.add(ringB);
       const ring = new THREE.Mesh(new THREE.TorusGeometry(ext + 1.7, 0.18, 10, 56), gmat(0xffc400)); ring.rotation.x = Math.PI / 2; ring.userData.giz = 'rot'; ring.renderOrder = 999; gizmo.add(ring);
       if (bd.pts.length === 4) {
@@ -557,8 +556,18 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const rh = bd.roofH || 0;
       if (bd.pts.length === 4 && rh > 0) { const roof = gableRoofMesh(bd.pts, bd.height, rh, rmat, !!bd.ridge); if (roof) { roof.position.y = by; roof.userData.ci = ci; dyn.add(roof); } }
     });
+    // соседние здания с карты (OSM) — серые коробки, отбрасывают тень
+    if (neighbors && neighbors.length) {
+      const nmat = new THREE.MeshStandardMaterial({ color: 0x9aa0a8, roughness: 0.9 });
+      neighbors.forEach(nb => {
+        if (!nb.pts || nb.pts.length < 3) return;
+        const sh = new THREE.Shape(); nb.pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
+        const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: nb.height || 5, bevelEnabled: false }), nmat);
+        m.rotation.x = -Math.PI / 2; m.position.y = 0; m.castShadow = true; m.receiveShadow = true; m.userData.neighbor = true; dyn.add(m);
+      });
+    }
     if (a.sel && a.sel.ci >= 0 && a.sel.ci < (buildings || []).length) a.makeGizmo(); else if (a.gizmo) { while (a.gizmo.children.length) a.gizmo.remove(a.gizmo.children[0]); }
-  }, [poly, fenceH, buildings, treeReady]);
+  }, [poly, fenceH, buildings, treeReady, neighbors]);
 
   // sun update
   useEffect(() => {

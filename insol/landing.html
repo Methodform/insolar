@@ -3,17 +3,25 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Инсоляр — где строить дом, баню и сад на участке по солнцу</title>
+<title>SunPlan3D — где строить дом, баню и сад на участке по солнцу</title>
 <meta name="description" content="Где на участке строить дом, баню, беседку и где сажать огурцы, помидоры, ягоды и деревья, чтобы не жить в тени и не затенять соседей. Проверьте солнце и инсоляцию по СанПиН до стройки.">
 <link rel="canonical" href="https://methodform.github.io/insolar/landing.html">
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="Инсоляр">
-<meta property="og:title" content="Инсоляр — где строить дом, баню и сад по солнцу">
+<meta property="og:site_name" content="SunPlan3D">
+<meta property="og:title" content="SunPlan3D — солнце, тени и ветер участка в 3D">
 <meta property="og:description" content="Где ставить дом, баню, беседку и где сажать овощи, ягоды и деревья — чтобы не жить в тени, не растить в сырости и не затенять соседей.">
 <meta property="og:image" content="https://methodform.github.io/insolar/img/Summer-Shot-scaled.jpg">
 <meta property="og:url" content="https://methodform.github.io/insolar/landing.html">
 <meta name="twitter:card" content="summary_large_image">
-<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"Инсоляр","applicationCategory":"DesignApplication","operatingSystem":"Web","url":"https://methodform.github.io/insolar/","description":"Онлайн-сервис моделирования солнца, теней и инсоляции земельного участка по СанПиН.","offers":{"@type":"Offer","price":"0","priceCurrency":"RUB"}}</script>
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="keywords" content="инсоляция участка, куда поставить дом, ориентация дома по солнцу, отступы от забора, тень от дома, планировка участка по солнцу, где сажать теплицу, нормы СанПиН инсоляция">
+<!-- ВЕРИФИКАЦИЯ ПОИСКОВИКОВ: замените значения на свои коды из Яндекс.Вебмастера и Google Search Console (см. yandex-google-setup.md). Либо используйте способ «HTML-файл» и удалите эти строки. -->
+<meta name="yandex-verification" content="ВСТАВЬТЕ_КОД_ЯНДЕКСА">
+<meta name="google-site-verification" content="ВСТАВЬТЕ_КОД_GOOGLE">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"SunPlan3D","applicationCategory":"DesignApplication","operatingSystem":"Web","url":"https://methodform.github.io/insolar/","description":"Онлайн-сервис моделирования солнца, теней и инсоляции земельного участка по СанПиН.","offers":{"@type":"Offer","price":"0","priceCurrency":"RUB"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"SunPlan3D","url":"https://methodform.github.io/insolar/","inLanguage":"ru"}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Organization","name":"SunPlan3D","url":"https://methodform.github.io/insolar/","description":"Сервис моделирования солнца, теней и инсоляции загородного участка для планировки дома и сада."}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"По какому нормативу считается инсоляция?","acceptedAnswer":{"@type":"Answer","text":"По СанПиН 1.2.3685-21: непрерывная инсоляция на нормативную дату для климатической зоны участка. Зона (северная, центральная или южная) определяется по широте автоматически."}},{"@type":"Question","name":"Заменяет ли отчёт экспертизу?","acceptedAnswer":{"@type":"Answer","text":"Нет. Расчёт модельный и помогает принять решение и подготовиться; для официальной экспертизы нужен расчёт по фактическим окнам помещений аккредитованной организацией."}},{"@type":"Question","name":"Нужны ли специальные знания?","acceptedAnswer":{"@type":"Answer","text":"Нет. Вводите координаты участка или обводите чертёж, расставляете постройки мышью — остальное сервис считает сам."}},{"@type":"Question","name":"Откуда брать координаты участка?","acceptedAnswer":{"@type":"Answer","text":"Из выписки ЕГРН или межевого плана, либо обведите по загруженному чертежу-подложке."}}]}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -23,6 +31,7 @@
     --ink:#23281f; --muted:#6f7168; --line:#EBE4D4;
     --green:#2f7d4f; --green-d:#1c3b2a; --leaf:#e5f0e2;
     --sun:#F2A93B; --sunsoft:#FCE9C6; --terra:#C25E38; --sky:#DCE9F2;
+    --azure:#2f6bd4; --azuresoft:#dce8fb;
     --maxw:1200px; --r:22px;
   }
   *{box-sizing:border-box;margin:0;padding:0}
@@ -52,8 +61,11 @@
   header{position:fixed;top:0;left:0;right:0;z-index:60;transition:.3s}
   header.scrolled{background:rgba(252,249,242,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
   .nav{display:flex;align-items:center;gap:24px;height:70px}
-  .logo{font-weight:800;font-size:19px;letter-spacing:-.02em}
-  .logo .s{color:var(--sun)}
+  .logo{font-weight:800;font-size:20px;letter-spacing:-.03em;display:inline-flex;align-items:baseline;gap:2px}
+  .logo .mk{color:var(--sun);margin-right:5px}
+  .logo .sun{color:var(--sun)} .logo .pl{color:var(--ink)} .logo .d3{color:var(--azure)}
+  .logo .tg{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:9px;align-self:center}
+  @media(max-width:560px){.logo .tg{display:none}}
   .nav .sp{flex:1}
   .nav .lnk{font-size:14.5px;font-weight:600;color:var(--ink)}
   .nav .lnk:hover{color:var(--green)}
@@ -63,6 +75,7 @@
   /* hero */
   .hero{padding-top:132px;padding-bottom:0;background:
     radial-gradient(1100px 520px at 82% -6%, var(--sunsoft) 0%, rgba(252,236,198,0) 60%),
+    radial-gradient(720px 460px at 96% 30%, var(--azuresoft) 0%, rgba(220,232,251,0) 60%),
     radial-gradient(760px 420px at 10% 4%, var(--leaf) 0%, rgba(229,240,226,0) 55%)}
   .hero h1{max-width:15ch}
   .hero h1 .u{color:var(--green);background:linear-gradient(transparent 66%, var(--sunsoft) 66%)}
@@ -172,7 +185,7 @@
 
 <header id="hdr">
   <div class="wrap nav">
-    <div class="logo">☀ Инсол<span class="s">яр</span></div>
+    <div class="logo"><span class="mk">☀</span><span class="sun">Sun</span><span class="pl">Plan</span><span class="d3">3D</span><span class="tg">солнце и тени участка в 3D</span></div>
     <div class="sp"></div>
     <a class="lnk" href="#jobs">Что решить</a>
     <a class="lnk" href="#how">Как работает</a>
@@ -185,7 +198,7 @@
 <!-- HERO -->
 <section class="hero">
   <div class="wrap">
-    <span class="lbl reveal">Солнце · тени · инсоляция участка</span>
+    <span class="lbl reveal">SunPlan3D · солнце, тени и ветер участка в 3D</span>
     <h1 class="reveal mt20">Дом, баня и сад —<br>на <span class="u">солнце</span>,<br>а не в тени.</h1>
     <p class="sub reveal">Разберитесь, где на участке строить дом, баню и беседку и где сажать грядки и деревья, — ещё до фундамента. Двигаете объект — тени пересчитываются вживую.</p>
     <div class="cta reveal">
@@ -224,7 +237,7 @@
   <div class="wrap">
     <span class="lbl reveal">Шесть решений до первого колышка</span>
     <h2 class="reveal mt10 maxw40">Что решить, пока не поехал бетон</h2>
-    <p class="head-lead reveal">Для каждого — своя цена ошибки. Инсоляр показывает солнце и тени, чтобы вы не гадали.</p>
+    <p class="head-lead reveal">Для каждого — своя цена ошибки. SunPlan3D показывает солнце и тени в 3D, чтобы вы не гадали.</p>
 
     <div class="jobs">
       <!-- дом -->
@@ -448,7 +461,7 @@
     </div>
   </div>
   <div class="wrap foot">
-    <span>☀ Инсоляр — моделирование солнца и инсоляции участка</span>
+    <span><span style="color:var(--sun)">☀</span> SunPlan3D — моделирование солнца, теней и инсоляции участка в 3D</span>
     <span>Демо-проект · расчёт по СанПиН 1.2.3685-21 · не заменяет экспертизу</span>
   </div>
 </footer>
