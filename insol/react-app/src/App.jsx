@@ -208,7 +208,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     const k = buildings.length; cx += ux * k * 2; cy += uy * k * 2;
     const hw = w / 2, hd = d / 2;
     const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([ex, ey]) => [cx + ux * ex + vx * ey, cy + uy * ex + vy * ey]);
-    const roofByKind = { house: 2.5, bath: 2, gazebo: 1.6, canopy: 0.3, tent: 2.6, tree: 0, bush: 0 };
+    const roofByKind = { house: 2.5, house3d: 0, bath: 2, gazebo: 1.6, canopy: 0.3, tent: 2.6, tree: 0, bush: 0 };
     const roofH = roofByKind[kind] !== undefined ? roofByKind[kind] : 1.5;
     setBuildings(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
@@ -408,7 +408,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <Select.Item value="house|Дом 6×6|6,6,5">Дом 6×6 м, h 5</Select.Item>
                     <Select.Item value="house|Дом 8×8|8,8,6">Дом 8×8 м, h 6</Select.Item>
                     <Select.Item value="house|Дом 8×10|8,10,7">Дом 8×10 м, h 7</Select.Item>
-                    <Select.Item value="house|House Cozy 16×11.5|16,11.5,3.1">House Cozy 16×11,5 м, h 5,6</Select.Item>
+                    <Select.Item value="house3d|Типовой дом 10×8|10,8,3">🏠 Типовой дом (детальный)</Select.Item>
                   </Select.Group>
                   <Select.Group>
                     <Select.Label>Постройки</Select.Label>

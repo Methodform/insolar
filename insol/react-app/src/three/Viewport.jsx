@@ -68,6 +68,47 @@ function gableRoofMesh(pts, base, rh, mat, flip) {
   geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
   const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; return m;
 }
+
+// ===== детальный «типовой дом» (пресет), масштабируется под контур W×D =====
+const SIDING_MAT = new THREE.MeshStandardMaterial({ color: 0xe8e3d7, roughness: 0.85 });
+const SHINGLE_MAT = new THREE.MeshStandardMaterial({ color: 0x7d5f52, roughness: 0.8, side: THREE.DoubleSide });
+const DARKTRIM_MAT = new THREE.MeshStandardMaterial({ color: 0x3b3f45, roughness: 0.7, side: THREE.DoubleSide });
+const GUTTER_MAT = new THREE.MeshStandardMaterial({ color: 0x50565c, roughness: 0.6 });
+function hipRoofGeo(w, d, rh, capW, capD) {
+  const b = [[-w / 2, 0, d / 2], [w / 2, 0, d / 2], [w / 2, 0, -d / 2], [-w / 2, 0, -d / 2]];
+  const t = [[-capW / 2, rh, capD / 2], [capW / 2, rh, capD / 2], [capW / 2, rh, -capD / 2], [-capW / 2, rh, -capD / 2]];
+  const pos = []; const quad = (p1, p2, p3, p4) => { pos.push(...p1, ...p2, ...p3, ...p1, ...p3, ...p4); };
+  quad(b[0], b[1], t[1], t[0]); quad(b[1], b[2], t[2], t[1]); quad(b[2], b[3], t[3], t[2]); quad(b[3], b[0], t[0], t[3]);
+  pos.push(...t[0], ...t[1], ...t[2], ...t[0], ...t[2], ...t[3]);
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
+}
+function buildTypicalHouse(W, D, H) {
+  const g = new THREE.Group(); const ov = 0.5, rh = Math.max(1.2, Math.min(W, D) * 0.32);
+  const base = new THREE.Mesh(new THREE.BoxGeometry(W + 0.3, 0.3, D + 0.3), DARKTRIM_MAT); base.position.y = 0.15; base.receiveShadow = true; g.add(base);
+  const walls = new THREE.Mesh(new THREE.BoxGeometry(W, H, D), SIDING_MAT); walls.position.y = 0.15 + H / 2; walls.castShadow = true; walls.receiveShadow = true; g.add(walls);
+  const roof = new THREE.Mesh(hipRoofGeo(W + ov * 2, D + ov * 2, rh, W * 0.28, D * 0.28), SHINGLE_MAT); roof.position.y = 0.15 + H; roof.castShadow = true; roof.receiveShadow = true; g.add(roof);
+  const ey = 0.15 + H, eW = W + ov * 2, eD = D + ov * 2;
+  const fasc = (bw, bd, px, pz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(bw, 0.34, bd), DARKTRIM_MAT); m.position.set(px, ey, pz); g.add(m); };
+  fasc(eW, 0.16, 0, eD / 2); fasc(eW, 0.16, 0, -eD / 2); fasc(0.16, eD, eW / 2, 0); fasc(0.16, eD, -eW / 2, 0);
+  const wy = 0.15 + H * 0.5;
+  const addWin = (px, pz, rotY, w, h, yy) => {
+    const fr = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.14, h + 0.14), FRAME_MAT); fr.position.set(px, yy, pz); fr.rotation.y = rotY; g.add(fr);
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), GLASS_MAT); gl.position.set(px + Math.sin(rotY) * 0.02, yy, pz + Math.cos(rotY) * 0.02); gl.rotation.y = rotY; g.add(gl);
+  };
+  const nx = Math.max(1, Math.min(5, Math.floor(W / 2.6)));
+  for (let i = 0; i < nx; i++) { const x = -W / 2 + (i + 0.5) * W / nx;
+    if (i === (nx >> 1)) { const dh = Math.min(2.1, H * 0.92); addWin(x, D / 2 + 0.04, 0, 1.0, dh, 0.15 + dh / 2); }
+    else addWin(x, D / 2 + 0.04, 0, Math.min(1.3, (W / nx) * 0.62), Math.min(1.4, H * 0.5), wy);
+    addWin(x, -D / 2 - 0.04, Math.PI, Math.min(1.3, (W / nx) * 0.62), Math.min(1.4, H * 0.5), wy); }
+  const nz = Math.max(1, Math.min(5, Math.floor(D / 2.6)));
+  for (let i = 0; i < nz; i++) { const z = -D / 2 + (i + 0.5) * D / nz;
+    addWin(W / 2 + 0.04, z, Math.PI / 2, Math.min(1.3, (D / nz) * 0.62), Math.min(1.4, H * 0.5), wy);
+    addWin(-W / 2 - 0.04, z, -Math.PI / 2, Math.min(1.3, (D / nz) * 0.62), Math.min(1.4, H * 0.5), wy); }
+  [[W / 2, D / 2], [W / 2, -D / 2], [-W / 2, D / 2], [-W / 2, -D / 2]].forEach(([cxp, czp]) => {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, H + rh * 0.4, 8), GUTTER_MAT);
+    p.position.set(cxp, (H + rh * 0.4) / 2 + 0.15, czp); p.castShadow = true; g.add(p); });
+  return g;
+}
 function inferKind(name) { const n = (name || '').toLowerCase();
   if (/бан/.test(n)) return 'bath'; if (/бесед/.test(n)) return 'gazebo'; if (/навес/.test(n)) return 'canopy';
   if (/шат/.test(n)) return 'tent'; if (/дерев/.test(n)) return 'tree'; if (/куст/.test(n)) return 'bush';
@@ -539,6 +580,18 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const kind = bd.kind || inferKind(bd.name), by = bd.baseY || 0;
       const tag = m => { m.castShadow = true; m.receiveShadow = true; m.userData.ci = ci; dyn.add(m); return m; };
 
+      if (kind === 'house3d') {
+        const p = bd.pts; if (!p || p.length < 4) return;
+        let cxl = 0, cyl = 0; p.forEach(q => { cxl += q[0]; cyl += q[1]; }); cxl /= p.length; cyl /= p.length;
+        const W = Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) || 6;
+        const D = Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) || 6;
+        const ux = (p[1][0] - p[0][0]) / W, uy = (p[1][1] - p[0][1]) / W;
+        const g = buildTypicalHouse(W, D, bd.height || 3);
+        g.position.set(cxl, by, -cyl); g.rotation.y = Math.atan2(uy, ux);
+        g.traverse(o => { if (o.isMesh) { o.userData.ci = ci; } });
+        g.userData.ci = ci; dyn.add(g);
+        return;
+      }
       if (kind === 'path') {
         for (let i = 0; i < bd.pts.length - 1; i++) { const A = bd.pts[i], B = bd.pts[i + 1];
           const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.05) continue;
