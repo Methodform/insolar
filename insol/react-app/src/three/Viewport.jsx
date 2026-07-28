@@ -305,16 +305,7 @@ function inferKind(name) { const n = (name || '').toLowerCase();
 const rotPt = (p, c, a) => { const s = Math.sin(a), co = Math.cos(a), dx = p[0] - c[0], dy = p[1] - c[1]; return [c[0] + dx * co - dy * s, c[1] + dx * s + dy * co]; };
 const scaleAxis = (p, c, ax, f) => { const U = (p[0] - c[0]) * ax[0] + (p[1] - c[1]) * ax[1]; const px = (p[0] - c[0]) - U * ax[0], py = (p[1] - c[1]) - U * ax[1]; return [c[0] + ax[0] * U * f + px, c[1] + ax[1] * U * f + py]; };
 
-// --- процедурные текстуры (без внешних файлов) для более реалистичной сцены ---
-function makeGrassTexture() {
-  const c = document.createElement('canvas'); c.width = c.height = 256; const g = c.getContext('2d');
-  g.fillStyle = '#5f7a43'; g.fillRect(0, 0, 256, 256);
-  for (let i = 0; i < 9000; i++) { const s = Math.random();
-    g.fillStyle = `rgba(${60 + s * 45 | 0},${95 + s * 65 | 0},${48 + s * 40 | 0},0.5)`;
-    g.fillRect(Math.random() * 256, Math.random() * 256, 1.5, 3); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(80, 80);
-  t.colorSpace = THREE.SRGBColorSpace; return t;
-}
+// --- процедурная текстура штукатурки для стен (единственная оставшаяся) ---
 function makePlasterTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
   g.fillStyle = '#eae7e0'; g.fillRect(0, 0, 128, 128);
@@ -323,14 +314,6 @@ function makePlasterTexture() {
     g.fillRect(Math.random() * 128, Math.random() * 128, 2, 2); }
   const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(3, 3);
   t.colorSpace = THREE.SRGBColorSpace; return t;
-}
-function makeSkyTexture(day) {
-  const c = document.createElement('canvas'); c.width = 16; c.height = 256; const g = c.getContext('2d');
-  const grd = g.createLinearGradient(0, 0, 0, 256);
-  if (day) { grd.addColorStop(0, '#3f7fce'); grd.addColorStop(0.55, '#8fb6e6'); grd.addColorStop(1, '#dce8f2'); }
-  else { grd.addColorStop(0, '#0b1a33'); grd.addColorStop(0.7, '#20344f'); grd.addColorStop(1, '#3a4a5e'); }
-  g.fillStyle = grd; g.fillRect(0, 0, 16, 256);
-  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 }
 
 // --- 3D-аналитика поверхностей («тепловизор») ---
@@ -576,9 +559,8 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
-    const skyDay = makeSkyTexture(true), skyNight = makeSkyTexture(false);
     const plasterTex = makePlasterTexture();
-    scene.background = new THREE.Color(0xdfe7f2);    // плоское небо, без облаков и тумана
+    scene.background = new THREE.Color(0xe9ecf0);    // ровный нейтральный фон: без неба, тумана и облаков
     const camera = new THREE.PerspectiveCamera(50, 1, 0.5, 3000);
 
     // IBL: мягкое заполняющее освещение и лёгкие отражения от окружения — материалы выглядят
@@ -732,10 +714,10 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (windGroup.visible && api.current.comets) { for (let i = 0; i < api.current.comets.length; i++) updateComet(api.current.comets[i]); }
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, skyDay, skyNight, plasterTex, windGroup, comets: [], size: sizeRef, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, plasterTex, windGroup, comets: [], size: sizeRef, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
-      skyDay.dispose(); skyNight.dispose(); plasterTex.dispose();
+      plasterTex.dispose();
       windGroup.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
       renderer.dispose(); el.removeChild(renderer.domElement);
     } };
@@ -883,7 +865,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.sun.position.copy(v.clone().multiplyScalar(SUN_DIST)); a.sun.target.position.set(0, 0, 0);
     a.sunSphere.position.copy(v.clone().multiplyScalar(SUN_DIST));
     const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 1.15 : 2.0) : 0; a.ambient.intensity = up ? 0.1 : 0.04; a.sunSphere.visible = altDeg > -2;
-    a.scene.background = new THREE.Color(altDeg <= 0 ? 0x243244 : altDeg < 8 ? 0xb8c6d6 : 0xdfe7f2);
+    // фон постоянный, нейтральный — без имитации неба/заката
   }, [utcMs, lat, lon]);
 
   // 3D-аналитика поверхностей
@@ -966,63 +948,13 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.scene.add(grp); a.plotGroup = grp;
   }, [plotMarkers]);
 
-  // реальная карта как текстура земли — сшивка растровых тайлов MapTiler (бесплатный тариф)
+  // карты отключены полностью: только бесконечная нейтральная плоскость, участок, солнце и тени.
+  // эффект оставлен как страховка — убирает любую ранее созданную подложку, ничего не строит.
   useEffect(() => {
     const a = api.current; if (!a.scene) return;
-    const clear = () => { if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; }
-      if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; } };
-    clear();
-    const key = (groundKey || '').trim();
-    if (!groundStyle || groundStyle === 'off' || !key || !poly || poly.length < 3) return;
-    const latR = lat * Math.PI / 180, mLat = 110540, mLon = 111320 * Math.cos(latR);
-    let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; poly.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
-    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max((mxx - mnx) * 3, 180), spanN = Math.max((mxy - mny) * 3, 180);
-    const lonMin = lon + (cE - spanE / 2) / mLon, lonMax = lon + (cE + spanE / 2) / mLon, latMin = lat + (cN - spanN / 2) / mLat, latMax = lat + (cN + spanN / 2) / mLat;
-    const lon2tx = (L, z) => Math.floor((L + 180) / 360 * Math.pow(2, z));
-    const lat2ty = (D, z) => { const r = D * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); };
-    const tx2lon = (x, z) => x / Math.pow(2, z) * 360 - 180;
-    const ty2lat = (y, z) => { const n = Math.PI * (1 - 2 * y / Math.pow(2, z)); return Math.atan(Math.sinh(n)) * 180 / Math.PI; };
-    let z = 19, xmin, xmax, ymin, ymax;
-    for (; z >= 1; z--) { xmin = lon2tx(lonMin, z); xmax = lon2tx(lonMax, z); ymin = lat2ty(latMax, z); ymax = lat2ty(latMin, z);
-      if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 36) break; }
-    const nx = xmax - xmin + 1, ny = ymax - ymin + 1;
-    const TS = 512;                                   // тайлы 512px (retina) → выше резкость
-    const cv = document.createElement('canvas'); cv.width = nx * TS; cv.height = ny * TS; const g = cv.getContext('2d');
-    // только MapTiler (ключ зашит): basic — дороги/кварталы (512px), satellite — снимок
-    const styleUrl = (x, y) => groundStyle === 'streets'
-      ? `https://api.maptiler.com/maps/streets-v2/${z}/${x}/${y}@2x.png?key=${encodeURIComponent(key)}`
-      : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}@2x.jpg?key=${encodeURIComponent(key)}`;
-    let done = 0, total = nx * ny, cancelled = false;
-    const build = () => {
-      if (cancelled) return;
-      try {
-      const left = tx2lon(xmin, z), right = tx2lon(xmax + 1, z), top = ty2lat(ymin, z), bot = ty2lat(ymax + 1, z);
-      const lE = (left - lon) * mLon, rE = (right - lon) * mLon, tN = (top - lat) * mLat, bN = (bot - lat) * mLat;
-      const tex = new THREE.CanvasTexture(cv); tex.colorSpace = THREE.SRGBColorSpace;
-      const pos = [lE, 0, -tN, lE, 0, -bN, rE, 0, -bN, lE, 0, -tN, rE, 0, -bN, rE, 0, -tN];
-      const uv = [0, 1, 0, 0, 1, 0, 0, 1, 1, 0, 1, 1], nor = [0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0];
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-      geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-      // emissiveMap = те же тайлы: подложка показывает свои цвета и не выбеливается светом сцены,
-      // при этом diffuse-map по-прежнему принимает тень от дома/объектов
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.45, roughness: 1, side: THREE.DoubleSide }));
-      m.position.y = 0.06; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
-      const olp = poly.concat([poly[0]]).map(p => new THREE.Vector3(p[0], 0.1, -p[1]));
-      const ol = new THREE.Line(new THREE.BufferGeometry().setFromPoints(olp), new THREE.LineBasicMaterial({ color: 0xffd257, toneMapped: false }));
-      a.scene.add(ol); a.groundOutline = ol;
-      } catch (e) { /* тайлы без CORS «портят» канвас — оставляем нейтральную землю */ }
-    };
-    for (let x = xmin; x <= xmax; x++) for (let y = ymin; y <= ymax; y++) {
-      const img = new Image(); img.crossOrigin = 'anonymous';
-      const ox = (x - xmin) * TS, oy = (y - ymin) * TS;
-      img.onload = () => { g.drawImage(img, ox, oy, TS, TS); if (++done === total) build(); };
-      img.onerror = () => { if (++done === total) build(); };
-      img.src = styleUrl(x, y);
-    }
-    return () => { cancelled = true; };
-  }, [groundKey, groundStyle, poly, lat, lon]);
+    if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; }
+    if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; }
+  }, [poly]);
 
   return <div ref={mount} style={{ position: 'absolute', inset: 0 }} />;
 }
