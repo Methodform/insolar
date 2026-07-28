@@ -18,6 +18,36 @@ function ridgeAlongA(pts, flip) {
   const A = (d(pts[0], pts[1]) + d(pts[2], pts[3])) / 2, B = (d(pts[1], pts[2]) + d(pts[3], pts[0])) / 2;
   const useA = A >= B; return flip ? !useA : useA;
 }
+// параметрическое остекление дома: окна по фасадам + дверь (для прямоугольных контуров)
+const GLASS_MAT = new THREE.MeshStandardMaterial({ color: 0xbcd6ec, roughness: 0.12, metalness: 0.0, emissive: 0x33506e, emissiveIntensity: 0.14, side: THREE.DoubleSide });
+const FRAME_MAT = new THREE.MeshStandardMaterial({ color: 0x3b3f45, roughness: 0.8, side: THREE.DoubleSide });
+function addGlazing(dyn, pts, by, height, ci) {
+  if (!pts || pts.length < 4 || !(height > 1.5)) return;
+  let cx = 0, cz = 0; pts.forEach(p => { cx += p[0]; cz += -p[1]; }); cx /= pts.length; cz /= pts.length;
+  for (let e = 0; e < pts.length; e++) {
+    const A = pts[e], B = pts[(e + 1) % pts.length];
+    const ax = A[0], az = -A[1], bx = B[0], bz = -B[1];
+    const dx = bx - ax, dz = bz - az, L = Math.hypot(dx, dz); if (L < 1.4) continue;
+    const ux = dx / L, uz = dz / L;
+    let nx = uz, nz = -ux;                                   // нормаль наружу
+    const mx = (ax + bx) / 2, mz = (az + bz) / 2;
+    if ((mx - cx) * nx + (mz - cz) * nz < 0) { nx = -nx; nz = -nz; }
+    const rotY = Math.atan2(nx, nz);
+    const n = Math.max(1, Math.min(5, Math.floor(L / 2.6)));
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n;
+      const door = e === 0 && i === (n >> 1);
+      const w = Math.min(1.3, (L / n) * 0.62), h = door ? Math.min(2.1, height * 0.9) : Math.min(1.4, height * 0.5);
+      const yy = door ? by + h / 2 + 0.05 : by + height * 0.5;
+      const bxp = ax + ux * L * t, bzp = az + uz * L * t;
+      const fr = new THREE.Mesh(new THREE.PlaneGeometry(w + 0.14, h + 0.14), FRAME_MAT);
+      fr.position.set(bxp + nx * 0.03, yy, bzp + nz * 0.03); fr.rotation.y = rotY; fr.userData.ci = ci; fr.castShadow = false; dyn.add(fr);
+      const gl = new THREE.Mesh(new THREE.PlaneGeometry(w, h), GLASS_MAT);
+      gl.position.set(bxp + nx * 0.05, yy, bzp + nz * 0.05); gl.rotation.y = rotY; gl.userData.ci = ci; dyn.add(gl);
+    }
+  }
+}
+
 function gableRoofMesh(pts, base, rh, mat, flip) {
   if (pts.length !== 4) return null;
   const mid = (p, q) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2];
@@ -563,6 +593,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       m.rotation.x = -Math.PI / 2; m.position.y = by; m.castShadow = true; m.receiveShadow = true; m.userData.ci = ci; dyn.add(m);
       const rh = bd.roofH || 0;
       if (bd.pts.length === 4 && rh > 0) { const roof = gableRoofMesh(bd.pts, bd.height, rh, rmat, !!bd.ridge); if (roof) { roof.position.y = by; roof.userData.ci = ci; dyn.add(roof); } }
+      addGlazing(dyn, bd.pts, by, bd.height, ci);   // окна и дверь по фасадам
     });
     // соседние здания с карты (OSM) — серые коробки + двускатная/шатровая крыша 1.5 м, отбрасывают тень
     if (neighbors && neighbors.length) {
@@ -693,7 +724,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     if (!groundStyle || groundStyle === 'off' || !key || !poly || poly.length < 3) return;
     const latR = lat * Math.PI / 180, mLat = 110540, mLon = 111320 * Math.cos(latR);
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9; poly.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mny = Math.min(mny, p[1]); mxy = Math.max(mxy, p[1]); });
-    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max((mxx - mnx) * 6, 320), spanN = Math.max((mxy - mny) * 6, 320);
+    const cE = (mnx + mxx) / 2, cN = (mny + mxy) / 2, spanE = Math.max((mxx - mnx) * 3, 180), spanN = Math.max((mxy - mny) * 3, 180);
     const lonMin = lon + (cE - spanE / 2) / mLon, lonMax = lon + (cE + spanE / 2) / mLon, latMin = lat + (cN - spanN / 2) / mLat, latMax = lat + (cN + spanN / 2) / mLat;
     const lon2tx = (L, z) => Math.floor((L + 180) / 360 * Math.pow(2, z));
     const lat2ty = (D, z) => { const r = D * Math.PI / 180; return Math.floor((1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z)); };
@@ -703,11 +734,12 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     for (; z >= 1; z--) { xmin = lon2tx(lonMin, z); xmax = lon2tx(lonMax, z); ymin = lat2ty(latMax, z); ymax = lat2ty(latMin, z);
       if ((xmax - xmin + 1) * (ymax - ymin + 1) <= 36) break; }
     const nx = xmax - xmin + 1, ny = ymax - ymin + 1;
-    const cv = document.createElement('canvas'); cv.width = nx * 256; cv.height = ny * 256; const g = cv.getContext('2d');
-    // только MapTiler (ключ зашит): basic — дороги/кварталы, satellite — снимок
+    const TS = 512;                                   // тайлы 512px (retina) → выше резкость
+    const cv = document.createElement('canvas'); cv.width = nx * TS; cv.height = ny * TS; const g = cv.getContext('2d');
+    // только MapTiler (ключ зашит): basic — дороги/кварталы (512px), satellite — снимок
     const styleUrl = (x, y) => groundStyle === 'streets'
-      ? `https://api.maptiler.com/maps/basic-v2/256/${z}/${x}/${y}.png?key=${encodeURIComponent(key)}`
-      : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}.jpg?key=${encodeURIComponent(key)}`;
+      ? `https://api.maptiler.com/maps/basic-v2/${z}/${x}/${y}@2x.png?key=${encodeURIComponent(key)}`
+      : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}@2x.jpg?key=${encodeURIComponent(key)}`;
     let done = 0, total = nx * ny, cancelled = false;
     const build = () => {
       if (cancelled) return;
@@ -730,8 +762,8 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     };
     for (let x = xmin; x <= xmax; x++) for (let y = ymin; y <= ymax; y++) {
       const img = new Image(); img.crossOrigin = 'anonymous';
-      const ox = (x - xmin) * 256, oy = (y - ymin) * 256;
-      img.onload = () => { g.drawImage(img, ox, oy, 256, 256); if (++done === total) build(); };
+      const ox = (x - xmin) * TS, oy = (y - ymin) * TS;
+      img.onload = () => { g.drawImage(img, ox, oy, TS, TS); if (++done === total) build(); };
       img.onerror = () => { if (++done === total) build(); };
       img.src = styleUrl(x, y);
     }
