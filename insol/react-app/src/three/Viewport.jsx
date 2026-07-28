@@ -990,7 +990,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const cv = document.createElement('canvas'); cv.width = nx * TS; cv.height = ny * TS; const g = cv.getContext('2d');
     // только MapTiler (ключ зашит): basic — дороги/кварталы (512px), satellite — снимок
     const styleUrl = (x, y) => groundStyle === 'streets'
-      ? `https://api.maptiler.com/maps/basic-v2/${z}/${x}/${y}@2x.png?key=${encodeURIComponent(key)}`
+      ? `https://api.maptiler.com/maps/streets-v2/${z}/${x}/${y}@2x.png?key=${encodeURIComponent(key)}`
       : `https://api.maptiler.com/tiles/satellite-v2/${z}/${x}/${y}@2x.jpg?key=${encodeURIComponent(key)}`;
     let done = 0, total = nx * ny, cancelled = false;
     const build = () => {
@@ -1005,7 +1005,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
       geo.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 1, side: THREE.DoubleSide }));
+      // emissiveMap = те же тайлы: подложка показывает свои цвета и не выбеливается светом сцены,
+      // при этом diffuse-map по-прежнему принимает тень от дома/объектов
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, emissiveMap: tex, emissive: 0xffffff, emissiveIntensity: 0.45, roughness: 1, side: THREE.DoubleSide }));
       m.position.y = 0.06; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
       const olp = poly.concat([poly[0]]).map(p => new THREE.Vector3(p[0], 0.1, -p[1]));
       const ol = new THREE.Line(new THREE.BufferGeometry().setFromPoints(olp), new THREE.LineBasicMaterial({ color: 0xffd257, toneMapped: false }));

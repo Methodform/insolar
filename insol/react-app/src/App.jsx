@@ -106,7 +106,7 @@ export default function App() {
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
-  const [ground3d] = useState('streets');  // карта дорог по умолчанию (OSM без ключа / MapTiler при наличии ключа)
+  const [ground3d, setGround3d] = useState('satellite');  // подложка под участком: satellite (снимок) / streets / off
   const [keyDraft, setKeyDraft] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const applyKey = () => setMapKey(keyDraft.trim());
   const [analytics, setAnalytics] = useState(false);
@@ -493,6 +493,17 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Text>
                 </Flex>
                 {neighOn && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>{neighMsg || 'Здания в 20 м вокруг участка из OpenStreetMap (серые, отбрасывают тень).'}</Text>}
+              </Box>
+              <Box mt="3">
+                <Text size="1" color="gray" style={{ display: 'block', marginBottom: 6 }}>🗺 Подложка под участком</Text>
+                <Flex gap="1">
+                  {[['satellite', 'Спутник'], ['streets', 'Схема'], ['off', 'Выкл']].map(([v, label]) => (
+                    <Button key={v} size="1" style={{ flex: 1 }}
+                      variant={ground3d === v ? 'solid' : 'soft'} color={ground3d === v ? 'grass' : 'gray'}
+                      onClick={() => setGround3d(v)}>{label}</Button>
+                  ))}
+                </Flex>
+                <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Спутниковый снимок нагляднее для загородного участка; схема — светлая, над полями почти пустая.</Text>
               </Box>
             </Box>
             <Box>
