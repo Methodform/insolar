@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>House Cozy — 3D модель</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;font-family:'Segoe UI',Arial,sans-serif;background:#dfe7ec}
+  #c{display:block;width:100%;height:100%}
+  .panel{position:absolute;left:20px;top:20px;background:rgba(255,255,255,.85);backdrop-filter:blur(6px);
+    border-radius:12px;padding:14px 18px;box-shadow:0 4px 18px rgba(0,0,0,.15);max-width:280px}
+  .panel h1{margin:0 0 4px;font-size:17px;color:#2b3138}
+  .panel p{margin:2px 0;font-size:12px;color:#5a636d}
+  .panel .hint{margin-top:8px;font-size:11px;color:#8a939d}
+  .btns{position:absolute;left:20px;bottom:20px;display:flex;gap:8px}
+  .btns button{border:0;border-radius:8px;padding:8px 14px;font-size:12px;cursor:pointer;
+    background:rgba(255,255,255,.9);color:#2b3138;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+  .btns button.active{background:#2b3138;color:#fff}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="panel">
+  <h1>House Cozy</h1>
+  <p>Современный одноэтажный дом с террасой</p>
+  <p>Вальмовая кровля · сайдинг · дерево</p>
+  <p class="hint">🖱 вращение — мышью, зум — колесом</p>
+</div>
+<div class="btns">
+  <button id="rot" class="active">Авто-вращение</button>
+  <button id="top">Вид сверху</button>
+  <button id="front">Фасад</button>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ============ базовая сцена ============ */
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+// небо-градиент
+(function(){
+  const cv=document.createElement('canvas');cv.width=16;cv.height=256;
+  const g=cv.getContext('2d');const gr=g.createLinearGradient(0,0,0,256);
+  gr.addColorStop(0,'#a8c4dc');gr.addColorStop(.55,'#dce8f0');gr.addColorStop(1,'#eef2f4');
+  g.fillStyle=gr;g.fillRect(0,0,16,256);
+  scene.background=new THREE.CanvasTexture(cv);
+})();
+scene.fog = new THREE.Fog(0xdce8f0, 70, 160);
+
+const camera = new THREE.PerspectiveCamera(45, 2, 0.1, 300);
+
+/* свет */
+scene.add(new THREE.HemisphereLight(0xcfe4f5, 0x8a8f7d, .55));
+const sun = new THREE.DirectionalLight(0xfff2dd, 1.15);
+sun.position.set(18, 26, 14);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-25; sun.shadow.camera.right=25;
+sun.shadow.camera.top=25;  sun.shadow.camera.bottom=-25;
+sun.shadow.camera.far=80;  sun.shadow.bias=-0.0004;
+scene.add(sun);
+const fill = new THREE.DirectionalLight(0xbfd4e6,.3); fill.position.set(-15,10,-12); scene.add(fill);
+
+/* ============ процедурные текстуры ============ */
+function tex(w,h,draw,rx=1,ry=1){
+  const cv=document.createElement('canvas');cv.width=w;cv.height=h;
+  draw(cv.getContext('2d'),w,h);
+  const t=new THREE.CanvasTexture(cv);
+  t.wrapS=t.wrapT=THREE.RepeatWrapping;t.repeat.set(rx,ry);
+  t.anisotropy=8;return t;
+}
+const R=(a,b)=>a+Math.random()*(b-a);
+
+// белый вертикальный сайдинг
+const sidingTex = tex(256,256,(g,w,h)=>{
+  g.fillStyle='#f2f3f1';g.fillRect(0,0,w,h);
+  for(let x=0;x<w;x+=16){
+    g.fillStyle='#e0e2df';g.fillRect(x,0,2,h);
+    g.fillStyle='#fafbf9';g.fillRect(x+2,0,1,h);
+  }
+},4,1.6);
+
+// коричневое дерево (горизонтальные планки)
+function woodTexture(rx,ry){ return tex(256,256,(g,w,h)=>{
+  const shades=['#6d4f36','#75563b','#654830','#7c5c40'];
+  for(let y=0,i=0;y<h;y+=22,i++){
+    g.fillStyle=shades[i%shades.length];g.fillRect(0,y,w,22);
+    g.fillStyle='rgba(40,25,12,.85)';g.fillRect(0,y,w,2);
+    g.strokeStyle='rgba(30,18,8,.25)';
+    for(let k=0;k<6;k++){g.beginPath();const yy=y+3+Math.random()*17;
+      g.moveTo(0,yy);g.lineTo(w,yy+Math.random()*2-1);g.stroke();}
+  }
+},rx,ry);}
+const woodTex  = woodTexture(2.2,1.6);
+const deckTex  = tex(512,512,(g,w,h)=>{
+  const shades=['#8a6b4d','#93745a','#7e6045','#886849'];
+  for(let y=0,i=0;y<h;y+=32,i++){
+    g.fillStyle=shades[i%shades.length];g.fillRect(0,y,w,32);
+    g.fillStyle='rgba(35,22,10,.9)';g.fillRect(0,y,w,3);
+    g.strokeStyle='rgba(40,25,12,.3)';
+    for(let k=0;k<8;k++){g.beginPath();const yy=y+4+Math.random()*26;
+      g.moveTo(0,yy);g.lineTo(w,yy);g.stroke();}
+  }
+},1.2,3);
+
+// гибкая черепица (чешуйки)
+const shingleTex = tex(512,512,(g,w,h)=>{
+  g.fillStyle='#4a3d33';g.fillRect(0,0,w,h);
+  const pal=['#8a6a4f','#7b5a42','#6e564b','#5f5148','#93705a','#55483f','#7d6553'];
+  const sw=42, sh=30;
+  for(let row=-1;row<h/sh+1;row++){
+    const off=(row%2)?sw/2:0;
+    for(let x=-1;x<w/sw+1;x++){
+      const cx=x*sw+off, cy=row*sh;
+      g.fillStyle=pal[Math.floor(Math.random()*pal.length)];
+      g.beginPath();
+      g.moveTo(cx,cy);
+      g.lineTo(cx+sw,cy);
+      g.lineTo(cx+sw,cy+sh-10);
+      g.arc(cx+sw/2,cy+sh-10,sw/2,0,Math.PI);
+      g.closePath();g.fill();
+      g.strokeStyle='rgba(30,24,18,.5)';g.stroke();
+    }
+  }
+},1,1);
+
+/* ============ материалы ============ */
+const M = {
+  siding: new THREE.MeshStandardMaterial({map:sidingTex,roughness:.85}),
+  wood:   new THREE.MeshStandardMaterial({map:woodTex,roughness:.8}),
+  deck:   new THREE.MeshStandardMaterial({map:deckTex,roughness:.85}),
+  shingle:new THREE.MeshStandardMaterial({map:shingleTex,roughness:.95}),
+  dark:   new THREE.MeshStandardMaterial({color:0x2e3338,roughness:.6,metalness:.25}),
+  frame:  new THREE.MeshStandardMaterial({color:0x23272b,roughness:.5,metalness:.3}),
+  glass:  new THREE.MeshPhongMaterial({color:0x30414d,specular:0xcfe0ee,shininess:180,
+           reflectivity:.6,transparent:true,opacity:.94}),
+  white:  new THREE.MeshStandardMaterial({color:0xf4f5f3,roughness:.9}),
+  concrete:new THREE.MeshStandardMaterial({color:0x9aa0a3,roughness:.95}),
+  ground: new THREE.MeshStandardMaterial({color:0xb9c0b4,roughness:1})
+};
+
+const house = new THREE.Group(); scene.add(house);
+function box(w,h,d,mat,x,y,z,parent=house){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m;
+}
+
+/* ============ земля ============ */
+const ground = new THREE.Mesh(new THREE.CircleGeometry(90,64), M.ground);
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+
+/* ============ вальмовая крыша ============ */
+function hipRoof(w,d,h,capW,capD,y,x=0,z=0){
+  const g=new THREE.BufferGeometry();
+  const b=[[-w/2,0, d/2],[ w/2,0, d/2],[ w/2,0,-d/2],[-w/2,0,-d/2]];
+  const t=[[-capW/2,h, capD/2],[ capW/2,h, capD/2],[ capW/2,h,-capD/2],[-capW/2,h,-capD/2]];
+  const pos=[],uv=[],s=1.6;
+  function quad(p1,p2,p3,p4){ // низ p1-p2, верх p3-p4
+    const eb=Math.hypot(p2[0]-p1[0],p2[2]-p1[2]);
+    const sl=Math.hypot((p4[0]+p3[0])/2-(p1[0]+p2[0])/2,h,(p4[2]+p3[2])/2-(p1[2]+p2[2])/2);
+    const et=Math.hypot(p4[0]-p3[0],p4[2]-p3[2]);
+    const o=(eb-et)/2;
+    const P=[p1,p2,p3, p1,p3,p4];
+    const U=[[0,0],[eb/s,0],[(o+et)/s,sl/s], [0,0],[(o+et)/s,sl/s],[o/s,sl/s]];
+    P.forEach(p=>pos.push(...p)); U.forEach(u=>uv.push(...u));
+  }
+  quad(b[0],b[1],t[1],t[0]); // фронт
+  quad(b[1],b[2],t[2],t[1]); // право
+  quad(b[2],b[3],t[3],t[2]); // зад
+  quad(b[3],b[0],t[0],t[3]); // лево
+  // верхняя площадка
+  pos.push(...t[0],...t[1],...t[2], ...t[0],...t[2],...t[3]);
+  uv.push(0,0,capW/s,0,capW/s,capD/s, 0,0,capW/s,capD/s,0,capD/s);
+  g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3));
+  g.setAttribute('uv',new THREE.Float32BufferAttribute(uv,2));
+  g.computeVertexNormals();
+  const m=new THREE.Mesh(g,M.shingle);
+  m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;house.add(m);
+  // тёмный конёк-площадка
+  box(capW+.15,.12,capD+.15,M.dark,x,y+h+.04,z);
+  return m;
+}
+
+function fascia(w,d,y,x=0,z=0){ // тёмная обвязка по периметру свеса + белый софит
+  const t=.16,hh=.38;
+  box(w,hh,t,M.dark,x, y, z+d/2-t/2);
+  box(w,hh,t,M.dark,x, y, z-d/2+t/2);
+  box(t,hh,d,M.dark,x-w/2+t/2, y, z);
+  box(t,hh,d,M.dark,x+w/2-t/2, y, z);
+  const sof=box(w-.2,.06,d-.2,M.white,x,y+.14,z); sof.castShadow=false;
+}
+
+/* ============ объёмы дома ============ */
+const WALL_Y0=.2;
+// фундамент-цоколь
+box(12.7,.25,11.7,M.concrete,0,.125,0);
+box(5.7,.25,8.2,M.concrete,9,.125,0);
+
+// основной объём: 12.5 × 11.5, стены h=3.0
+box(12.5,3.0,11.5,M.siding,0,WALL_Y0+1.5,0);
+// пристройка: 5.5 × 8.0, стены h=2.55
+box(5.5,2.55,8.0,M.siding,9,WALL_Y0+1.275,0);
+
+// крыши
+fascia(14.3,13.3,3.13);
+hipRoof(14.3,13.3,2.25,2.6,1.3,3.32);
+fascia(7.1,9.6,2.67,9,0);
+hipRoof(7.1,9.6,1.35,1.1,3.4,2.86,9,0);
+
+/* ============ окна / двери ============ */
+// rot: 0=фронт(+z) 1=право(+x) 2=зад(-z) 3=лево(-x)
+function glazing(x,y,z,w,h,rot,divs=2,door=false){
+  const gr=new THREE.Group();
+  const fd=.14, ft=.09;
+  const mk=(bw,bh,bd,px,py,pz)=>{const m=new THREE.Mesh(new THREE.BoxGeometry(bw,bh,bd),M.frame);
+    m.position.set(px,py,pz);m.castShadow=true;gr.add(m);};
+  mk(w,ft,fd,0,h/2-ft/2,0); mk(w,ft,fd,0,-h/2+ft/2,0);
+  mk(ft,h,fd,-w/2+ft/2,0,0); mk(ft,h,fd,w/2-ft/2,0,0);
+  for(let i=1;i<divs;i++) mk(.06,h-.1,fd-.02,-w/2+i*w/divs,0,0);
+  const gl=new THREE.Mesh(new THREE.PlaneGeometry(w-.12,h-.12),M.glass);
+  gl.position.z=.01;gr.add(gl);
+  if(door){const hd=new THREE.Mesh(new THREE.BoxGeometry(.03,.5,.05),M.frame);
+    hd.position.set(w/2-.22,0,.09);gr.add(hd);}
+  gr.position.set(x,y,z); gr.rotation.y=[0,Math.PI/2,Math.PI,-Math.PI/2][rot];
+  house.add(gr); return gr;
+}
+// деревянная акцентная панель на стене
+function panel(x,y,z,w,h,rot){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,.07),new THREE.MeshStandardMaterial({map:woodTexture(w/1.4,h/1.4),roughness:.8}));
+  m.position.set(x,y,z);m.rotation.y=[0,Math.PI/2,Math.PI,-Math.PI/2][rot];
+  m.castShadow=true;m.receiveShadow=true;house.add(m);
+  // тёмная окантовка
+  const e=new THREE.Mesh(new THREE.BoxGeometry(w+.1,h+.1,.05),M.dark);
+  e.position.copy(m.position);e.rotation.copy(m.rotation);
+  e.translateZ(-.02);house.add(e);
+}
+// настенный светильник
+function lamp(x,y,z,rot){
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(.045,.045,.26,12),M.frame);
+  m.position.set(x,y,z);m.rotation.y=[0,Math.PI/2,Math.PI,-Math.PI/2][rot];
+  m.translateZ(.07);house.add(m);
+}
+// водосточная труба
+function pipe(x,z,top){
+  const m=new THREE.Mesh(new THREE.CylinderGeometry(.05,.05,top-.2,10),M.dark);
+  m.position.set(x,(top+.2)/2,z);m.castShadow=true;house.add(m);
+}
+// вентиляционный выход на кровле
+function vent(x,y,z){
+  const v=new THREE.Mesh(new THREE.CylinderGeometry(.11,.13,.75,12),M.frame);
+  v.position.set(x,y,z);v.castShadow=true;house.add(v);
+  const c=new THREE.Mesh(new THREE.CylinderGeometry(.16,.16,.1,12),M.frame);
+  c.position.set(x,y+.42,z);house.add(c);
+}
+
+/* --- фронт основного объёма (z=5.75) --- */
+panel(0.4,WALL_Y0+1.5,5.79,7.4,2.9,0);
+glazing(-1.6,WALL_Y0+1.5,5.85,2.7,2.6,0,3,true);   // раздвижные двери
+glazing( 2.1,WALL_Y0+1.55,5.85,2.2,2.3,0,2);        // окно в пол
+glazing(-5.2,WALL_Y0+1.35,5.85,1.0,2.3,0,1,true);   // входная дверь
+lamp(-4.45,WALL_Y0+2.05,5.83,0); lamp(-.05,WALL_Y0+2.05,5.83,0); lamp(3.3,WALL_Y0+2.05,5.83,0);
+
+/* --- левый фасад (x=-6.25) --- */
+panel(-6.29,WALL_Y0+1.5,-.2,5.4,2.9,3);
+glazing(-6.35,WALL_Y0+1.7,1.5,1.8,1.5,3,2);
+glazing(-6.35,WALL_Y0+1.7,-1.9,1.8,1.5,3,2);
+lamp(-6.33,WALL_Y0+2.05,-.2,3);
+
+/* --- задний фасад (z=-5.75) --- */
+panel(-2,WALL_Y0+1.5,-5.79,6.0,2.9,2);
+glazing(-3.6,WALL_Y0+1.55,-5.85,2.0,2.3,2,2);
+glazing(-.6,WALL_Y0+1.7,-5.85,1.6,1.5,2,2);
+glazing(3.9,WALL_Y0+1.7,-5.85,1.6,1.5,2,2);
+lamp(-2.1,WALL_Y0+2.05,-5.83,2);
+
+/* --- пристройка --- */
+panel(9.3,WALL_Y0+1.27,4.04,4.4,2.45,0);
+glazing(9.3,WALL_Y0+1.35,4.1,3.2,2.25,0,3,true);   // раздвижная дверь на террасу
+lamp(7.4,WALL_Y0+1.85,4.08,0); lamp(11.2,WALL_Y0+1.85,4.08,0);
+glazing(11.81,WALL_Y0+1.5,0,1.6,1.4,1,2);           // правый фасад
+glazing(9.3,WALL_Y0+1.5,-4.05,1.6,1.4,2,2);         // зад пристройки
+
+/* водостоки */
+pipe(-6.05,5.55,3.25); pipe(-6.05,-5.55,3.25); pipe(6.05,-5.55,3.25);
+pipe(11.55,3.8,2.8); pipe(11.55,-3.8,2.8);
+
+/* вентвыходы на крыше */
+vent(-2.2,5.35,-1.5); vent(1.8,5.45,.6); vent(9.6,4.3,-.8);
+
+/* ============ террасы ============ */
+function deckPlat(w,d,x,z){
+  const m=new THREE.Mesh(new THREE.BoxGeometry(w,.16,d),M.deck);
+  m.position.set(x,.1,z);m.receiveShadow=true;m.castShadow=true;house.add(m);
+}
+deckPlat(9.0,3.6,-2.6,7.7);      // большая терраса перед фронтом
+deckPlat(3.4,7.6,-8.1,2.2);      // заворот на левый фасад
+deckPlat(5.6,2.8,9.2,5.6);       // терраса пристройки
+// ступенька
+deckPlat(1.6,.5,-5.2,9.7);
+
+/* ============ камера / управление ============ */
+let theta=.65, phi=1.12, radius=30, autoRot=true;
+const target=new THREE.Vector3(1.2,1.8,0);
+function updCam(){
+  camera.position.set(
+    target.x+radius*Math.sin(phi)*Math.sin(theta),
+    target.y+radius*Math.cos(phi),
+    target.z+radius*Math.sin(phi)*Math.cos(theta));
+  camera.lookAt(target);
+}
+let drag=false,px=0,py=0;
+canvas.addEventListener('pointerdown',e=>{drag=true;autoRot=false;rotBtn.classList.remove('active');px=e.clientX;py=e.clientY;});
+addEventListener('pointermove',e=>{if(!drag)return;
+  theta-=(e.clientX-px)*.006; phi-=(e.clientY-py)*.006;
+  phi=Math.max(.12,Math.min(1.52,phi)); px=e.clientX;py=e.clientY;});
+addEventListener('pointerup',()=>drag=false);
+canvas.addEventListener('wheel',e=>{e.preventDefault();
+  radius*=1+e.deltaY*.0012; radius=Math.max(9,Math.min(90,radius));},{passive:false});
+
+const rotBtn=document.getElementById('rot');
+rotBtn.onclick=()=>{autoRot=!autoRot;rotBtn.classList.toggle('active',autoRot);};
+document.getElementById('top').onclick=()=>{autoRot=false;rotBtn.classList.remove('active');phi=.25;theta=.65;radius=34;};
+document.getElementById('front').onclick=()=>{autoRot=false;rotBtn.classList.remove('active');phi=1.35;theta=0;radius=26;};
+
+function resize(){
+  const w=innerWidth,h=innerHeight;
+  renderer.setSize(w,h,false);
+  camera.aspect=w/h;camera.updateProjectionMatrix();
+}
+addEventListener('resize',resize);resize();
+
+(function loop(){
+  requestAnimationFrame(loop);
+  if(autoRot) theta+=.0028;
+  updCam();
+  renderer.render(scene,camera);
+})();
+</script>
+</body>
+</html>

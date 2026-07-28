@@ -408,6 +408,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                     <Select.Item value="house|Дом 6×6|6,6,5">Дом 6×6 м, h 5</Select.Item>
                     <Select.Item value="house|Дом 8×8|8,8,6">Дом 8×8 м, h 6</Select.Item>
                     <Select.Item value="house|Дом 8×10|8,10,7">Дом 8×10 м, h 7</Select.Item>
+                    <Select.Item value="house|House Cozy 16×11.5|16,11.5,3.1">House Cozy 16×11,5 м, h 5,6</Select.Item>
                   </Select.Group>
                   <Select.Group>
                     <Select.Label>Постройки</Select.Label>
