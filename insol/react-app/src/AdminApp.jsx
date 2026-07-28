@@ -21,11 +21,11 @@ const dstr = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth()
 
 // тарифы: цена и месячная выручка (для MRR)
 const PLANS = {
-  free:   { label: 'Free',        color: 'gray',  price: 0,    monthly: 0 },
-  month:  { label: 'Месяц',       color: 'blue',  price: 490,  monthly: 490 },
-  season: { label: 'Сезон · 6м',  color: 'amber', price: 1490, monthly: 1490 / 6 },
-  year:   { label: 'Год',         color: 'grass', price: 1990, monthly: 1990 / 12 },
-  b2b:    { label: 'B2B риелторам', color: 'purple', price: 10000, monthly: 10000 / 12 },
+  free:   { label: 'Free',        color: 'gray',  price: 0,    monthly: 0,          plots: 1 },
+  month:  { label: 'Месяц',       color: 'blue',  price: 490,  monthly: 490,        plots: 3 },
+  season: { label: 'Сезон · 6м',  color: 'amber', price: 1490, monthly: 1490 / 6,  plots: 3 },
+  year:   { label: 'Год',         color: 'grass', price: 1990, monthly: 1990 / 12, plots: 3 },
+  b2b:    { label: 'B2B риелторам', color: 'purple', price: 8990, monthly: 8990 / 12, plots: 20 },
 };
 const STATUS = {
   active:   { label: 'активна',   color: 'grass' },

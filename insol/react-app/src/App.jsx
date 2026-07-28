@@ -21,6 +21,12 @@ const CADASTRE_PROXY = '';
 const MAPTILER_KEY = (import.meta.env && import.meta.env.VITE_MAPTILER_KEY) || '2JUaUmt135fOwdifLWxv';
 // Яндекс ID: вставьте client_id зарегистрированного OAuth-приложения (oauth.yandex.ru). Пусто — кнопка подскажет.
 const YANDEX_CLIENT_ID = (import.meta.env && import.meta.env.VITE_YANDEX_CLIENT_ID) || '';
+
+// Тарифы и лимиты участков по типам аккаунта (демо, без бэкенда).
+// Физлицо: Free (1 участок) / Pro (до 3). Риелтор: B2B (до 20).
+const PLAN_LIMITS = { free: 1, pro: 3, b2b: 20 };
+const PLAN_LABEL  = { free: 'Free', pro: 'Pro · физлицо', b2b: 'B2B · риелтор' };
+const PLAN_COLOR  = { free: 'gray', pro: 'grass', b2b: 'purple' };
 const COMPASS8 = ['С', 'СВ', 'В', 'ЮВ', 'Ю', 'ЮЗ', 'З', 'СЗ'];
 const compassFrom = deg => COMPASS8[Math.round((((deg % 360) + 360) % 360) / 45) % 8];
 
@@ -47,10 +53,23 @@ export default function App() {
   const timer = useRef(null);
   const [buildings, setBuildings] = useState([]);
   const [preset, setPreset] = useState('house|Дом 8×8|8,8,6');
-  const [pro, setPro] = useState(false);
+  const [pro, setPro] = useState(() => { try { return (localStorage.getItem('insolar_plan') || 'free') !== 'free'; } catch (e) { return false; } });
   const [paywall, setPaywall] = useState(false);
   const openPaywall = () => setPaywall(true);
   const requirePro = fn => () => { if (pro) fn(); else openPaywall(); };
+
+  // Личный кабинет: тип аккаунта, тариф, участки (демо, localStorage)
+  const [plan, setPlan] = useState(() => { try { return localStorage.getItem('insolar_plan') || 'free'; } catch (e) { return 'free'; } });
+  const [acctType, setAcctType] = useState(() => { try { return localStorage.getItem('insolar_acct') || 'person'; } catch (e) { return 'person'; } });
+  const [projects, setProjects] = useState(() => { try { return JSON.parse(localStorage.getItem('insolar_projects') || '[]'); } catch (e) { return []; } });
+  const [acctOpen, setAcctOpen] = useState(false);
+  const [newProj, setNewProj] = useState('');
+  const applyPlan = (p) => { setPlan(p); setPro(p !== 'free'); const at = p === 'b2b' ? 'realtor' : 'person'; setAcctType(at); try { localStorage.setItem('insolar_plan', p); localStorage.setItem('insolar_acct', at); } catch (e) {} };
+  const setAcct = (at) => { setAcctType(at); try { localStorage.setItem('insolar_acct', at); } catch (e) {} };
+  const planLimit = PLAN_LIMITS[plan] || 1;
+  const saveProjects = (arr) => { setProjects(arr); try { localStorage.setItem('insolar_projects', JSON.stringify(arr)); } catch (e) {} };
+  const addProjectQuick = () => { if (projects.length >= planLimit) { setAcctOpen(false); openPaywall(); return; } const name = (newProj || '').trim() || ('Участок ' + (projects.length + 1)); saveProjects([...projects, { id: Date.now(), name, date: new Date().toLocaleDateString('ru-RU') }]); setNewProj(''); };
+  const removeProject = (id) => saveProjects(projects.filter(x => x.id !== id));
   const [windOpen, setWindOpen] = useState(false);
   const [windFlow, setWindFlow] = useState(false);
   const [windDeg, setWindDeg] = useState(315);
@@ -342,10 +361,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
-          <Button variant={pro ? 'solid' : 'soft'} color={pro ? 'grass' : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> Pro активен</> : <><LockOpen1Icon /> Тарифы</>}</Button>
-          {user
-            ? <Button variant="soft" color="gray" onClick={logoutYandex} title={(user.email || user.login || '') + ' — выйти'}><PersonIcon />{!mobile && ' ' + (user.name || 'Профиль')}</Button>
-            : <Button variant="soft" color="red" onClick={loginYandex}><PersonIcon />{!mobile && ' Войти с Яндекс ID'}</Button>}
+          <Button variant={pro ? 'solid' : 'soft'} color={pro ? PLAN_COLOR[plan] : 'gray'} onClick={openPaywall}>{pro ? <><CheckIcon /> {plan === 'b2b' ? 'B2B активен' : 'Pro активен'}</> : <><LockOpen1Icon /> Тарифы</>}</Button>
+          <Button variant="soft" color="gray" onClick={() => setAcctOpen(true)} title="Личный кабинет"><PersonIcon />{!mobile && ' ' + (user ? (user.name || 'Кабинет') : 'Кабинет')}</Button>
           </>}
           <IconButton variant="soft" color="gray" title="Тема" onClick={() => setThemeMode(appearance === 'dark' ? 'light' : 'dark')}>
             {appearance === 'dark' ? <SunIcon /> : <MoonIcon />}
@@ -621,10 +638,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {mobile && (
           <Card size="2" className="panel-card" style={profCardStyle}>
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОФИЛЬ</Text>
-            <Flex align="center" gap="2" mt="2">
-              <Badge color={pro ? 'grass' : 'gray'} size="2">{pro ? 'Pro активен' : 'Бесплатный доступ'}</Badge>
+            <Flex align="center" gap="2" mt="2" wrap="wrap">
+              <Badge color={PLAN_COLOR[plan]} size="2">{PLAN_LABEL[plan]}</Badge>
+              <Badge color="gray" size="2">Участки: {projects.length}/{planLimit}</Badge>
             </Flex>
-            <Button mt="3" style={{ width: '100%' }} onClick={openPaywall}>{pro ? 'Управление подпиской' : 'Оформить Pro'}</Button>
+            <Text size="2" mt="2" style={{ display: 'block' }}>{user ? (user.name || user.login || 'Профиль') : 'Гость'}</Text>
+            <Button mt="3" style={{ width: '100%' }} onClick={() => setAcctOpen(true)}><PersonIcon /> Личный кабинет</Button>
+            <Button mt="2" variant="soft" color="grass" style={{ width: '100%' }} onClick={openPaywall}>{pro ? 'Управление подпиской' : 'Оформить Pro'}</Button>
             <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Инсоляр — планирование участка по солнцу: тени, инсоляция по СанПиН, расстановка построек и посадок. Расчёты носят модельный характер.</Text>
           </Card>
         )}
@@ -651,20 +671,17 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Dialog.Description size="2" color="gray" mb="4">Планируйте сколько угодно: постройки, посадки, пересадки, разные сезоны и годы. Инсоляр считает солнце и тени вживую, а проект остаётся вашим.</Dialog.Description>
             <Flex gap="3" wrap="wrap" direction={mobile ? 'column' : 'row'} align="stretch">
               {[
-                { key: 'free', name: 'Free', price: '0 ₽', sub: 'навсегда', hero: false, badge: null,
-                  feats: ['1 участок по точкам', '3D-тени в реальном времени', 'Инсоляция в точке и по участку', 'Соседние дома и роза ветров', 'Без сохранения и PDF'],
+                { key: 'free', name: 'Free', price: '0 ₽', sub: 'без регистрации', hero: false, badge: null,
+                  feats: ['Участок по кадастру или точкам', 'Один дом из каталога', 'Забор по СНиП 1,5 м', 'Тени на один весенний день', 'Памятка по отступам'],
                   cta: pro ? null : 'Текущий план' },
-                { key: 'month', name: 'Месяц', price: '490 ₽', sub: 'в месяц', hero: false, badge: null,
-                  feats: ['Всё из Free', 'Расстановка объектов, любые даты и сезоны', 'Кадастр, свой забор, поток ветра', 'Сохранение проектов', 'Скачивание PDF-паспорта'],
-                  cta: 'Оформить месяц' },
-                { key: 'season', name: 'Сезон · 6 мес', price: '1 490 ₽', sub: '≈ 248 ₽/мес', hero: false, badge: null,
-                  feats: ['Всё из тарифа «Месяц»', 'На весь сезон стройки и посадок', 'Скачивание PDF-паспорта', 'Один платёж'],
-                  cta: 'Взять на сезон' },
-                { key: 'year', name: 'Год', price: '1 990 ₽', sub: '≈ 166 ₽/мес · выгодно', hero: true, badge: 'Популярный',
-                  feats: ['Всё из тарифа «Месяц»', 'Весь год: стройка, посадки, пересадки', 'Сколько угодно участков и вариантов', 'Участок эволюционирует вместе с вами', 'Скачивание PDF-паспорта'],
+                { key: 'promo', name: 'Pro · месяц', price: '399 ₽', sub: 'физлицо · в месяц', hero: false, badge: null,
+                  feats: ['Всё из Free', 'До 3 участков', 'Расстановка зданий и сооружений', 'Любая дата и движение солнца весь год', 'Поток ветра и забор любой высоты', 'Соседние дома с карты', 'Инсоляция по всему участку', 'PDF с розой ветров'],
+                  cta: 'Оформить Pro' },
+                { key: 'proyear', name: 'Pro · год', price: '1 990 ₽', sub: 'физлицо · ≈ 166 ₽/мес', hero: true, badge: 'Популярный',
+                  feats: ['Всё из Pro', 'До 3 участков', 'Весь сезонный цикл: стройка и посадки', 'Сезонные сценарии и напоминания', 'Сохранённые проекты и сравнение A/B', 'Участок эволюционирует вместе с вами'],
                   cta: 'Планировать год' },
-                { key: 'b2b', name: 'B2B · риелторам', price: '10 000 ₽', sub: 'в год · для агентств', hero: false, badge: 'Бизнес',
-                  feats: ['Безлимит участков', 'PDF-паспорт с вашим брендом', 'Ссылки-презентации для клиентов', 'Для риелторов и агентств', 'Приоритетная поддержка'],
+                { key: 'b2b', name: 'B2B · профи и риелторам', price: '8 990 ₽', sub: 'в год · до 20 участков', hero: false, badge: 'Бизнес',
+                  feats: ['Всё из Pro, до 20 участков', 'PDF-паспорт с вашим брендом', 'Ссылки-презентации для клиентов', 'Риелтор, проектировщик, ландшафтник', 'Приоритетная поддержка'],
                   cta: 'Подключить B2B' },
               ].map(t => (
                 <Box key={t.key} style={{ flex: '1 1 180px', border: t.hero ? '2px solid var(--grass-8)' : '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.hero ? 'var(--grass-a2)' : 'transparent', position: 'relative' }}>
@@ -677,7 +694,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Flex>
                   {t.cta && <Button mt="3" style={{ width: '100%' }} variant={t.key === 'free' ? 'soft' : t.hero ? 'solid' : 'soft'} color={t.key === 'free' ? 'gray' : 'grass'}
                     disabled={t.key === 'free' && !pro}
-                    onClick={() => { if (t.key === 'free') { setPaywall(false); } else { setPro(true); setPaywall(false); } }}>{t.cta}</Button>}
+                    onClick={() => { if (t.key === 'free') applyPlan('free'); else if (t.key === 'b2b') applyPlan('b2b'); else applyPlan('pro'); setPaywall(false); }}>{t.cta}</Button>}
                 </Box>
               ))}
             </Flex>
@@ -686,10 +703,76 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 Инсоляр — не разовый отчёт, а инструмент, в который возвращаешься к каждому сезону и решению. PDF-паспорт входит во все платные тарифы. Когда подписка закончится, участок и проекты не пропадут — останутся для просмотра, а скачанные PDF навсегда ваши.
               </Text>
               {pro
-                ? <Button variant="soft" color="gray" onClick={() => { setPro(false); setPaywall(false); }}>Отключить Pro (демо)</Button>
+                ? <Button variant="soft" color="gray" onClick={() => { applyPlan('free'); setPaywall(false); }}>Отключить Pro (демо)</Button>
                 : <Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close>}
             </Flex>
             <Text size="1" color="gray" mt="2" style={{ display: 'block' }}>Цены иллюстративные, оплата будет подключена позже.</Text>
+          </Dialog.Content>
+        </Dialog.Root>
+
+        {/* Личный кабинет */}
+        <Dialog.Root open={acctOpen} onOpenChange={setAcctOpen}>
+          <Dialog.Content maxWidth="560px">
+            <Dialog.Title>Личный кабинет</Dialog.Title>
+            <Flex align="center" gap="3" mb="4" mt="1">
+              {user && user.avatarId
+                ? <img src={'https://avatars.yandex.net/get-yapic/' + user.avatarId + '/islands-68'} alt="" width="44" height="44" style={{ borderRadius: '50%' }} />
+                : <Box style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--gray-a4)', display: 'grid', placeItems: 'center' }}><PersonIcon /></Box>}
+              <Box style={{ flex: 1 }}>
+                <Text size="3" weight="bold" style={{ display: 'block' }}>{user ? (user.name || user.login || 'Профиль') : 'Гость'}</Text>
+                <Text size="1" color="gray">{user ? (user.email || 'Яндекс ID') : 'Войдите, чтобы сохранять участки'}</Text>
+              </Box>
+              {user
+                ? <Button variant="soft" color="gray" onClick={logoutYandex}>Выйти</Button>
+                : <Button variant="soft" color="red" onClick={loginYandex}><PersonIcon /> Войти с Яндекс ID</Button>}
+            </Flex>
+
+            <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em', display: 'block', marginBottom: 6 }}>ТИП АККАУНТА</Text>
+            <Flex gap="2" mb="4">
+              <Button variant={acctType === 'person' ? 'solid' : 'soft'} color={acctType === 'person' ? 'grass' : 'gray'} onClick={() => setAcct('person')} style={{ flex: 1 }}><PersonIcon /> Физлицо</Button>
+              <Button variant={acctType === 'realtor' ? 'solid' : 'soft'} color={acctType === 'realtor' ? 'purple' : 'gray'} onClick={() => setAcct('realtor')} style={{ flex: 1 }}><HomeIcon /> Риелтор</Button>
+            </Flex>
+
+            <Card mb="4">
+              <Flex justify="between" align="center" gap="3" wrap="wrap">
+                <Box>
+                  <Text size="1" color="gray" style={{ display: 'block' }}>Текущий тариф</Text>
+                  <Badge color={PLAN_COLOR[plan]} size="2" mt="1">{PLAN_LABEL[plan]}</Badge>
+                </Box>
+                <Button variant="soft" color="grass" onClick={() => { setAcctOpen(false); openPaywall(); }}>Сменить тариф</Button>
+              </Flex>
+              <Separator my="3" size="4" />
+              <Flex justify="between" align="center">
+                <Text size="2" weight="medium">Участки: {projects.length} из {planLimit}</Text>
+                <Text size="1" color="gray">{plan === 'free' ? '1 — бесплатный' : plan === 'pro' ? 'до 3 — физлицо' : 'до 20 — риелтор'}</Text>
+              </Flex>
+              <Box mt="2" style={{ height: 8, borderRadius: 999, background: 'var(--gray-a4)', overflow: 'hidden' }}>
+                <span style={{ display: 'block', height: '100%', width: Math.min(100, Math.round(projects.length / planLimit * 100)) + '%', background: 'var(--grass-9)' }} />
+              </Box>
+            </Card>
+
+            <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em', display: 'block', marginBottom: 6 }}>МОИ УЧАСТКИ</Text>
+            {projects.length === 0 && <Text size="2" color="gray" style={{ display: 'block', marginBottom: 8 }}>Пока нет сохранённых участков.</Text>}
+            <Flex direction="column" gap="2" mb="3">
+              {projects.map(p => (
+                <Flex key={p.id} justify="between" align="center" style={{ border: '1px solid var(--gray-a5)', borderRadius: 10, padding: '8px 12px' }}>
+                  <Box><Text size="2" weight="medium" style={{ display: 'block' }}>{p.name}</Text><Text size="1" color="gray">создан {p.date}</Text></Box>
+                  <Flex gap="2">
+                    <Button size="1" variant="soft" color="grass" onClick={() => setAcctOpen(false)}>Открыть</Button>
+                    <IconButton size="1" variant="soft" color="gray" onClick={() => removeProject(p.id)}><TrashIcon /></IconButton>
+                  </Flex>
+                </Flex>
+              ))}
+            </Flex>
+            {projects.length < planLimit
+              ? <Flex gap="2">
+                  <TextField.Root placeholder="Название участка" value={newProj} onChange={e => setNewProj(e.target.value)} style={{ flex: 1 }} />
+                  <Button onClick={addProjectQuick}><PlusIcon /> Добавить</Button>
+                </Flex>
+              : <Button style={{ width: '100%' }} onClick={() => { setAcctOpen(false); openPaywall(); }}><LockOpen1Icon /> Лимит достигнут — расширить тариф</Button>}
+
+            <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Демо-кабинет: вход через Яндекс ID, тариф и участки хранятся локально в браузере. Оплата и синхронизация появятся с бэкендом.</Text>
+            <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
           </Dialog.Content>
         </Dialog.Root>
 

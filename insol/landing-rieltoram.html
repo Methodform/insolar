@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SunPlan3D для риелторов — продавайте участки дороже и быстрее</title>
+<meta name="description" content="Инструмент для риелторов и агентств: «паспорт солнца» участка под каждый лот. Покажите инсоляцию, тени и вид в 3D, закройте возражения покупателя и обоснуйте цену. До 20 участков — 8 990 ₽/год.">
+<link rel="canonical" href="https://methodform.github.io/insolar/landing-rieltoram.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="SunPlan3D">
+<meta property="og:title" content="SunPlan3D для риелторов — солнце как аргумент продажи">
+<meta property="og:description" content="Паспорт солнца участка под каждый лот: инсоляция, тени и вид в 3D. Закрывайте возражения и обосновывайте цену. До 20 участков за 8 990 ₽/год.">
+<meta property="og:image" content="https://methodform.github.io/insolar/img/Summer-Shot-scaled.jpg">
+<meta property="og:url" content="https://methodform.github.io/insolar/landing-rieltoram.html">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta name="keywords" content="сервис для риелторов, продать загородный участок, паспорт участка, инсоляция участка, солнечная сторона участка, презентация объекта недвижимости, отстройка от конкурентов риелтор, солнце и цена участка">
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"Product","name":"SunPlan3D для риелторов","description":"B2B-инструмент анализа солнца, теней и инсоляции участка для риелторов и агентств недвижимости: паспорт солнца под каждый лот, брендированные презентации, расчёт по СанПиН.","brand":{"@type":"Brand","name":"SunPlan3D"},"offers":{"@type":"Offer","price":"8990","priceCurrency":"RUB","description":"B2B-подписка: до 20 участков в год"}}</script>
+<script type="application/ld+json">{"@context":"https://schema.org","@type":"FAQPage","mainEntity":[{"@type":"Question","name":"Зачем риелтору показывать солнце и тени участка?","acceptedAnswer":{"@type":"Answer","text":"Солнечность — скрытый критерий выбора загородной недвижимости. Наглядный паспорт солнца снимает возражения покупателя (тень, сырость, сад, окна в забор соседа), ускоряет решение и помогает обосновать цену лота."}},{"@type":"Question","name":"Сколько участков входит в тариф для риелторов?","acceptedAnswer":{"@type":"Answer","text":"B2B-тариф — до 20 участков в год за 8 990 ₽, с брендированным PDF-паспортом, ссылками-презентациями для клиентов и приоритетной поддержкой."}},{"@type":"Question","name":"Можно ли поставить свой логотип на паспорт?","acceptedAnswer":{"@type":"Answer","text":"Да. В B2B-тарифе PDF-паспорт участка и ссылки-презентации оформляются с вашим брендом — их можно прикладывать к объявлению и презентации клиенту."}},{"@type":"Question","name":"По какому нормативу считается инсоляция?","acceptedAnswer":{"@type":"Answer","text":"По СанПиН 1.2.3685-21 — непрерывная инсоляция на нормативную дату для климатической зоны участка. Расчёт модельный, помогает в переговорах, но не заменяет аккредитованную экспертизу."}}]}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FCF9F2; --surface:#ffffff; --paper:#F4EEE0; --sand:#FBEED6;
+    --ink:#23281f; --muted:#6f7168; --line:#EBE4D4;
+    --green:#2f7d4f; --green-d:#1c3b2a; --leaf:#e5f0e2;
+    --sun:#F2A93B; --sunsoft:#FCE9C6; --terra:#C25E38; --sky:#DCE9F2;
+    --azure:#2f6bd4; --azuresoft:#dce8fb;
+    --maxw:1200px; --r:22px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{font-family:'Manrope',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    background:var(--bg);color:var(--ink);line-height:1.5;-webkit-font-smoothing:antialiased;font-size:17px}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 24px}
+  a{color:inherit;text-decoration:none}
+  .lbl{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--green);font-weight:700}
+  h1{font-size:clamp(2.5rem,6vw,4.8rem);line-height:1.03;letter-spacing:-.03em;font-weight:800}
+  h2{font-size:clamp(1.8rem,4vw,2.9rem);line-height:1.07;letter-spacing:-.02em;font-weight:800}
+  h3{font-size:clamp(1.15rem,1.7vw,1.35rem);font-weight:700;letter-spacing:-.01em}
+  p{color:var(--muted)}
+  section{padding:clamp(56px,8vw,104px) 0}
+  .mt20{margin-top:20px}
+  .pill{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:14px 26px;
+    font:inherit;font-size:15px;font-weight:700;border:1.5px solid var(--ink);transition:.22s;cursor:pointer}
+  .pill.solid{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .pill.solid:hover{background:var(--green);border-color:var(--green)}
+  .pill.line:hover{background:var(--ink);color:#fff}
+  .pill.green{background:var(--green);color:#fff;border-color:var(--green);box-shadow:0 12px 26px -12px rgba(47,125,79,.6)}
+  .pill.green:hover{filter:brightness(1.08)}
+  .pill.sun{background:var(--sun);color:#3a2708;border-color:var(--sun);box-shadow:0 12px 26px -12px rgba(242,169,59,.7)}
+  .pill.sun:hover{filter:brightness(1.05)}
+
+  header{position:fixed;top:0;left:0;right:0;z-index:60;transition:.3s}
+  header.scrolled{background:rgba(252,249,242,.85);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+  .nav{display:flex;align-items:center;gap:24px;height:70px}
+  .logo{font-weight:800;font-size:20px;letter-spacing:-.03em;display:inline-flex;align-items:baseline;gap:2px}
+  .logo .mk{color:var(--sun);margin-right:5px}
+  .logo .sun{color:var(--sun)} .logo .pl{color:var(--ink)} .logo .d3{color:var(--azure)}
+  .logo .tg{font-size:11px;font-weight:600;color:var(--muted);letter-spacing:0;margin-left:9px;align-self:center}
+  @media(max-width:560px){.logo .tg{display:none}}
+  .nav .sp{flex:1}
+  .nav .lnk{font-size:14.5px;font-weight:600;color:var(--ink)}
+  .nav .lnk:hover{color:var(--green)}
+  .nav .pill{padding:10px 20px}
+  @media(max-width:820px){.nav .lnk{display:none}}
+
+  .hero{padding-top:128px;padding-bottom:0;background:
+    radial-gradient(1100px 520px at 82% -6%, var(--sunsoft) 0%, rgba(252,236,198,0) 60%),
+    radial-gradient(720px 460px at 96% 30%, var(--azuresoft) 0%, rgba(220,232,251,0) 60%),
+    radial-gradient(760px 420px at 10% 4%, var(--leaf) 0%, rgba(229,240,226,0) 55%)}
+  .hero h1{max-width:16ch}
+  .hero h1 .u{color:var(--green);background:linear-gradient(transparent 66%, var(--sunsoft) 66%)}
+  .hero .sub{margin:24px 0 30px;max-width:44ch;font-size:clamp(1.05rem,1.7vw,1.26rem);color:#4b4f45}
+  .hero .cta{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .trust{display:flex;gap:18px;flex-wrap:wrap;margin-top:22px;font-size:13.5px;color:var(--muted);font-weight:600}
+  .trust span{display:inline-flex;align-items:center;gap:7px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--green)}
+  .hero-foot{margin-top:56px;padding-bottom:6px}
+
+  .lead{max-width:34ch;margin-top:14px;font-size:1.1rem}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:52px}
+  @media(max-width:900px){.grid3{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:600px){.grid3{grid-template-columns:1fr}}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:22px;margin-top:48px}
+  @media(max-width:760px){.grid2{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:26px 24px 28px;
+    transition:transform .25s,box-shadow .25s}
+  .card:hover{transform:translateY(-5px);box-shadow:0 28px 54px -32px rgba(40,30,10,.4)}
+  .card .ico{width:44px;height:44px;border-radius:12px;display:grid;place-items:center;font-size:1.4rem;
+    background:var(--leaf);margin-bottom:16px}
+  .card h3{margin-bottom:10px}
+  .card p{font-size:.99rem;color:#4b4f45}
+
+  .prob{background:var(--sand);border:1px solid var(--line);border-radius:var(--r);padding:26px 24px}
+  .prob b{display:block;color:var(--terra);font-weight:800;margin-bottom:8px;font-size:1.02rem}
+  .prob p{color:#5a5347;font-size:.99rem}
+
+  .dark{background:var(--green-d);color:#EAF1E7;border-radius:0}
+  .dark p{color:#AEC2B2}
+  .dark .lbl{color:#8FCBA5}
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:44px}
+  @media(max-width:760px){.stats{grid-template-columns:1fr}}
+  .stat{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:16px;padding:26px}
+  .stat .n{font-size:2.6rem;font-weight:800;color:#fff;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+  .stat .t{color:#AEC2B2;font-size:.98rem;margin-top:8px}
+  .src{margin-top:26px;font-size:12.5px;color:#7f9585;max-width:70ch}
+
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:22px;margin-top:52px;counter-reset:st}
+  @media(max-width:820px){.steps{grid-template-columns:1fr}}
+  .step{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:26px 24px;position:relative}
+  .step::before{counter-increment:st;content:counter(st);position:absolute;top:22px;right:24px;
+    font-size:2.2rem;font-weight:800;color:var(--line)}
+  .step h3{margin-bottom:10px;max-width:16ch}
+  .step p{font-size:.98rem;color:#4b4f45}
+
+  .price{background:var(--surface);border:2px solid var(--green);border-radius:var(--r);padding:34px 30px;
+    max-width:520px;margin:44px auto 0;text-align:center;position:relative;box-shadow:0 30px 60px -40px rgba(47,125,79,.6)}
+  .price .badge{position:absolute;top:-14px;left:50%;transform:translateX(-50%);background:var(--green);color:#fff;
+    font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;padding:6px 16px;border-radius:999px}
+  .price .amount{font-size:3rem;font-weight:800;letter-spacing:-.02em;margin:6px 0 2px}
+  .price .per{color:var(--muted);font-weight:600;margin-bottom:22px}
+  .price ul{list-style:none;text-align:left;max-width:360px;margin:0 auto 26px;display:grid;gap:12px}
+  .price li{display:flex;gap:11px;align-items:flex-start;font-size:1rem;color:#3a3f34;font-weight:500}
+  .price li::before{content:'✓';flex:none;color:var(--green);font-weight:800}
+  .price .note{margin-top:16px;font-size:13px;color:var(--muted)}
+
+  .faq{display:grid;gap:14px;margin-top:44px;max-width:820px}
+  .faq details{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:0 22px}
+  .faq summary{cursor:pointer;list-style:none;padding:20px 0;font-weight:700;font-size:1.05rem;
+    display:flex;justify-content:space-between;gap:16px;align-items:center}
+  .faq summary::-webkit-details-marker{display:none}
+  .faq summary::after{content:'+';color:var(--green);font-weight:800;font-size:1.4rem;transition:.2s}
+  .faq details[open] summary::after{transform:rotate(45deg)}
+  .faq .ans{padding:0 0 20px;color:#4b4f45;font-size:.99rem;max-width:64ch}
+
+  footer .dark{padding:clamp(56px,8vw,96px) 0}
+  .big-cta{text-align:center;display:grid;gap:20px;justify-items:center}
+  .foot{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:26px 24px;
+    font-size:13px;color:var(--muted)}
+
+  .reveal{opacity:0;transform:translateY(16px);transition:.6s cubic-bezier(.16,1,.3,1)}
+  .reveal.in{opacity:1;transform:none}
+  @media(prefers-reduced-motion:reduce){.reveal{opacity:1;transform:none;transition:none}}
+</style>
+</head>
+<body>
+
+<header id="hdr">
+  <div class="wrap nav">
+    <a class="logo" href="landing.html"><span class="mk">☀</span><span class="sun">Sun</span><span class="pl">Plan</span><span class="d3">3D</span><span class="tg">для риелторов и агентств</span></a>
+    <div class="sp"></div>
+    <a class="lnk" href="#benefits">Преимущества</a>
+    <a class="lnk" href="#how">Как работает</a>
+    <a class="lnk" href="#price">Тариф</a>
+    <a class="lnk" href="landing.html">Для частных</a>
+    <a class="pill solid" href="index.html">Открыть сервис</a>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <span class="lbl reveal">SunPlan3D · для недвижимости</span>
+    <h1 class="reveal mt20">Продавайте участки, где <span class="u">всегда есть солнце</span>.</h1>
+    <p class="sub reveal">Покажите покупателю солнце, тени и инсоляцию участка в 3D — под каждый лот. Снимите скрытые возражения, обоснуйте цену и выделитесь среди десятков одинаковых объявлений.</p>
+    <div class="cta reveal">
+      <a class="pill green" href="#price">Подключить B2B — 8 990 ₽/год</a>
+      <a class="pill line" href="#benefits">Что это даёт</a>
+    </div>
+    <div class="trust reveal">
+      <span><i class="dot"></i> До 20 участков в год</span>
+      <span><i class="dot"></i> PDF-паспорт с вашим брендом</span>
+      <span><i class="dot"></i> Расчёт по СанПиН</span>
+    </div>
+    <div class="hero-foot"></div>
+  </div>
+</section>
+
+<!-- ПРОБЛЕМА -->
+<section>
+  <div class="wrap">
+    <span class="lbl reveal">Что тормозит сделку</span>
+    <h2 class="reveal mt20">Покупатель загородки боится ошибки —<br>и по фото это не видно</h2>
+    <p class="lead reveal">Солнце — скрытый критерий выбора участка. Пока покупатель не уверен, что тут будет светло, — он тянет с решением или сбивает цену.</p>
+    <div class="grid2">
+      <div class="prob reveal"><b>«А дом не окажется в тени?»</b><p>Соседний дом, лес или рельеф могут затенять участок половину дня. На летнем показе это не видно — зимой выяснится поздно.</p></div>
+      <div class="prob reveal"><b>«А сад вырастет?»</b><p>Огород и ягоды в тени не плодоносят, земля сырая. Покупатель с дачным опытом задаёт этот вопрос первым.</p></div>
+      <div class="prob reveal"><b>«А с соседом не будет споров?»</b><p>Затенение чужих окон и нарушение отступов — реальный повод для конфликта. Люди про это читали и опасаются.</p></div>
+      <div class="prob reveal"><b>«А почему так дорого?»</b><p>Без наглядного аргумента солнечный лот выглядит как любой другой — и покупатель торгуется вниз.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ПРЕИМУЩЕСТВА -->
+<section id="benefits" style="background:var(--paper)">
+  <div class="wrap">
+    <span class="lbl reveal">Зачем это вам</span>
+    <h2 class="reveal mt20">Солнце как аргумент продажи</h2>
+    <p class="lead reveal">Один инструмент закрывает и переговоры, и презентацию, и отстройку от конкурентов.</p>
+    <div class="grid3">
+      <div class="card reveal"><div class="ico">💰</div><h3>Продавайте дороже</h3><p>Наглядный «паспорт солнца» обосновывает цену солнечного лота. Покупатели готовы доплачивать за свет и вид — дайте им доказательство, а не слова.</p></div>
+      <div class="card reveal"><div class="ico">⚡</div><h3>Продавайте быстрее</h3><p>Заранее снимаете возражения про тень, сырость, сад и соседей — путь от показа до сделки короче, меньше «я подумаю».</p></div>
+      <div class="card reveal"><div class="ico">✨</div><h3>Отстройка от конкурентов</h3><p>Среди десятков одинаковых лотов ваш — с интерактивной 3D-инсоляцией и брендированным паспортом. Объявление выглядит на голову выше.</p></div>
+      <div class="card reveal"><div class="ico">📄</div><h3>Презентации клиентам</h3><p>PDF-паспорт участка с вашим логотипом и ссылка-презентация под каждый лот. Прикладывайте к объявлению, отправляйте в мессенджер.</p></div>
+      <div class="card reveal"><div class="ico">⚖️</div><h3>Доверие и экспертность</h3><p>Расчёт по СанПиН и памятка по отступам. Вы говорите с покупателем на языке норм — это позиция эксперта, а не «продавца».</p></div>
+      <div class="card reveal"><div class="ico">🗂️</div><h3>Поток лотов</h3><p>До 20 участков в год в одном аккаунте. Ставите дом на участок, получаете паспорт — и переходите к следующему объекту.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- СТАТИСТИКА (dark) -->
+<section class="dark">
+  <div class="wrap">
+    <span class="lbl reveal">Почему солнце продаёт</span>
+    <h2 class="reveal mt20" style="color:#fff">Свет влияет на цену и скорость сделки</h2>
+    <div class="stats">
+      <div class="stat reveal"><div class="n">24%</div><div class="t">покупателей готовы доплатить за привлекательный вид из окна (опрос Авито Недвижимость, 2024)</div></div>
+      <div class="stat reveal"><div class="n">5–30%</div><div class="t">оценочная наценка за хороший вид/свет по классам жилья (данные риелторских исследований)</div></div>
+      <div class="stat reveal"><div class="n">+2,6%</div><div class="t">к цене дома за каждый дополнительный час прямого солнца в день (рецензируемое исследование, Новая Зеландия)</div></div>
+    </div>
+    <p class="src reveal">Цифры приведены как рыночный контекст: часть — опросы и оценки риелторов, часть — академические исследования; прямой процент именно «за южную сторону» в открытых данных РФ не зафиксирован. SunPlan3D не гарантирует наценку, а даёт наглядный аргумент, который помогает её отстоять в переговорах.</p>
+  </div>
+</section>
+
+<!-- КАК РАБОТАЕТ -->
+<section id="how">
+  <div class="wrap">
+    <span class="lbl reveal">Как это работает</span>
+    <h2 class="reveal mt20">Паспорт солнца лота — за 10 минут</h2>
+    <div class="steps">
+      <div class="step reveal"><h3>Введите участок</h3><p>По кадастровому номеру или точкам координат — границы подтянутся автоматически.</p></div>
+      <div class="step reveal"><h3>Поставьте дом и постройки</h3><p>Расставьте дом, баню, забор; добавьте соседние дома с карты. Тени и инсоляция пересчитываются вживую на любую дату.</p></div>
+      <div class="step reveal"><h3>Соберите презентацию</h3><p>Выгрузите брендированный PDF-паспорт и ссылку-презентацию — приложите к объявлению и отправьте клиенту.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- КОМУ ПОДХОДИТ -->
+<section style="background:var(--paper)">
+  <div class="wrap">
+    <span class="lbl reveal">Кому подходит</span>
+    <h2 class="reveal mt20">Для тех, кто продаёт землю и загородку</h2>
+    <div class="grid3">
+      <div class="card reveal"><div class="ico">🧑‍💼</div><h3>Частный риелтор</h3><p>Выделяйте свои загородные лоты и закрывайте сделки быстрее без лишних показов.</p></div>
+      <div class="card reveal"><div class="ico">🏢</div><h3>Агентство недвижимости</h3><p>Единый стандарт презентации участков и брендированные паспорта для всей команды.</p></div>
+      <div class="card reveal"><div class="ico">🏘️</div><h3>Отдел продаж КП / застройщик</h3><p>Показывайте инсоляцию каждого лота в посёлке и обосновывайте цену «солнечных» участков.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ТАРИФ -->
+<section id="price">
+  <div class="wrap">
+    <span class="lbl reveal" style="text-align:center;display:block">Тариф для профи</span>
+    <h2 class="reveal mt20" style="text-align:center">Один тариф — весь ваш поток лотов</h2>
+    <div class="price reveal">
+      <span class="badge">B2B · риелторам и профи</span>
+      <div class="amount">8 990 ₽</div>
+      <div class="per">в год · до 20 участков</div>
+      <ul>
+        <li>Всё из Pro, до 20 участков</li>
+        <li>PDF-паспорт участка с вашим брендом</li>
+        <li>Ссылки-презентации для клиентов</li>
+        <li>Инсоляция по СанПиН, тени и ветер, соседние дома</li>
+        <li>Для риелтора, проектировщика, ландшафтника</li>
+        <li>Приоритетная поддержка</li>
+      </ul>
+      <a class="pill green" href="index.html" style="width:100%;justify-content:center">Подключить B2B</a>
+      <div class="note">Нужно личное использование или один участок? <a href="landing.html" style="color:var(--green);font-weight:700">Тарифы для частных →</a></div>
+    </div>
+  </div>
+</section>
+
+<!-- FAQ -->
+<section style="background:var(--paper)">
+  <div class="wrap">
+    <span class="lbl reveal">Частые вопросы</span>
+    <h2 class="reveal mt20">Коротко о главном</h2>
+    <div class="faq">
+      <details class="reveal"><summary>Зачем риелтору показывать солнце и тени участка?</summary><div class="ans">Солнечность — скрытый критерий выбора загородной недвижимости. Наглядный паспорт солнца снимает возражения покупателя (тень, сырость, сад, окна в забор соседа), ускоряет решение и помогает обосновать цену лота.</div></details>
+      <details class="reveal"><summary>Сколько участков входит в тариф?</summary><div class="ans">B2B-тариф — до 20 участков в год за 8 990 ₽, с брендированным PDF-паспортом, ссылками-презентациями для клиентов и приоритетной поддержкой.</div></details>
+      <details class="reveal"><summary>Можно ли поставить свой логотип на паспорт?</summary><div class="ans">Да. В B2B-тарифе PDF-паспорт и ссылки-презентации оформляются с вашим брендом — их удобно прикладывать к объявлению и отправлять клиенту.</div></details>
+      <details class="reveal"><summary>По какому нормативу считается инсоляция?</summary><div class="ans">По СанПиН 1.2.3685-21 — непрерывная инсоляция на нормативную дату для климатической зоны участка. Расчёт модельный: помогает в переговорах, но не заменяет аккредитованную экспертизу.</div></details>
+    </div>
+  </div>
+</section>
+
+<!-- FOOTER -->
+<footer>
+  <div class="dark">
+    <div class="wrap big-cta">
+      <span class="lbl reveal">Начните с одного лота</span>
+      <h2 class="reveal" style="color:#fff">Покажите солнце — и продайте дороже</h2>
+      <div class="reveal"><a class="pill sun" href="index.html">Открыть сервис</a></div>
+    </div>
+  </div>
+  <div class="wrap foot">
+    <span><span style="color:var(--sun)">☀</span> SunPlan3D — солнце, тени и инсоляция участка в 3D для недвижимости</span>
+    <span>Расчёт по СанПиН 1.2.3685-21 · не заменяет экспертизу</span>
+  </div>
+</footer>
+
+<script>
+  const hdr=document.getElementById('hdr');
+  addEventListener('scroll',()=>hdr.classList.toggle('scrolled',scrollY>20));
+  const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}}),{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
+</script>
+</body>
+</html>

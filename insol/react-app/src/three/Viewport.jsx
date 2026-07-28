@@ -109,6 +109,195 @@ function buildTypicalHouse(W, D, H) {
     p.position.set(cxp, (H + rh * 0.4) / 2 + 0.15, czp); p.castShadow = true; g.add(p); });
   return g;
 }
+
+// ===== ГОТОВАЯ детальная модель дома (точный порт uploads/index.html) =====
+// текстуры и материалы строятся один раз (синглтон), геометрия — на каждый инстанс
+let READY_MATS = null;
+function readyMats() {
+  if (READY_MATS) return READY_MATS;
+  const tex = (w, h, draw, rx = 1, ry = 1) => {
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    draw(cv.getContext('2d'), w, h);
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 8;
+    t.colorSpace = THREE.SRGBColorSpace; return t;
+  };
+  const sidingTex = tex(256, 256, (g, w, h) => {
+    g.fillStyle = '#f2f3f1'; g.fillRect(0, 0, w, h);
+    for (let x = 0; x < w; x += 16) { g.fillStyle = '#e0e2df'; g.fillRect(x, 0, 2, h); g.fillStyle = '#fafbf9'; g.fillRect(x + 2, 0, 1, h); }
+  }, 4, 1.6);
+  const woodTexture = (rx, ry) => tex(256, 256, (g, w, h) => {
+    const shades = ['#6d4f36', '#75563b', '#654830', '#7c5c40'];
+    for (let y = 0, i = 0; y < h; y += 22, i++) {
+      g.fillStyle = shades[i % shades.length]; g.fillRect(0, y, w, 22);
+      g.fillStyle = 'rgba(40,25,12,.85)'; g.fillRect(0, y, w, 2);
+      g.strokeStyle = 'rgba(30,18,8,.25)';
+      for (let k = 0; k < 6; k++) { g.beginPath(); const yy = y + 3 + Math.random() * 17; g.moveTo(0, yy); g.lineTo(w, yy + Math.random() * 2 - 1); g.stroke(); }
+    }
+  }, rx, ry);
+  const woodTex = woodTexture(2.2, 1.6);
+  const deckTex = tex(512, 512, (g, w, h) => {
+    const shades = ['#8a6b4d', '#93745a', '#7e6045', '#886849'];
+    for (let y = 0, i = 0; y < h; y += 32, i++) {
+      g.fillStyle = shades[i % shades.length]; g.fillRect(0, y, w, 32);
+      g.fillStyle = 'rgba(35,22,10,.9)'; g.fillRect(0, y, w, 3);
+      g.strokeStyle = 'rgba(40,25,12,.3)';
+      for (let k = 0; k < 8; k++) { g.beginPath(); const yy = y + 4 + Math.random() * 26; g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); }
+    }
+  }, 1.2, 3);
+  const shingleTex = tex(512, 512, (g, w, h) => {
+    g.fillStyle = '#4a3d33'; g.fillRect(0, 0, w, h);
+    const pal = ['#8a6a4f', '#7b5a42', '#6e564b', '#5f5148', '#93705a', '#55483f', '#7d6553'];
+    const sw = 42, sh = 30;
+    for (let row = -1; row < h / sh + 1; row++) {
+      const off = (row % 2) ? sw / 2 : 0;
+      for (let x = -1; x < w / sw + 1; x++) {
+        const cx = x * sw + off, cy = row * sh;
+        g.fillStyle = pal[Math.floor(Math.random() * pal.length)];
+        g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + sw, cy); g.lineTo(cx + sw, cy + sh - 10);
+        g.arc(cx + sw / 2, cy + sh - 10, sw / 2, 0, Math.PI); g.closePath(); g.fill();
+        g.strokeStyle = 'rgba(30,24,18,.5)'; g.stroke();
+      }
+    }
+  }, 1, 1);
+  READY_MATS = {
+    siding: new THREE.MeshStandardMaterial({ map: sidingTex, roughness: .85 }),
+    wood: new THREE.MeshStandardMaterial({ map: woodTex, roughness: .8 }),
+    deck: new THREE.MeshStandardMaterial({ map: deckTex, roughness: .85 }),
+    shingle: new THREE.MeshStandardMaterial({ map: shingleTex, roughness: .95 }),
+    dark: new THREE.MeshStandardMaterial({ color: 0x2e3338, roughness: .6, metalness: .25 }),
+    frame: new THREE.MeshStandardMaterial({ color: 0x23272b, roughness: .5, metalness: .3 }),
+    glass: new THREE.MeshPhongMaterial({ color: 0x30414d, specular: 0xcfe0ee, shininess: 180, reflectivity: .6, transparent: true, opacity: .94 }),
+    white: new THREE.MeshStandardMaterial({ color: 0xf4f5f3, roughness: .9 }),
+    concrete: new THREE.MeshStandardMaterial({ color: 0x9aa0a3, roughness: .95 }),
+    woodTexture,
+  };
+  return READY_MATS;
+}
+function buildReadyHouse() {
+  const M = readyMats();
+  const h = new THREE.Group();
+  const box = (w, ht, d, mat, x, y, z, parent = h) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, ht, d), mat);
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+  };
+  const hipRoof = (w, d, hh, capW, capD, y, x = 0, z = 0) => {
+    const g = new THREE.BufferGeometry();
+    const b = [[-w / 2, 0, d / 2], [w / 2, 0, d / 2], [w / 2, 0, -d / 2], [-w / 2, 0, -d / 2]];
+    const t = [[-capW / 2, hh, capD / 2], [capW / 2, hh, capD / 2], [capW / 2, hh, -capD / 2], [-capW / 2, hh, -capD / 2]];
+    const pos = [], uv = [], s = 1.6;
+    const quad = (p1, p2, p3, p4) => {
+      const eb = Math.hypot(p2[0] - p1[0], p2[2] - p1[2]);
+      const sl = Math.hypot((p4[0] + p3[0]) / 2 - (p1[0] + p2[0]) / 2, hh, (p4[2] + p3[2]) / 2 - (p1[2] + p2[2]) / 2);
+      const et = Math.hypot(p4[0] - p3[0], p4[2] - p3[2]);
+      const o = (eb - et) / 2;
+      const P = [p1, p2, p3, p1, p3, p4];
+      const U = [[0, 0], [eb / s, 0], [(o + et) / s, sl / s], [0, 0], [(o + et) / s, sl / s], [o / s, sl / s]];
+      P.forEach(p => pos.push(...p)); U.forEach(u => uv.push(...u));
+    };
+    quad(b[0], b[1], t[1], t[0]); quad(b[1], b[2], t[2], t[1]); quad(b[2], b[3], t[3], t[2]); quad(b[3], b[0], t[0], t[3]);
+    pos.push(...t[0], ...t[1], ...t[2], ...t[0], ...t[2], ...t[3]);
+    uv.push(0, 0, capW / s, 0, capW / s, capD / s, 0, 0, capW / s, capD / s, 0, capD / s);
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+    g.computeVertexNormals();
+    const m = new THREE.Mesh(g, M.shingle);
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; h.add(m);
+    box(capW + .15, .12, capD + .15, M.dark, x, y + hh + .04, z);
+    return m;
+  };
+  const fascia = (w, d, y, x = 0, z = 0) => {
+    const t = .16, hh = .38;
+    box(w, hh, t, M.dark, x, y, z + d / 2 - t / 2);
+    box(w, hh, t, M.dark, x, y, z - d / 2 + t / 2);
+    box(t, hh, d, M.dark, x - w / 2 + t / 2, y, z);
+    box(t, hh, d, M.dark, x + w / 2 - t / 2, y, z);
+    const sof = box(w - .2, .06, d - .2, M.white, x, y + .14, z); sof.castShadow = false;
+  };
+  const glazing = (x, y, z, w, ht, rot, divs = 2, door = false) => {
+    const gr = new THREE.Group();
+    const fd = .14, ft = .09;
+    const mk = (bw, bh, bd, px, py, pz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), M.frame); m.position.set(px, py, pz); m.castShadow = true; gr.add(m); };
+    mk(w, ft, fd, 0, ht / 2 - ft / 2, 0); mk(w, ft, fd, 0, -ht / 2 + ft / 2, 0);
+    mk(ft, ht, fd, -w / 2 + ft / 2, 0, 0); mk(ft, ht, fd, w / 2 - ft / 2, 0, 0);
+    for (let i = 1; i < divs; i++) mk(.06, ht - .1, fd - .02, -w / 2 + i * w / divs, 0, 0);
+    const gl = new THREE.Mesh(new THREE.PlaneGeometry(w - .12, ht - .12), M.glass);
+    gl.position.z = .01; gr.add(gl);
+    if (door) { const hd = new THREE.Mesh(new THREE.BoxGeometry(.03, .5, .05), M.frame); hd.position.set(w / 2 - .22, 0, .09); gr.add(hd); }
+    gr.position.set(x, y, z); gr.rotation.y = [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot];
+    h.add(gr); return gr;
+  };
+  const panel = (x, y, z, w, ht, rot) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, ht, .07), new THREE.MeshStandardMaterial({ map: M.woodTexture(w / 1.4, ht / 1.4), roughness: .8 }));
+    m.position.set(x, y, z); m.rotation.y = [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot];
+    m.castShadow = true; m.receiveShadow = true; h.add(m);
+    const e = new THREE.Mesh(new THREE.BoxGeometry(w + .1, ht + .1, .05), M.dark);
+    e.position.copy(m.position); e.rotation.copy(m.rotation); e.translateZ(-.02); h.add(e);
+  };
+  const lamp = (x, y, z, rot) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(.045, .045, .26, 12), M.frame);
+    m.position.set(x, y, z); m.rotation.y = [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot];
+    m.translateZ(.07); h.add(m);
+  };
+  const pipe = (x, z, top) => {
+    const m = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, top - .2, 10), M.dark);
+    m.position.set(x, (top + .2) / 2, z); m.castShadow = true; h.add(m);
+  };
+  const vent = (x, y, z) => {
+    const v = new THREE.Mesh(new THREE.CylinderGeometry(.11, .13, .75, 12), M.frame); v.position.set(x, y, z); v.castShadow = true; h.add(v);
+    const c = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, .1, 12), M.frame); c.position.set(x, y + .42, z); h.add(c);
+  };
+  const deckPlat = (w, d, x, z) => {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(w, .16, d), M.deck);
+    m.position.set(x, .1, z); m.receiveShadow = true; m.castShadow = true; h.add(m);
+  };
+  const WALL_Y0 = .2;
+  // фундамент-цоколь
+  box(12.7, .25, 11.7, M.concrete, 0, .125, 0);
+  box(5.7, .25, 8.2, M.concrete, 9, .125, 0);
+  // объёмы стен
+  box(12.5, 3.0, 11.5, M.siding, 0, WALL_Y0 + 1.5, 0);
+  box(5.5, 2.55, 8.0, M.siding, 9, WALL_Y0 + 1.275, 0);
+  // крыши
+  fascia(14.3, 13.3, 3.13);
+  hipRoof(14.3, 13.3, 2.25, 2.6, 1.3, 3.32);
+  fascia(7.1, 9.6, 2.67, 9, 0);
+  hipRoof(7.1, 9.6, 1.35, 1.1, 3.4, 2.86, 9, 0);
+  // фронт основного объёма
+  panel(0.4, WALL_Y0 + 1.5, 5.79, 7.4, 2.9, 0);
+  glazing(-1.6, WALL_Y0 + 1.5, 5.85, 2.7, 2.6, 0, 3, true);
+  glazing(2.1, WALL_Y0 + 1.55, 5.85, 2.2, 2.3, 0, 2);
+  glazing(-5.2, WALL_Y0 + 1.35, 5.85, 1.0, 2.3, 0, 1, true);
+  lamp(-4.45, WALL_Y0 + 2.05, 5.83, 0); lamp(-.05, WALL_Y0 + 2.05, 5.83, 0); lamp(3.3, WALL_Y0 + 2.05, 5.83, 0);
+  // левый фасад
+  panel(-6.29, WALL_Y0 + 1.5, -.2, 5.4, 2.9, 3);
+  glazing(-6.35, WALL_Y0 + 1.7, 1.5, 1.8, 1.5, 3, 2);
+  glazing(-6.35, WALL_Y0 + 1.7, -1.9, 1.8, 1.5, 3, 2);
+  lamp(-6.33, WALL_Y0 + 2.05, -.2, 3);
+  // задний фасад
+  panel(-2, WALL_Y0 + 1.5, -5.79, 6.0, 2.9, 2);
+  glazing(-3.6, WALL_Y0 + 1.55, -5.85, 2.0, 2.3, 2, 2);
+  glazing(-.6, WALL_Y0 + 1.7, -5.85, 1.6, 1.5, 2, 2);
+  glazing(3.9, WALL_Y0 + 1.7, -5.85, 1.6, 1.5, 2, 2);
+  lamp(-2.1, WALL_Y0 + 2.05, -5.83, 2);
+  // пристройка
+  panel(9.3, WALL_Y0 + 1.27, 4.04, 4.4, 2.45, 0);
+  glazing(9.3, WALL_Y0 + 1.35, 4.1, 3.2, 2.25, 0, 3, true);
+  lamp(7.4, WALL_Y0 + 1.85, 4.08, 0); lamp(11.2, WALL_Y0 + 1.85, 4.08, 0);
+  glazing(11.81, WALL_Y0 + 1.5, 0, 1.6, 1.4, 1, 2);
+  glazing(9.3, WALL_Y0 + 1.5, -4.05, 1.6, 1.4, 2, 2);
+  // водостоки
+  pipe(-6.05, 5.55, 3.25); pipe(-6.05, -5.55, 3.25); pipe(6.05, -5.55, 3.25);
+  pipe(11.55, 3.8, 2.8); pipe(11.55, -3.8, 2.8);
+  // вентвыходы
+  vent(-2.2, 5.35, -1.5); vent(1.8, 5.45, .6); vent(9.6, 4.3, -.8);
+  // террасы
+  deckPlat(9.0, 3.6, -2.6, 7.7);
+  deckPlat(3.4, 7.6, -8.1, 2.2);
+  deckPlat(5.6, 2.8, 9.2, 5.6);
+  deckPlat(1.6, .5, -5.2, 9.7);
+  return h;
+}
 function inferKind(name) { const n = (name || '').toLowerCase();
   if (/бан/.test(n)) return 'bath'; if (/бесед/.test(n)) return 'gazebo'; if (/навес/.test(n)) return 'canopy';
   if (/шат/.test(n)) return 'tent'; if (/дерев/.test(n)) return 'tree'; if (/куст/.test(n)) return 'bush';
@@ -433,7 +622,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
 
     function ndc(e) { const r = cvs.getBoundingClientRect(); return { x: ((e.clientX - r.left) / r.width) * 2 - 1, y: -((e.clientY - r.top) / r.height) * 2 + 1 }; }
     function gpoint(e) { rc.setFromCamera(ndc(e), camera); const p = new THREE.Vector3(); return rc.ray.intersectPlane(groundPlane, p) ? p : null; }
-    function pickBuilding(e) { rc.setFromCamera(ndc(e), camera); const t = dyn.children.filter(o => o.userData.ci !== undefined); const h = rc.intersectObjects(t, false)[0]; return h ? h.object.userData.ci : -1; }
+    function pickBuilding(e) { rc.setFromCamera(ndc(e), camera); const hs = rc.intersectObjects(dyn.children, true); for (const it of hs) { let o = it.object; while (o) { if (o.userData.ci !== undefined) return o.userData.ci; if (o.userData.plot || o.userData.neighbor) break; o = o.parent; } } return -1; }
     function pickGizmo(e) { if (!gizmo.children.length) return null; rc.setFromCamera(ndc(e), camera); const h = rc.intersectObjects(gizmo.children, true)[0]; let o = h && h.object; while (o) { if (o.userData.giz) return o.userData.giz; o = o.parent; } return null; }
 
     function gmat(c) { return new THREE.MeshBasicMaterial({ color: c, depthTest: false, transparent: true, toneMapped: false }); }
@@ -502,7 +691,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         else if (gd.mode === 'tx') { const t = (E - gd.sE) * gd.B.ux + (N - gd.sN) * gd.B.uy; cand = gd.orig.map(p => [p[0] + gd.B.ux * t, p[1] + gd.B.uy * t]); }
         else if (gd.mode === 'tz') { const t = (E - gd.sE) * gd.B.vx + (N - gd.sN) * gd.B.vy; cand = gd.orig.map(p => [p[0] + gd.B.vx * t, p[1] + gd.B.vy * t]); }
         else if (gd.mode === 'ty') { baseY = Math.max(0, gd.baseY + (gd.sy - e.clientY) * 0.08); }
-        else if (gd.mode === 'rot') { const a = Math.atan2(N - gd.cN, E - gd.cE) - Math.atan2(gd.sN - gd.cN, gd.sE - gd.cE); cand = gd.orig.map(p => rotPt(p, [gd.cE, gd.cN], a)); }
+        else if (gd.mode === 'rot') { let a = Math.atan2(N - gd.cN, E - gd.cE) - Math.atan2(gd.sN - gd.cN, gd.sE - gd.cE);
+          a = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);   // прилипание к шагу 90°
+          cand = gd.orig.map(p => rotPt(p, [gd.cE, gd.cN], a)); }
         else if (gd.mode === 'sl' || gd.mode === 'sw') { const ax = gd.mode === 'sl' ? [gd.ux, gd.uy] : [vx, vy];
           const pS = (gd.sE - gd.cE) * ax[0] + (gd.sN - gd.cN) * ax[1], pN = (E - gd.cE) * ax[0] + (N - gd.cN) * ax[1];
           const f = Math.max(0.15, Math.min(6, pN / (Math.abs(pS) < 0.5 ? (pS < 0 ? -0.5 : 0.5) : pS))); cand = gd.orig.map(p => scaleAxis(p, [gd.cE, gd.cN], ax, f)); }
@@ -583,13 +774,21 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (kind === 'house3d') {
         const p = bd.pts; if (!p || p.length < 4) return;
         let cxl = 0, cyl = 0; p.forEach(q => { cxl += q[0]; cyl += q[1]; }); cxl /= p.length; cyl /= p.length;
-        const W = Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) || 6;
-        const D = Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) || 6;
+        const W = Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) || 10;
+        const D = Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) || 8;
         const ux = (p[1][0] - p[0][0]) / W, uy = (p[1][1] - p[0][1]) / W;
-        const g = buildTypicalHouse(W, D, bd.height || 3);
-        g.position.set(cxl, by, -cyl); g.rotation.y = Math.atan2(uy, ux);
-        g.traverse(o => { if (o.isMesh) { o.userData.ci = ci; } });
-        g.userData.ci = ci; dyn.add(g);
+        // готовая модель строится в своих натуральных размерах; масштабируем под контур.
+        // габарит корпуса+кровли: X≈19.7 (осн.объём+пристройка), Z≈13.3, центр по X ≈ 2.7
+        const CW = 19.7, CD = 13.3, CX = 2.7;
+        const model = buildReadyHouse();
+        model.position.x = -CX;                      // центр корпуса → в начало координат
+        const pivot = new THREE.Group();
+        pivot.add(model);
+        pivot.scale.set(W / CW, (bd.height || 3) / 3.0, D / CD);
+        pivot.position.set(cxl, by, -cyl);
+        pivot.rotation.y = Math.atan2(uy, ux);
+        pivot.traverse(o => { if (o.isMesh) o.userData.ci = ci; });
+        pivot.userData.ci = ci; dyn.add(pivot);
         return;
       }
       if (kind === 'path') {

@@ -1,0 +1,1361 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Раскадровка — ИИ-ассистент режиссёра</title>
+<style>
+  :root{
+    --bg:#0e0f13; --bg2:#14161d; --card:#181b24; --card2:#1f2330;
+    --line:#2a2f3d; --text:#e8eaf0; --muted:#8b91a3; --dim:#5a6072;
+    --accent:#e8b04b; --accent2:#f0c674; --ok:#5fbf77; --warn:#e8b04b; --err:#e06c60;
+    --blue:#6aa3e8; --radius:14px; --mono:'SF Mono',ui-monospace,Consolas,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;line-height:1.55;min-height:100vh}
+  .wrap{max-width:980px;margin:0 auto;padding:32px 20px 80px}
+
+  /* Header */
+  header{text-align:center;margin-bottom:36px}
+  .logo{font-size:13px;letter-spacing:4px;color:var(--accent);text-transform:uppercase;font-weight:600;margin-bottom:10px}
+  h1{font-size:clamp(26px,4vw,38px);font-weight:700;letter-spacing:-.5px}
+  .sub{color:var(--muted);margin-top:10px;font-size:15px;max-width:620px;margin-left:auto;margin-right:auto}
+
+  /* Stepper */
+  .stepper{display:flex;justify-content:center;gap:8px;margin:30px 0 26px;flex-wrap:wrap}
+  .step-pill{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:99px;border:1px solid var(--line);color:var(--dim);font-size:13px;background:var(--bg2);cursor:default;transition:.25s}
+  .step-pill .num{width:20px;height:20px;border-radius:50%;background:var(--line);color:var(--muted);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+  .step-pill.active{border-color:var(--accent);color:var(--text);background:rgba(232,176,75,.08)}
+  .step-pill.active .num{background:var(--accent);color:#14161d}
+  .step-pill.done{color:var(--muted);cursor:pointer}
+  .step-pill.done .num{background:var(--ok);color:#0e0f13}
+
+  /* Panels */
+  .panel{display:none;animation:fade .35s ease}
+  .panel.visible{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:26px}
+  .card h2{font-size:19px;margin-bottom:6px}
+  .card .hint{color:var(--muted);font-size:14px;margin-bottom:18px}
+
+  textarea,input[type=text],input[type=password],select{
+    width:100%;background:var(--bg2);border:1px solid var(--line);border-radius:10px;
+    color:var(--text);padding:12px 14px;font-size:14.5px;font-family:inherit;outline:none;transition:border .2s}
+  textarea:focus,input:focus,select:focus{border-color:var(--accent)}
+  textarea{min-height:220px;resize:vertical;line-height:1.6}
+  ::placeholder{color:var(--dim)}
+
+  .btn{display:inline-flex;align-items:center;gap:8px;background:var(--accent);color:#14161d;border:none;border-radius:10px;
+    padding:12px 24px;font-size:15px;font-weight:600;cursor:pointer;transition:.2s;font-family:inherit}
+  .btn:hover{background:var(--accent2);transform:translateY(-1px)}
+  .btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line)}
+  .btn.ghost:hover{color:var(--text);border-color:var(--muted);background:var(--bg2)}
+  .btn.small{padding:7px 14px;font-size:13px;border-radius:8px}
+  .actions{display:flex;justify-content:space-between;align-items:center;margin-top:22px;gap:12px;flex-wrap:wrap}
+
+  /* Brief */
+  .q-block{margin-bottom:24px}
+  .q-title{font-size:15px;font-weight:600;margin-bottom:10px;display:flex;gap:10px;align-items:baseline}
+  .q-num{color:var(--accent);font-family:var(--mono);font-size:13px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{padding:8px 16px;border-radius:99px;border:1px solid var(--line);background:var(--bg2);color:var(--muted);
+    font-size:13.5px;cursor:pointer;transition:.15s;user-select:none}
+  .chip:hover{border-color:var(--muted);color:var(--text)}
+  .chip.sel{border-color:var(--accent);color:var(--accent2);background:rgba(232,176,75,.1)}
+  .q-block input[type=text]{margin-top:4px}
+
+  /* Generate */
+  .keyrow{display:grid;grid-template-columns:1fr auto;gap:10px;margin-bottom:14px}
+  .note{font-size:13px;color:var(--dim);margin-top:10px;line-height:1.5}
+  .note a{color:var(--blue);text-decoration:none}
+  .spinner{display:none;text-align:center;padding:50px 20px}
+  .spinner.visible{display:block}
+  .reel{width:54px;height:54px;border:3px solid var(--line);border-top-color:var(--accent);border-radius:50%;
+    margin:0 auto 18px;animation:spin 1s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spin-msg{color:var(--muted);font-size:14px}
+  .error-box{display:none;background:rgba(224,108,96,.1);border:1px solid var(--err);border-radius:10px;padding:14px 16px;
+    color:#f0a8a0;font-size:14px;margin-top:16px;white-space:pre-wrap}
+  .error-box.visible{display:block}
+
+  /* Results */
+  .summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:24px}
+  .stat{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;text-align:center}
+  .stat .v{font-size:22px;font-weight:700;color:var(--accent2)}
+  .stat .l{font-size:12px;color:var(--muted);margin-top:2px}
+
+  .shot{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px;margin-bottom:0}
+  .shot-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+  .shot-num{font-family:var(--mono);color:var(--accent);font-size:13px;font-weight:700;letter-spacing:1px}
+  .shot-scene{color:var(--dim);font-size:12.5px}
+  .badges{display:flex;gap:6px;flex-wrap:wrap}
+  .badge{font-size:11.5px;padding:4px 10px;border-radius:6px;font-family:var(--mono);letter-spacing:.5px}
+  .badge.size{background:rgba(232,176,75,.14);color:var(--accent2);border:1px solid rgba(232,176,75,.3)}
+  .badge.cam{background:rgba(106,163,232,.12);color:var(--blue);border:1px solid rgba(106,163,232,.3)}
+  .badge.dur{background:var(--bg2);color:var(--muted);border:1px solid var(--line)}
+  .shot-desc{font-size:14.5px;margin-bottom:10px}
+  .shot-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:5px 18px;font-size:12.8px;color:var(--muted);margin-bottom:14px;background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .shot-fields b{color:var(--dim);font-weight:600}
+  .shot-warn{background:rgba(232,176,75,.08);border:1px solid rgba(232,176,75,.35);border-radius:8px;padding:8px 12px;font-size:12.8px;color:var(--accent2);margin-bottom:10px}
+  .shot-top{display:flex;gap:16px;align-items:flex-start;flex-wrap:wrap;margin-bottom:10px}
+  .shot-preview{flex-shrink:0;border-radius:8px;border:1px solid var(--line)}
+  .pv-bg{fill:var(--bg2)} .pv-line{stroke:var(--line);stroke-width:1} .pv-fig{fill:#4a5366} .pv-txt{fill:var(--muted);font-family:var(--mono)} .pv-acc{stroke:var(--accent);fill:none;stroke-width:1.5}
+  .shot-top .shot-desc{flex:1;min-width:200px;margin-bottom:0}
+  .sketch-img{width:220px;border-radius:8px;border:1px solid var(--line);flex-shrink:0;display:block}
+  .sketch-img.vert{width:124px}
+  .tools{display:flex;gap:6px}
+  .tool-btn{background:var(--bg2);border:1px solid var(--line);color:var(--muted);border-radius:6px;padding:3px 9px;font-size:12px;cursor:pointer;transition:.15s;font-family:inherit}
+  .tool-btn:hover{color:var(--text);border-color:var(--muted)}
+  .edit-form{display:none;background:var(--bg2);border:1px solid var(--accent);border-radius:10px;padding:14px;margin-bottom:14px;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px}
+  .edit-form.visible{display:grid}
+  .edit-form label{font-size:11px;color:var(--dim);display:block;margin-bottom:3px}
+  .edit-form input,.edit-form select,.edit-form textarea{padding:7px 10px;font-size:13px;min-height:0}
+  .edit-form textarea{min-height:56px}
+  .ef-actions{grid-column:1/-1;display:flex;gap:8px;justify-content:flex-end}
+  .prompts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  @media(max-width:720px){.prompts{grid-template-columns:1fr}}
+  .prompt-box{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;position:relative}
+  .prompt-box .p-title{font-size:11px;text-transform:uppercase;letter-spacing:1.5px;color:var(--dim);margin-bottom:8px;font-weight:600}
+  .prompt-box .p-text{font-size:13px;color:#c8cdd9;line-height:1.55;white-space:pre-wrap}
+  .copy-btn{position:absolute;top:8px;right:8px;background:var(--card2);border:1px solid var(--line);color:var(--muted);
+    border-radius:6px;padding:3px 10px;font-size:11.5px;cursor:pointer;transition:.15s;font-family:inherit}
+  .copy-btn:hover{color:var(--text);border-color:var(--muted)}
+  .copy-btn.copied{color:var(--ok);border-color:var(--ok)}
+
+  /* Cut check */
+  .cut{display:flex;align-items:flex-start;gap:12px;padding:10px 18px;margin:6px 0 6px 30px;border-left:2px dashed var(--line);position:relative}
+  .cut-icon{width:26px;height:26px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;margin-top:1px}
+  .cut.ok .cut-icon{background:rgba(95,191,119,.15);color:var(--ok)}
+  .cut.warn .cut-icon{background:rgba(232,176,75,.15);color:var(--warn)}
+  .cut.err .cut-icon{background:rgba(224,108,96,.15);color:var(--err)}
+  .cut-text{font-size:13px;color:var(--muted)}
+  .cut.warn .cut-text,.cut.err .cut-text{color:#c8cdd9}
+  .cut-label{font-family:var(--mono);font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:2px}
+  .cut.ok .cut-label{color:var(--ok)}.cut.warn .cut-label{color:var(--warn)}.cut.err .cut-label{color:var(--err)}
+
+  .export-bar{display:flex;gap:10px;flex-wrap:wrap;margin:26px 0 18px}
+  .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(80px);background:var(--card2);
+    border:1px solid var(--accent);color:var(--text);padding:10px 22px;border-radius:99px;font-size:14px;transition:.3s;z-index:99;opacity:0}
+  .toast.visible{transform:translateX(-50%);opacity:1}
+
+  @media print{
+    body{background:#fff;color:#111}
+    .stepper,.export-bar,.actions,header .sub,.copy-btn,.toast{display:none!important}
+    .card,.shot,.stat,.prompt-box{background:#fff;border-color:#ccc;color:#111;break-inside:avoid}
+    .shot-desc,.p-text,.cut-text{color:#222}
+    .panel{display:none}.panel#panel-4{display:block}
+    .pv-bg{fill:#f3f3f3}.pv-fig{fill:#9a9a9a}.pv-txt{fill:#555}.pv-line{stroke:#ddd}
+    .tools,.edit-form{display:none!important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">◈ Раскадровка</div>
+    <h1>ИИ-ассистент режиссёра</h1>
+    <p class="sub">Формат → сценарий → бриф из 8 вопросов → шотлист по таблице разрешённых переходов крупностей → проверка каждой склейки по 10 принципам монтажа → два промпта на каждый кадр</p>
+  </header>
+
+  <div class="stepper">
+    <div class="step-pill active" data-step="1"><span class="num">1</span>Сценарий</div>
+    <div class="step-pill" data-step="2"><span class="num">2</span>Бриф</div>
+    <div class="step-pill" data-step="3"><span class="num">3</span>Генерация</div>
+    <div class="step-pill" data-step="4"><span class="num">4</span>Раскадровка</div>
+  </div>
+
+  <!-- STEP 1: Script -->
+  <section class="panel visible" id="panel-1">
+    <div class="card">
+      <h2>Шаг 1 — формат видео</h2>
+      <p class="hint">Обязательный первый вопрос: горизонтальное или вертикальное видео? От этого зависит композиция каждого кадра.</p>
+      <div class="chips" id="ratio-chips" style="margin-bottom:26px">
+        <span class="chip" data-ratio="16:9">▭&nbsp; 16:9 — горизонтальное (YouTube / ТВ / кино)</span>
+        <span class="chip" data-ratio="9:16">▯&nbsp; 9:16 — вертикальное (Reels / TikTok / Shorts)</span>
+      </div>
+      <h2>Шаг 2 — сценарий</h2>
+      <p class="hint">Подойдёт любой формат: синопсис, сценарий со сценами, текст рекламного ролика или просто описание идеи. Ассистент разобьёт его на действия.</p>
+      <textarea id="script-input" placeholder="ИНТ. КУХНЯ — УТРО&#10;&#10;Анна наливает кофе, замирает у окна. За окном — первый снег. Телефон вибрирует: сообщение от отца, с которым она не говорила три года..."></textarea>
+      <div class="actions">
+        <div style="display:flex;gap:10px"><button class="btn ghost small" id="btn-example">Вставить пример</button><button class="btn ghost small btn-import">Импорт JSON</button></div>
+        <button class="btn" id="btn-to-brief">Далее → Бриф</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 2: Brief -->
+  <section class="panel" id="panel-2">
+    <div class="card">
+      <h2>Бриф — 8 вопросов</h2>
+      <p class="hint">Ответы помогут выбрать крупности, темп и стиль. Можно пропускать — ассистент примет решение сам.</p>
+      <div id="brief-questions"></div>
+      <div class="actions">
+        <button class="btn ghost" data-back="1">← Назад</button>
+        <button class="btn" id="btn-to-gen">Далее → Генерация</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- STEP 3: Generate -->
+  <section class="panel" id="panel-3">
+    <div class="card" id="gen-card">
+      <h2>Генерация раскадровки</h2>
+      <p class="hint">По умолчанию всё работает на бесплатном Gemini Flash: и текст раскадровки, и картинки-скетчи. Ключи хранятся только в вашем браузере и отправляются напрямую в API.</p>
+      <div class="keyrow" style="grid-template-columns:1fr auto auto">
+        <input type="password" id="api-key" placeholder="Claude API-ключ (sk-ant-…) — нужен только для моделей Claude">
+        <select id="model-select" style="width:auto">
+          <option value="gemini-3.6-flash">Gemini 3.6 Flash — бесплатно</option>
+          <option value="gemini-flash-latest">Gemini Flash (актуальная) — бесплатно</option>
+          <option value="gemini-flash-lite-latest">Gemini Flash Lite — быстрее</option>
+          <option value="claude-sonnet-4-5">Claude Sonnet 4.5 — платно, точнее</option>
+          <option value="claude-opus-4-8">Claude Opus 4.8 — максимум качества</option>
+          <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 — платно, быстрый</option>
+        </select>
+        <button class="btn ghost small" id="btn-models" title="Запросить у Google актуальный список моделей по вашему ключу">⟳ Модели</button>
+      </div>
+      <div class="keyrow" style="margin-top:2px;grid-template-columns:1fr auto auto">
+        <input type="password" id="gemini-key" placeholder="Gemini API-ключ — текст раскадровки (бесплатно)">
+        <select id="img-engine" style="width:auto" title="Каким движком рисовать кадры и скетчи">
+          <option value="auto">Картинки: авто (Reve → Gemini → бесплатный)</option>
+          <option value="reve">Картинки: только Reve (платно, максимум качества)</option>
+          <option value="pollinations">Картинки: Pollinations — бесплатно, без ключа</option>
+          <option value="gemini">Картинки: только Gemini (нужен биллинг)</option>
+        </select>
+        <input type="text" id="gemini-model" value="gemini-2.5-flash-image" list="img-models" title="Модель Gemini для изображений" style="width:auto;min-width:210px">
+        <datalist id="img-models"></datalist>
+      </div>
+      <div class="keyrow" style="margin-top:2px;grid-template-columns:1fr">
+        <input type="password" id="reve-key" placeholder="Reve API-ключ — премиум-картинки, точное следование промпту (api.reve.com, опционально)">
+      </div>
+      <p class="note">Ключ Gemini — бесплатно в <a href="https://aistudio.google.com/apikey" target="_blank">aistudio.google.com/apikey</a> без карты (~1500 текстовых запросов/день). Внимание: картинки через Gemini API с 2026 года платные (нужен биллинг) — поэтому по умолчанию картинки рисует бесплатный Pollinations без ключа, а Gemini используется, только если доступен. Reve (<a href="https://api.reve.com" target="_blank">api.reve.com</a>) — платные кредиты, ~5 кредитов/картинка, зато лучшее следование промпту. Ключ Claude нужен лишь для моделей Claude. Нет ключей? Нажмите «Демо».</p>
+      <div class="error-box" id="error-box"></div>
+      <div class="actions">
+        <button class="btn ghost" data-back="2">← Назад</button>
+        <div style="display:flex;gap:10px">
+          <button class="btn ghost" id="btn-diag">🔧 Проверка ключа</button>
+          <button class="btn ghost" id="btn-demo">Демо без ключа</button>
+          <button class="btn" id="btn-generate">◈ Сгенерировать</button>
+        </div>
+      </div>
+    </div>
+    <div class="spinner" id="spinner">
+      <div class="reel"></div>
+      <div class="spin-msg" id="spin-msg">Читаю сценарий…</div>
+    </div>
+  </section>
+
+  <!-- STEP 4: Results -->
+  <section class="panel" id="panel-4">
+    <div class="summary" id="summary"></div>
+    <div class="export-bar">
+      <button class="btn small" id="btn-frames">🎬 Кадры всех</button>
+      <button class="btn small" id="btn-sketches">✏️ Скетчи всех</button>
+      <button class="btn small" id="btn-print">🖨 Печать / PDF</button>
+      <button class="btn small ghost" id="btn-md">↓ Markdown</button>
+      <button class="btn small ghost" id="btn-csv">↓ Таблица (CSV)</button>
+      <button class="btn small ghost" id="btn-json">↓ JSON</button>
+      <button class="btn small ghost" id="btn-copy-all">⧉ Все промпты</button>
+      <button class="btn small ghost btn-import">↑ Импорт JSON</button>
+      <button class="btn small ghost" id="btn-restart">↺ Новый проект</button>
+    </div>
+    <div id="shotlist"></div>
+  </section>
+</div>
+<div class="toast" id="toast">Скопировано</div>
+<input type="file" id="file-json" accept=".json,application/json" style="display:none">
+<script>
+/* ========== ДАННЫЕ БРИФА ========== */
+const BRIEF = [
+  {id:'format', q:'Формат ролика', type:'chips', opts:['Реклама','Музыкальный клип','Короткометражка','Соцсети / Reels','Корпоративное видео','Трейлер','Документальный']},
+  {id:'duration', q:'Хронометраж', type:'chips', opts:['до 15 сек','30 сек','60 сек','2–3 мин','5+ мин']},
+  {id:'mood', q:'Настроение', type:'chips', opts:['Драматичное','Светлое','Энергичное','Тревожное','Ностальгическое','Эпичное','Ироничное','Интимное']},
+  {id:'style', q:'Визуальный стиль и референсы', type:'text', ph:'Например: как у Уэса Андерсона — симметрия, пастель; или «Бегущий по лезвию 2049» — неон, туман…'},
+  {id:'pace', q:'Темп монтажа', type:'chips', opts:['Медленный, созерцательный','Умеренный','Быстрый','Рваный, клиповый']},
+  {id:'location', q:'Локации и время суток', type:'text', ph:'Например: квартира — утро, улица — сумерки, крыша — ночь'},
+  {id:'characters', q:'Персонажи: внешность, возраст, одежда', type:'text', ph:'Например: Анна, 32 — тёмные волосы, бежевый кардиган; отец в кадре не появляется'},
+  {id:'shots_count', q:'Количество кадров', type:'chips', opts:['Авто (по драматургии)','6–8','10–12','15–20']},
+  {id:'emotion', q:'Что должен почувствовать зритель? Главный акцент истории', type:'text', ph:'Например: тоску по дому и надежду на примирение; акцент — момент, когда она берёт трубку'}
+];
+const answers = {};
+
+/* ========== ШКАЛА КРУПНОСТЕЙ (6 ступеней) ========== */
+const SIZES = ['ДАЛ','ОБЩ','С2','С1','КРП','ДТЛ'];
+const SIZE_NAMES = {ДАЛ:'Дальний',ОБЩ:'Общий',С2:'2-й средний (поясной)',С1:'1-й средний (погрудный)',КРП:'Крупный',ДТЛ:'Деталь'};
+/* Таблица разрешённых переходов по крупности («монтаж через план»).
+   Применяется к соседним кадрам ОДНОГО объекта. Перебивка (другой объект) сбрасывает цепочку. */
+const ALLOWED = {
+  'ДАЛ':['ОБЩ','С2'],
+  'ОБЩ':['С1','ДАЛ'],
+  'С2' :['КРП','ДАЛ'],
+  'С1' :['ДТЛ','ОБЩ'],
+  'КРП':['ДТЛ','С2'],
+  'ДТЛ':['КРП','С1']
+};
+
+const EXAMPLE_SCRIPT = `ИНТ. КУХНЯ — УТРО
+
+Анна (32) наливает кофе. Пар поднимается над чашкой. Она замирает у окна: за стеклом падает первый снег.
+
+Телефон на столе вибрирует. На экране: «Папа». Анна смотрит на телефон, не двигаясь. Три года молчания.
+
+Она делает шаг к столу. Рука зависает над телефоном. Вибрация прекращается.
+
+Тишина. Анна выдыхает, берёт телефон и набирает номер сама.
+
+АННА
+(тихо)
+Привет, пап.
+
+За окном снег усиливается. Анна улыбается сквозь слёзы.`;
+
+let shots = [];   // текущий шотлист
+let cuts = [];    // результаты проверки склеек
+
+/* ========== НАВИГАЦИЯ ========== */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+let maxStep = 1;
+
+function goStep(n){
+  maxStep = Math.max(maxStep, n);
+  $$('.panel').forEach(p => p.classList.remove('visible'));
+  $('#panel-'+n).classList.add('visible');
+  $$('.step-pill').forEach(p=>{
+    const s = +p.dataset.step;
+    p.classList.toggle('active', s===n);
+    p.classList.toggle('done', s<n || (s<=maxStep && s!==n));
+  });
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+$$('.step-pill').forEach(p => p.addEventListener('click', ()=>{
+  const s = +p.dataset.step;
+  if (s <= maxStep) goStep(s);
+}));
+$$('[data-back]').forEach(b => b.addEventListener('click', ()=>goStep(+b.dataset.back)));
+
+/* ========== БРИФ: РЕНДЕР ========== */
+function renderBrief(){
+  const host = $('#brief-questions');
+  host.innerHTML = BRIEF.map((q,i)=>{
+    const num = String(i+1).padStart(2,'0');
+    if (q.type==='chips'){
+      return `<div class="q-block" data-qid="${q.id}">
+        <div class="q-title"><span class="q-num">${num}</span>${q.q}</div>
+        <div class="chips">${q.opts.map(o=>`<span class="chip" data-val="${o}">${o}</span>`).join('')}
+          <span class="chip" data-custom="1">Свой вариант…</span></div>
+        <input type="text" style="display:none;margin-top:10px" placeholder="Напишите свой вариант">
+      </div>`;
+    }
+    return `<div class="q-block" data-qid="${q.id}">
+      <div class="q-title"><span class="q-num">${num}</span>${q.q}</div>
+      <input type="text" placeholder="${q.ph||''}">
+    </div>`;
+  }).join('');
+
+  host.querySelectorAll('.q-block').forEach(block=>{
+    const qid = block.dataset.qid;
+    block.querySelectorAll('.chip').forEach(chip=>{
+      chip.addEventListener('click', ()=>{
+        const input = block.querySelector('input');
+        if (chip.dataset.custom){
+          const on = chip.classList.toggle('sel');
+          block.querySelectorAll('.chip:not([data-custom])').forEach(c=>c.classList.remove('sel'));
+          input.style.display = on ? 'block' : 'none';
+          if (on) input.focus(); else { input.value=''; delete answers[qid]; }
+          return;
+        }
+        block.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'));
+        chip.classList.add('sel');
+        if (input){ input.style.display='none'; input.value=''; }
+        answers[qid] = chip.dataset.val;
+      });
+    });
+    const input = block.querySelector('input');
+    if (input) input.addEventListener('input', ()=>{ answers[qid] = input.value.trim(); });
+  });
+}
+renderBrief();
+
+/* ========== ПЕРЕХОДЫ ========== */
+/* Формат — обязательный первый выбор */
+$$('#ratio-chips .chip').forEach(chip=>chip.addEventListener('click', ()=>{
+  $$('#ratio-chips .chip').forEach(c=>c.classList.remove('sel'));
+  chip.classList.add('sel');
+  answers.ratio = chip.dataset.ratio;
+}));
+
+$('#btn-example').addEventListener('click', ()=>{ $('#script-input').value = EXAMPLE_SCRIPT; });
+$('#btn-to-brief').addEventListener('click', ()=>{
+  if (!answers.ratio){
+    $('#ratio-chips').scrollIntoView({behavior:'smooth',block:'center'});
+    $$('#ratio-chips .chip').forEach(c=>{c.style.borderColor='var(--err)'; setTimeout(()=>c.style.borderColor='',1200);});
+    return;
+  }
+  if (!$('#script-input').value.trim()){ $('#script-input').focus(); $('#script-input').placeholder='Сначала вставьте сценарий…'; return; }
+  goStep(2);
+});
+$('#btn-to-gen').addEventListener('click', ()=>goStep(3));
+
+/* API-ключ: помним в браузере */
+$('#api-key').value = localStorage.getItem('sb_api_key') || '';
+$('#api-key').addEventListener('change', e=>{ e.target.value=e.target.value.replace(/\s+/g,''); localStorage.setItem('sb_api_key', e.target.value); });
+$('#gemini-key').value = localStorage.getItem('sb_gemini_key') || '';
+$('#gemini-key').addEventListener('change', e=>{
+  e.target.value = e.target.value.replace(/\s+/g,'');
+  localStorage.setItem('sb_gemini_key', e.target.value);
+  ensureModels.done = false;
+  ensureModels().then(()=>{ if(ensureModels.done) toast('Модели определены по ключу'); });
+});
+{ let gm = localStorage.getItem('sb_gemini_model');
+  if (gm==='gemini-3.6-flash-image'){ gm='gemini-2.5-flash-image'; localStorage.setItem('sb_gemini_model',gm); }
+  if (gm) $('#gemini-model').value = gm; }
+$('#gemini-model').addEventListener('change', e=>localStorage.setItem('sb_gemini_model', e.target.value.trim()));
+$('#reve-key').value = localStorage.getItem('sb_reve_key') || '';
+$('#reve-key').addEventListener('change', e=>{ e.target.value=e.target.value.replace(/\s+/g,''); localStorage.setItem('sb_reve_key', e.target.value); });
+if (localStorage.getItem('sb_img_engine')) $('#img-engine').value = localStorage.getItem('sb_img_engine');
+$('#img-engine').addEventListener('change', e=>localStorage.setItem('sb_img_engine', e.target.value));
+{ const m = localStorage.getItem('sb_model');
+  if (m && [...$('#model-select').options].some(o=>o.value===m)) $('#model-select').value = m; }
+$('#model-select').addEventListener('change', e=>localStorage.setItem('sb_model', e.target.value));
+
+/* ========== СИСТЕМНЫЙ ПРОМПТ ========== */
+function buildPrompt(scriptText, opts={}){
+  const partBlock = opts.partial ? 'ЭТО ЧАСТЬ БОЛЬШОЙ РАСКАДРОВКИ — сцена «'+opts.sceneTitle+'». Нумерацию кадров начни с '+opts.startN+'. Последние кадры предыдущей сцены (первый новый кадр должен быть монтажно совместим с последним из них): '+JSON.stringify((opts.prev||[]).map(p=>({n:p.n,size:p.size,subject:p.subject,direction:p.direction,camera:p.camera,light_key:p.light_key,palette:p.palette})))+'\n\n' : '';
+  const briefText = BRIEF.map((q,i)=>`${i+1}. ${q.q}: ${answers[q.id]||'— на усмотрение ассистента'}`).join('\n');
+  return `Ты — режиссёр-раскадровщик. Думай как режиссёр, а не как художник: главное — рассказать историю, показать действие, положение и движение камеры, композицию. Преврати сценарий в монтажно грамотную раскадровку.
+
+ФОРМАТ ВИДЕО: ${answers.ratio} ${answers.ratio==='9:16'?'(вертикальный кадр — стройте композицию по вертикали: крупности читаются иначе, больше воздуха сверху/снизу, объект чаще в центре)':'(горизонтальный кадр — классическая композиция, правило третей)'}
+
+${partBlock}СЦЕНАРИЙ:
+"""
+${scriptText}
+"""
+
+БРИФ:
+${briefText}
+
+АЛГОРИТМ РАБОТЫ (строго по шагам):
+1. Разбей сценарий на отдельные действия.
+2. Выбери план первого кадра свободно, исходя из драматургии.
+3. КАЖДЫЙ СЛЕДУЮЩИЙ план того же объекта выбирай ТОЛЬКО из таблицы разрешённых переходов. Не выбирай планы «на глаз».
+
+ШКАЛА ПЛАНОВ (только эти коды): ДАЛ — дальний, ОБЩ — общий, С2 — 2-й средний (поясной), С1 — 1-й средний (погрудный), КРП — крупный, ДТЛ — деталь.
+
+ТАБЛИЦА РАЗРЕШЁННЫХ ПЕРЕХОДОВ (для соседних кадров одного объекта):
+ДАЛ → только ОБЩ или С2
+ОБЩ → только С1 или ДАЛ
+С2 → только КРП или ДАЛ
+С1 → только ДТЛ или ОБЩ
+КРП → только ДТЛ или С2
+ДТЛ → только КРП или С1
+Если перехода нет в таблице — не используй его. Перебивка (кадр другого объекта) сбрасывает цепочку. Наплыв/затемнение смягчают переход, но применяй их осознанно.
+
+СОБЛЮДАЙ 10 ПРИНЦИПОВ МОНТАЖА между соседними кадрами:
+1) по крупности (таблица выше); 2) по ориентации в пространстве — не пересекай ось 180°; 3) по направлению движения — при смене направления нужен промежуточный статичный/нейтральный кадр; 4) по фазе движения — движение продолжается с той же фазы; 5) по темпу; 6) по композиции — смысловой центр не должен прыгать по кадру; 7) по свету — никаких хаотичных изменений освещения в рамках одной сцены; 8) по цвету; 9) по смещению осей съёмки — соседние кадры одного объекта снимай с разных точек, не с одной (иначе эффект трансфокатора); 10) по движению камеры.
+Если осознанно нарушаешь принцип как художественный приём — укажи это в cut_warnings кадра.
+
+РАСЧЁТ ХРОНОМЕТРАЖА (длительность кадра по темпу):
+- динамичный/рваный (клипы, reels): 1.5–3 сек/кадр
+- стандартный (реклама): 3–5 сек/кадр
+- медленный кинематографичный: 5–8 сек/кадр
+- hero shots и финальные кадры: до 10 сек
+Сумма длительностей должна попадать в заявленный хронометраж.
+
+РЕЖИССУРА ДВИЖЕНИЯ КАМЕРЫ — выбирай движение строго под драматическое намерение кадра:
+- шокировать: crash zoom, FPV dive, whip pan
+- раскрыть: tilt up, rack focus, slow dolly out
+- погрузить: POV walk, handheld, slow dolly in
+- показать масштаб: drone flyover, crane up
+- luxury/fashion: slow cinematic arc, parallax track, vertical reveal
+Dolly zoom (vertigo) — ЗАПРЕЩЁН без резкого эмоционального обоснования (если используешь — обоснуй в cut_warnings).
+
+ОПТИКА — подбирай фокусное расстояние и тип линзы под задачу кадра:
+- 8–24mm широкоугольная: эффект присутствия, объём, масштаб
+- 35–50mm стандартная: естественное восприятие, портрет в среде
+- 85–135mm+ телефото: сжатие пространства, размытие фона
+Тип: сферическая — реализм; анаморфотная — кинематографический эпик, анаморфные блики.
+
+ДЛЯ КАЖДОГО КАДРА заполни ВСЕ поля шаблона и напиши ДВА промпта:
+- prompt_video: НА АНГЛИЙСКОМ, строго по формуле [SUBJECT] + [ENVIRONMENT] + [CAMERA MOVE] + [MODIFIER]. Сначала субъект и его действие, затем окружение, затем ОТДЕЛЬНЫМ предложением движение камеры (чтобы AI не путал действия персонажа с движением оператора), в конце модификаторы: линза, свет, стиль, формат ${answers.ratio}, длительность;
+- prompt_sketch: НА РУССКОМ, промпт для скетча раскадровки: чёрно-белый карандашный набросок, композиция, ракурс, что видно в кадре.
+
+Ответь ТОЛЬКО валидным JSON без пояснений:
+{"shots":[{
+"n":1,
+"scene":"название сцены",
+"description":"действие в кадре",
+"size":"С1",
+"angle":"уровень глаз / верхний / нижний / три четверти…",
+"angle_change":45,
+"camera":"движение камеры из библиотеки выше (напр. slow dolly in)",
+"intent":"драматическое намерение: шокировать / раскрыть / погрузить / масштаб / luxury",
+"lens":"фокусное и тип линзы, напр. 85mm, сферическая",
+"duration":3,
+"subject":"главный объект (называй один и тот же объект одинаково во всех кадрах)",
+"direction":"нейтрально / вправо / влево / на камеру / от камеры",
+"phase":"фаза движения: покой / начало / середина / завершение",
+"tempo":"медленный / средний / быстрый",
+"pose":"поза",
+"clothing":"одежда",
+"expression":"мимика",
+"environment":"окружение",
+"light":"характер освещения",
+"light_key":"светлый / средний / тёмный",
+"palette":"тёплая / холодная / нейтральная",
+"focus_pos":"лево / центр / право — где смысловой центр кадра",
+"composition":"описание композиции с учётом формата ${answers.ratio}",
+"sketch_desc":"краткое описание скетча этого кадра",
+"text_in_frame":"текст в кадре, если нужен, иначе пустая строка",
+"transition":"прямая склейка / наплыв / затемнение",
+"cut_warnings":[],
+"prompt_video":"…",
+"prompt_sketch":"…"
+}]}
+
+angle_change — разница ракурса с предыдущим кадром в градусах (0–180), для первого кадра 0. cut_warnings — список пояснений, если склейка с предыдущим кадром осознанно нарушает какой-то принцип.`;
+}
+
+/* ========== ВЫЗОВ CLAUDE API ========== */
+const SPIN_MSGS = ['Читаю сценарий…','Разбиваю на кадры…','Подбираю крупности и движение камеры…','Проверяю склейки…','Пишу промпты для каждого кадра…'];
+let spinTimer;
+
+function setSpin(m){ $('#spin-msg').textContent = m; }
+function isGemini(){ return $('#model-select').value.startsWith('gemini'); }
+function geminiKey(){ return ($('#gemini-key').value||'').replace(/\s+/g,''); }
+function reveKey(){ return ($('#reve-key').value||'').replace(/\s+/g,''); }
+function claudeKey(){ return ($('#api-key').value||'').replace(/\s+/g,''); }
+
+async function listGeminiModels(){
+  const key = geminiKey();
+  if (!key) throw new Error('Сначала введите Gemini API-ключ');
+  let models = [], page = '';
+  do{
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=${encodeURIComponent(key)}${page?'&pageToken='+page:''}`);
+    if (!res.ok){
+      const e = await res.json().catch(()=>({}));
+      throw new Error('Не удалось получить список моделей ('+res.status+'): '+((e?.error?.message)||'').slice(0,160));
+    }
+    const d = await res.json();
+    models.push(...(d.models||[]));
+    page = d.nextPageToken||'';
+  }while(page);
+  return models
+    .filter(m=>(m.supportedGenerationMethods||[]).includes('generateContent'))
+    .map(m=>m.name.replace('models/',''));
+}
+function applyModels(names){
+  const text = names.filter(n=>n.startsWith('gemini') && !/image|embed|tts|audio|live|robot|thinking-exp/i.test(n));
+  const img  = names.filter(n=>n.startsWith('gemini') && /image/i.test(n));
+  if (text.length){
+    const tscore = n => (/flash/i.test(n)?4:0) + (/preview|exp|latest/i.test(n)?0:2);
+    text.sort((a,b)=>(tscore(b)-tscore(a)) || b.localeCompare(a,undefined,{numeric:true}));
+    const sel = $('#model-select'), cur = sel.value;
+    [...sel.options].filter(o=>o.value.startsWith('gemini')).forEach(o=>o.remove());
+    text.forEach((n,i)=>{
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n + ' — Gemini';
+      sel.insertBefore(o, sel.options[i]||null);
+    });
+    sel.value = text.includes(cur) ? cur : (text.find(n=>/flash/i.test(n)) || text[0]);
+    localStorage.setItem('sb_model', sel.value);
+  }
+  $('#img-models').innerHTML = img.map(n=>`<option value="${n}">`).join('');
+  if (img.length && !img.includes($('#gemini-model').value.trim())){
+    const score = n => (/flash/i.test(n)?4:0) + (/preview|exp/i.test(n)?0:2);
+    img.sort((a,b)=>(score(b)-score(a)) || b.localeCompare(a,undefined,{numeric:true}));
+    const best = img[0];
+    $('#gemini-model').value = best;
+    localStorage.setItem('sb_gemini_model', best);
+  }
+  return {text:text.length, img:img.length};
+}
+$('#btn-models').addEventListener('click', async ()=>{
+  try{ const r = applyModels(await listGeminiModels()); ensureModels.done = true; toast(`Найдено моделей: текст ${r.text}, картинки ${r.img}`); }
+  catch(e){ toast(e.message); }
+});
+/* автоопределение моделей по ключу — один раз за сессию */
+async function ensureModels(){
+  if (ensureModels.done || !geminiKey()) return;
+  try{
+    applyModels(await listGeminiModels());
+    ensureModels.done = true;
+  }catch(e){ console.error('ensureModels:', e.message); }
+}
+async function _llmOnce(prompt, maxTok, plain){
+  const model = $('#model-select').value;
+  if (model.startsWith('gemini')){
+    const key = geminiKey();
+    if (!key) throw new Error('Введите Gemini API-ключ (бесплатно: aistudio.google.com/apikey)');
+    const gen = {maxOutputTokens: Math.max(maxTok, 32768)};
+    if (!plain) gen.responseMimeType = 'application/json';
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:gen})
+    });
+    if (!res.ok){
+      const err = await res.json().catch(()=>({}));
+      throw new Error((err?.error?.message || `Gemini API ${res.status}`).slice(0,300));
+    }
+    const d = await res.json();
+    const txt = (d?.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('');
+    if (!txt){
+      const fr = d?.candidates?.[0]?.finishReason || d?.promptFeedback?.blockReason || '';
+      throw new Error('Gemini вернул пустой ответ'+(fr?(' ('+fr+')'):'')+' — попробуйте ещё раз');
+    }
+    return txt;
+  }
+  const res = await fetch('https://api.anthropic.com/v1/messages',{
+    method:'POST',
+    headers:{
+      'Content-Type':'application/json',
+      'x-api-key':claudeKey(),
+      'anthropic-version':'2023-06-01',
+      'anthropic-dangerous-direct-browser-access':'true'
+    },
+    body:JSON.stringify({model, max_tokens:maxTok, messages:[{role:'user', content:prompt}]})
+  });
+  if (!res.ok){
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err?.error?.message || `Ошибка API (${res.status})`);
+  }
+  const data = await res.json();
+  return data.content.map(c=>c.text||'').join('');
+}
+async function callClaude(prompt, maxTok=16000){
+  try{ return await _llmOnce(prompt, maxTok); }
+  catch(e){
+    if (isGemini() && /not found|not supported/i.test(e.message)){
+      setSpin('Модель не найдена — запрашиваю доступные и подбираю…');
+      applyModels(await listGeminiModels());
+      return await _llmOnce(prompt, maxTok);
+    }
+    if (isGemini() && /mime|json.?mode|response_mime|INVALID_ARGUMENT/i.test(e.message)){
+      return await _llmOnce(prompt, maxTok, true);
+    }
+    if (/429|quota|rate|exhaust|overloaded/i.test(e.message)){
+      setSpin('Лимит запросов — жду 25 сек и повторяю…');
+      await new Promise(r=>setTimeout(r,25000));
+      return await _llmOnce(prompt, maxTok);
+    }
+    throw e;
+  }
+}
+
+async function generate(){
+  const key = isGemini() ? geminiKey() : claudeKey();
+  if (!key){
+    showError(isGemini()
+      ? 'Введите Gemini API-ключ (бесплатно, без карты: aistudio.google.com/apikey) или нажмите «Демо без ключа».'
+      : 'Введите Claude API-ключ или нажмите «Демо без ключа».');
+    return;
+  }
+  hideError();
+  $('#gen-card').style.display='none';
+  $('#spinner').classList.add('visible');
+  let i=0;
+  spinTimer = setInterval(()=>{ setSpin(SPIN_MSGS[++i % SPIN_MSGS.length]); }, 3500);
+
+  try{
+    if (isGemini() && !ensureModels.done){
+      setSpin('Определяю доступные модели по вашему ключу…');
+      await ensureModels();
+    }
+    const script = $('#script-input').value.trim();
+    if (script.length > 5500){
+      /* длинный сценарий: делим на сцены и генерируем по частям */
+      clearInterval(spinTimer);
+      setSpin('Длинный сценарий — делю на сцены…');
+      const sc = parseJSON(await callClaude(`Раздели сценарий на сцены (по локациям и времени). Ответь ТОЛЬКО валидным JSON: {"scenes":[{"title":"...","text":"полный текст сцены без сокращений"}]}
+СЦЕНАРИЙ:
+"""
+${script}
+"""`, 12000));
+      if (!sc?.scenes?.length) throw new Error('Не удалось разделить сценарий на сцены.');
+      shots = [];
+      for (let k=0;k<sc.scenes.length;k++){
+        setSpin(`Сцена ${k+1} из ${sc.scenes.length}: ${sc.scenes[k].title||''}…`);
+        const parsed = parseJSON(await callClaude(buildPrompt(sc.scenes[k].text, {partial:true, sceneTitle:sc.scenes[k].title||('Сцена '+(k+1)), startN:shots.length+1, prev:shots.slice(-2)})));
+        if (!parsed?.shots?.length) throw new Error(`Сцена ${k+1} вернулась в неожиданном формате.`);
+        shots.push(...parsed.shots);
+      }
+    } else {
+      const parsed = parseJSON(await callClaude(buildPrompt(script)));
+      if (!parsed?.shots?.length) throw new Error('Модель вернула ответ в неожиданном формате. Попробуйте ещё раз.');
+      shots = parsed.shots;
+    }
+    finishGeneration();
+  }catch(e){
+    showError('Не получилось: ' + e.message);
+    resetGenUI();
+  }
+}
+
+function parseJSON(text){
+  try{ return JSON.parse(text); }catch(_){}
+  const m = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (m){ try{ return JSON.parse(m[1]); }catch(_){} }
+  const s = text.indexOf('{'), e = text.lastIndexOf('}');
+  if (s>-1 && e>s){ try{ return JSON.parse(text.slice(s,e+1)); }catch(_){} }
+  return null;
+}
+
+function resetGenUI(){
+  clearInterval(spinTimer);
+  $('#spinner').classList.remove('visible');
+  $('#gen-card').style.display='block';
+}
+function finishGeneration(){
+  resetGenUI();
+  shots.forEach((s,i)=>s.n=i+1);
+  cuts = checkCuts(shots);
+  renderResults();
+  goStep(4);
+}
+function showError(msg){ const b=$('#error-box'); b.textContent=msg; b.classList.add('visible'); }
+function hideError(){ $('#error-box').classList.remove('visible'); }
+
+$('#btn-generate').addEventListener('click', generate);
+
+/* ========== ДИАГНОСТИКА ========== */
+$('#btn-diag').addEventListener('click', async ()=>{
+  const box = $('#error-box');
+  box.classList.add('visible');
+  const lines = ['Диагностика — идёт проверка…'];
+  const put = ()=>{ box.textContent = lines.join('\n'); };
+  put();
+  /* 0. формат ключей */
+  const gk = geminiKey();
+  if (gk && !/^AIza[0-9A-Za-z_\-]{20,}$/.test(gk))
+    lines.push('⚠ Ключ в поле Gemini не похож на ключ Gemini (они начинаются с «AIza…»). Возможно, вставлен ключ Reve или Claude не в то поле.');
+  if (claudeKey() && !claudeKey().startsWith('sk-ant'))
+    lines.push('⚠ Ключ в поле Claude не похож на ключ Anthropic (они начинаются с «sk-ant…»).');
+  put();
+  /* 1. ключ + список моделей */
+  let img = [];
+  try{
+    const names = await listGeminiModels();
+    const txt = names.filter(n=>n.startsWith('gemini') && !/image|embed|tts|audio|live/i.test(n));
+    img = names.filter(n=>/image/i.test(n));
+    lines[0] = '1) Ключ Gemini: ✓ рабочий · моделей текста: '+txt.length+', картинок: '+img.length;
+    lines.push('   Текстовые: '+(txt.slice(0,5).join(', ')||'нет'));
+    lines.push('   Картинки: '+(img.slice(0,4).join(', ')||'НЕТ — на этом ключе генерация изображений недоступна'));
+  }catch(e){
+    lines[0] = '1) Ключ Gemini: ✗ ОШИБКА — '+e.message;
+    lines.push('Дальше проверять нет смысла: получите ключ на aistudio.google.com/apikey и вставьте его в поле выше.');
+    put(); return;
+  }
+  put();
+  /* 2. текстовая модель */
+  try{
+    const r = await _llmOnce('Ответь одним словом: ОК', 2000, true);
+    lines.push('2) Текст ('+$('#model-select').value+'): ✓ отвечает — «'+r.trim().slice(0,40)+'»');
+  }catch(e){ lines.push('2) Текст ('+$('#model-select').value+'): ✗ '+e.message); }
+  put();
+  /* 3. картинки: Gemini */
+  try{
+    await geminiImage('Simple black and white pencil sketch of a circle on white paper');
+    lines.push('3) Картинки Gemini ('+$('#gemini-model').value+'): ✓ рисует');
+  }catch(e){
+    lines.push('3) Картинки Gemini: ✗ '+e.message.slice(0,160));
+    lines.push('   (с 2026 г. картинки через Gemini API платные — это нормально, есть бесплатный движок)');
+  }
+  put();
+  /* 4. картинки: Pollinations */
+  try{
+    await pollinationsImage('simple pencil sketch of a circle');
+    lines.push('4) Картинки Pollinations (бесплатно, без ключа): ✓ рисует');
+  }catch(e){ lines.push('4) Картинки Pollinations: ✗ '+e.message); }
+  put();
+  /* 5. картинки: Reve (если введён ключ) */
+  if (reveKey()){
+    try{
+      await reveImage('simple pencil sketch of a circle on white paper');
+      lines.push('5) Картинки Reve: ✓ рисует');
+    }catch(e){ lines.push('5) Картинки Reve: ✗ '+e.message.slice(0,180)); }
+  }
+  lines.push('');
+  lines.push('Если пункты 2–3 с ✓ — генерация должна работать: вернитесь и нажмите «Сгенерировать».');
+  put();
+});
+
+/* ========== ДВИЖОК ПРОВЕРКИ СКЛЕЕК ========== */
+function normDir(d){
+  d = (d||'').toLowerCase();
+  if (d.includes('прав')) return 'R';
+  if (d.includes('лев')) return 'L';
+  return 'N';
+}
+function checkCuts(shots){
+  const out = [];
+  for (let i=1;i<shots.length;i++){
+    const a = shots[i-1], b = shots[i];
+    const issues = [];
+    const pair = `Кадры ${a.n}→${b.n}`;
+    const sameSubj = a.subject && b.subject &&
+      a.subject.toLowerCase().trim() === b.subject.toLowerCase().trim();
+    const angle = +b.angle_change || 0;
+    const dissolve = /наплыв|затемнен/i.test(b.transition||'');
+    const known = SIZES.includes(a.size) && SIZES.includes(b.size);
+
+    /* 1. Монтаж по крупности — таблица разрешённых переходов */
+    if (sameSubj && known && !dissolve){
+      if (a.size===b.size && angle<30)
+        issues.push({level:'err', rule:'1. Крупность — джамп-кат', text:`${pair}: один объект («${b.subject}»), одинаковый план (${SIZE_NAMES[a.size]}) и ракурс меняется меньше чем на 30°. Возьмите план из таблицы: ${ALLOWED[a.size].map(s=>SIZE_NAMES[s]).join(' или ')}.`});
+      else if (a.size!==b.size && !ALLOWED[a.size].includes(b.size))
+        issues.push({level:'err', rule:'1. Крупность — переход вне таблицы', text:`${pair}: переход ${SIZE_NAMES[a.size]} → ${SIZE_NAMES[b.size]} не входит в таблицу разрешённых. После плана «${SIZE_NAMES[a.size]}» допустимы только: ${ALLOWED[a.size].map(s=>SIZE_NAMES[s]).join(' или ')}. Либо вставьте перебивку, либо оформите как осознанный приём (наплыв).`});
+      /* 9. Смещение осей съёмки */
+      if (a.size!==b.size && angle<10)
+        issues.push({level:'warn', rule:'9. Смещение осей съёмки', text:`${pair}: планы разные, а точка съёмки почти та же (ракурс изменён на ${angle}°) — на склейке получится эффект трансфокатора. Сместите камеру минимум на 10–30°.`});
+    }
+
+    /* 2–3. Ориентация в пространстве (ось 180°) и направление движения */
+    if (sameSubj && !dissolve){
+      const da = normDir(a.direction), db = normDir(b.direction);
+      if (da!=='N' && db!=='N' && da!==db)
+        issues.push({level:'err', rule:'2–3. Ось (180°) и направление движения', text:`${pair}: объект двигался ${da==='R'?'вправо':'влево'}, а теперь ${db==='R'?'вправо':'влево'} — пересечение оси, зритель решит, что герой развернулся. Нужен нейтральный кадр (движение на камеру/от камеры) или перебивка.`});
+    }
+
+    /* 4. Фаза движения */
+    const moving = s => s.phase && !/поко/i.test(s.phase);
+    if (sameSubj && moving(a) && moving(b) && a.phase.toLowerCase().trim()===b.phase.toLowerCase().trim())
+      issues.push({level:'warn', rule:'4. Фаза движения', text:`${pair}: в обоих кадрах одна и та же фаза движения («${b.phase}») — на склейке движение «заикнётся». Продолжайте движение со следующей фазы.`});
+
+    /* 5. Монтаж по темпу */
+    const T = s=>(s.tempo||'').toLowerCase();
+    if ((T(a).includes('медлен')&&T(b).includes('быстр'))||(T(a).includes('быстр')&&T(b).includes('медлен')))
+      issues.push({level:'warn', rule:'5. Монтаж по темпу', text:`${pair}: резкий скачок темпа (${a.tempo} → ${b.tempo}). Допустимо как драматургический акцент, иначе вставьте кадр среднего темпа.`});
+
+    /* 6. Монтаж по композиции */
+    const F = s=>(s.focus_pos||'').toLowerCase();
+    if ((F(a).includes('лев')&&F(b).includes('прав'))||(F(a).includes('прав')&&F(b).includes('лев')))
+      issues.push({level:'warn', rule:'6. Монтаж по композиции', text:`${pair}: смысловой центр прыгает из ${F(a).includes('лев')?'левой':'правой'} части кадра в противоположную — взгляд зрителя будет «искать» объект. Сблизьте композиционные центры соседних кадров.`});
+
+    /* 7. Монтаж по свету */
+    const L = s=>(s.light_key||'').toLowerCase();
+    if ((L(a).includes('светл')&&L(b).includes('тёмн'))||(L(a).includes('светл')&&L(b).includes('темн'))||(L(a).includes('тёмн')&&L(b).includes('светл'))||(L(a).includes('темн')&&L(b).includes('светл')))
+      issues.push({level:'warn', rule:'7. Монтаж по свету', text:`${pair}: резкий скачок тона (${a.light_key} → ${b.light_key}) — «удар по глазам». Смягчите промежуточным по тону кадром или оформите как осознанный приём.`});
+
+    /* 8. Монтаж по цвету */
+    const P = s=>(s.palette||'').toLowerCase();
+    if ((P(a).includes('тёпл')||P(a).includes('тепл')) && P(b).includes('холод') || P(a).includes('холод') && (P(b).includes('тёпл')||P(b).includes('тепл')))
+      issues.push({level:'warn', rule:'8. Монтаж по цвету', text:`${pair}: тёплая и холодная палитры встык (${a.palette} → ${b.palette}). Работает как контрастный приём, но при случайном использовании разрушает единство сцены.`});
+
+    /* 10. Монтаж по движению камеры */
+    const camA=(a.camera||'').toLowerCase(), camB=(b.camera||'').toLowerCase();
+    if ((camA.includes('наезд')&&camB.includes('отъезд'))||(camA.includes('отъезд')&&camB.includes('наезд')))
+      issues.push({level:'warn', rule:'10. Движение камеры', text:`${pair}: наезд встык с отъездом — встречные движения «бьются» на склейке. Вставьте статичный кадр между ними.`});
+
+    /* Монотонность ритма */
+    if (i>=2 && shots[i-2].size===a.size && a.size===b.size)
+      issues.push({level:'warn', rule:'Ритм', text:`Кадры ${shots[i-2].n}–${b.n}: три одинаковых плана подряд (${SIZE_NAMES[b.size]||b.size}). Ритм провисает — разбавьте другим планом или деталью.`});
+
+    /* Комментарии ИИ: осознанные нарушения */
+    (b.cut_warnings||[]).forEach(w=>issues.push({level:'warn', rule:'Осознанный приём (ИИ)', text:`${pair}: ${w}`}));
+
+    out.push(issues.length ? issues : [{level:'ok', rule:'Склейка чистая', text:`${pair}: все 10 принципов монтажа соблюдены.`}]);
+  }
+  return out;
+}
+
+/* ========== ПРОВЕРКИ ОТДЕЛЬНОГО КАДРА ========== */
+function paceRange(){
+  const p=(answers.pace||'').toLowerCase();
+  if (p.includes('быстр')||p.includes('рван')) return {min:1.5,max:3,name:'динамичный'};
+  if (p.includes('медлен')) return {min:5,max:8,name:'медленный кинематографичный'};
+  if (p.includes('умерен')) return {min:3,max:5,name:'стандартный'};
+  return null;
+}
+function checkShot(s, isLast){
+  const w = [];
+  const r = paceRange(), d = +s.duration||0;
+  if (r && d){
+    const max = isLast ? 10 : r.max; // hero shot / финал — до 10 сек
+    if (d < r.min) w.push(`Хронометраж: ${d} сек короче нормы для темпа «${r.name}» (${r.min}–${r.max} сек/кадр).`);
+    if (d > max) w.push(`Хронометраж: ${d} сек длиннее нормы для темпа «${r.name}» (${r.min}–${r.max} сек/кадр${isLast?', финал — до 10':''}).`);
+  }
+  if (!r && d > 10) w.push(`Хронометраж: ${d} сек — дольше 10 сек оправданы только hero shots.`);
+  const cam=(s.camera||'').toLowerCase();
+  if (cam.includes('dolly zoom')||cam.includes('долли-зум')||cam.includes('вертиго')||cam.includes('vertigo'))
+    w.push('Dolly Zoom запрещён без резкого эмоционального обоснования — убедитесь, что приём оправдан драматургией.');
+  return w;
+}
+
+/* ========== РЕНДЕР РЕЗУЛЬТАТОВ ========== */
+const esc = s => (s??'').toString().replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const field = (label, val) => val ? `<div><b>${label}:</b> ${esc(val)}</div>` : '';
+
+/* ---- схематичное превью кадра ---- */
+function previewSVG(s){
+  const vert = (answers.ratio==='9:16');
+  const W = vert?101:180, H = vert?180:101;
+  const fp=(s.focus_pos||'').toLowerCase();
+  const cx = W * (fp.includes('лев')?0.33:fp.includes('прав')?0.67:0.5);
+  const isPerson = !!(s.pose||s.expression) || /геро|человек|женщин|мужчин|девушк|парн|реб|лицо/i.test(s.subject||'');
+  const F = {ДАЛ:0.18,ОБЩ:0.55,С2:0.95,С1:1.5,КРП:2.6,ДТЛ:4.5}[s.size]||0.7;
+  let fig='';
+  if (isPerson){
+    const hh=F*H, headR=Math.max(3,hh*0.09);
+    const headY = H - hh*((s.size==='КРП'||s.size==='ДТЛ')?0.45:0.98) + headR;
+    const bw=hh*0.3;
+    fig = `<circle class="pv-fig" cx="${cx}" cy="${headY}" r="${headR}"/>
+      <path class="pv-fig" d="M ${cx-bw/2} ${H+2} L ${cx-bw/2.6} ${headY+headR*1.25} Q ${cx} ${headY+headR*0.85} ${cx+bw/2.6} ${headY+headR*1.25} L ${cx+bw/2} ${H+2} Z"/>`;
+  } else {
+    const r=Math.min(Math.min(W,H)*F*0.22, Math.min(W,H)*0.55);
+    fig = `<circle class="pv-fig" cx="${cx}" cy="${H*0.55}" r="${Math.max(4,r)}"/>`;
+  }
+  let arrow='';
+  const d=(s.direction||'').toLowerCase();
+  if (d.includes('прав')||d.includes('лев')){
+    const dir=d.includes('прав')?1:-1, ax=cx+dir*W*0.17, ay=H*0.5;
+    arrow=`<path class="pv-acc" d="M ${ax-dir*14} ${ay} L ${ax} ${ay} M ${ax-dir*5} ${ay-4} L ${ax} ${ay} L ${ax-dir*5} ${ay+4}"/>`;
+  }
+  return `<svg class="shot-preview" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+    <rect class="pv-bg" x="0" y="0" width="${W}" height="${H}"/>
+    <line class="pv-line" x1="${W/3}" y1="0" x2="${W/3}" y2="${H}"/><line class="pv-line" x1="${2*W/3}" y1="0" x2="${2*W/3}" y2="${H}"/>
+    <line class="pv-line" x1="0" y1="${H/3}" x2="${W}" y2="${H/3}"/><line class="pv-line" x1="0" y1="${2*H/3}" x2="${W}" y2="${2*H/3}"/>
+    ${fig}${arrow}
+    <text class="pv-txt" x="5" y="11" font-size="8">${esc(s.size||'')}</text>
+    <text class="pv-txt" x="5" y="${H-5}" font-size="6.5">${esc((s.camera||'').slice(0,28))}</text>
+    <text class="pv-txt" x="${W-5}" y="${H-5}" font-size="7" text-anchor="end">${esc(s.duration||'')}s</text>
+  </svg>`;
+}
+
+/* ---- форма редактирования кадра ---- */
+const SEL = (name, opts, val) => `<select data-f="${name}">${opts.map(o=>`<option ${o===val?'selected':''}>${o}</option>`).join('')}</select>`;
+function editForm(s,i){
+  return `<div class="edit-form" id="ef-${i}">
+    <div style="grid-column:1/-1"><label>Действие в кадре</label><textarea data-f="description">${esc(s.description)}</textarea></div>
+    <div><label>План</label>${SEL('size', SIZES, s.size)}</div>
+    <div><label>Длительность, сек</label><input type="number" step="0.5" min="0.5" data-f="duration" value="${esc(s.duration)}"></div>
+    <div><label>Движение камеры</label><input type="text" data-f="camera" value="${esc(s.camera)}"></div>
+    <div><label>Ракурс</label><input type="text" data-f="angle" value="${esc(s.angle)}"></div>
+    <div><label>Смена ракурса, °</label><input type="number" data-f="angle_change" value="${esc(s.angle_change||0)}"></div>
+    <div><label>Объект</label><input type="text" data-f="subject" value="${esc(s.subject)}"></div>
+    <div><label>Направление</label>${SEL('direction',['нейтрально','вправо','влево','на камеру','от камеры'],s.direction)}</div>
+    <div><label>Фаза движения</label>${SEL('phase',['покой','начало','середина','завершение'],s.phase)}</div>
+    <div><label>Темп</label>${SEL('tempo',['медленный','средний','быстрый'],s.tempo)}</div>
+    <div><label>Тон</label>${SEL('light_key',['светлый','средний','тёмный'],s.light_key)}</div>
+    <div><label>Палитра</label>${SEL('palette',['тёплая','холодная','нейтральная'],s.palette)}</div>
+    <div><label>Смысловой центр</label>${SEL('focus_pos',['лево','центр','право'],s.focus_pos)}</div>
+    <div><label>Переход</label>${SEL('transition',['прямая склейка','наплыв','затемнение'],s.transition)}</div>
+    <div class="ef-actions"><button class="btn small ghost" data-ef-cancel="${i}">Отмена</button><button class="btn small" data-ef-save="${i}">Сохранить и перепроверить</button></div>
+  </div>`;
+}
+
+/* ---- сохранение проекта ---- */
+function saveProject(){ try{ localStorage.setItem('sb_project', JSON.stringify({script:$('#script-input').value, answers, shots: shots.map(s=>{const {sketch_img,frame_img,...rest}=s; return rest;})})); }catch(_){} }
+function targetRange(){
+  const d=answers.duration||'';
+  if (d.includes('15')) return [5,15];
+  if (d.includes('30')) return [24,36];
+  if (d.includes('60')) return [48,72];
+  if (d.includes('2–3')||d.includes('2-3')) return [110,190];
+  if (d.includes('5+')) return [280,36000];
+  return null;
+}
+function refresh(){
+  const y=window.scrollY;
+  shots.forEach((s,i)=>s.n=i+1);
+  cuts = checkCuts(shots);
+  renderResults();
+  window.scrollTo(0,y);
+}
+
+function renderResults(){
+  saveProject();
+  const total = shots.reduce((s,x)=>s+(+x.duration||0),0);
+  const problems = cuts.flat().filter(c=>c.level!=='ok');
+  const errs = problems.filter(c=>c.level==='err').length;
+  const tr = targetRange();
+  const offTime = tr && (total<tr[0]||total>tr[1]);
+  $('#summary').innerHTML = `
+    <div class="stat"><div class="v">${answers.ratio||'—'}</div><div class="l">формат</div></div>
+    <div class="stat"><div class="v">${shots.length}</div><div class="l">кадров</div></div>
+    <div class="stat"><div class="v" style="color:${offTime?'var(--warn)':'var(--accent2)'}">~${total} сек</div><div class="l">хронометраж${tr?` · цель: ${esc(answers.duration)}`:''}</div></div>
+    <div class="stat"><div class="v" style="color:${errs?'var(--err)':'var(--ok)'}">${errs}</div><div class="l">ошибок монтажа</div></div>
+    <div class="stat"><div class="v" style="color:${problems.length-errs?'var(--warn)':'var(--ok)'}">${problems.length-errs}</div><div class="l">предупреждений</div></div>`;
+
+  const host = $('#shotlist');
+  host.innerHTML = '';
+  shots.forEach((s,i)=>{
+    if (i>0){
+      const wrap = document.createElement('div');
+      cuts[i-1].forEach(c=>{
+        wrap.insertAdjacentHTML('beforeend', `<div class="cut ${c.level}">
+          <div class="cut-icon">${c.level==='ok'?'✓':c.level==='warn'?'!':'✕'}</div>
+          <div><div class="cut-label">${esc(c.rule)}</div><div class="cut-text">${esc(c.text)}</div></div>
+        </div>`);
+      });
+      host.appendChild(wrap);
+    }
+    host.insertAdjacentHTML('beforeend', `<div class="shot">
+      <div class="shot-head">
+        <div><span class="shot-num">КАДР ${s.n||i+1}</span> <span class="shot-scene">· ${esc(s.scene)}</span></div>
+        <div class="badges">
+          <span class="badge size">${esc(s.size)} · ${SIZE_NAMES[s.size]||''}</span>
+          <span class="badge cam">${esc(s.camera)}</span>
+          <span class="badge dur">${esc(s.duration)} сек</span>
+        </div>
+        <div class="tools">
+          <button class="tool-btn" data-edit="${i}" title="Редактировать кадр">✎</button>
+          <button class="tool-btn" data-regen="${i}" title="Перегенерировать с комментарием (нужен API-ключ)">↻ ИИ</button>
+          <button class="tool-btn" data-frame="${i}" title="Сгенерировать фотореалистичный кадр">🎬</button>
+          <button class="tool-btn" data-sketch="${i}" title="Нарисовать карандашный скетч">✏️</button>
+          <button class="tool-btn" data-up="${i}" title="Переместить выше">↑</button>
+          <button class="tool-btn" data-down="${i}" title="Переместить ниже">↓</button>
+          <button class="tool-btn" data-del="${i}" title="Удалить кадр">✕</button>
+        </div>
+      </div>
+      <div class="shot-top">${s.frame_img?`<img class="sketch-img${answers.ratio==='9:16'?' vert':''}" src="${s.frame_img}" alt="кадр">`:''}${s.sketch_img?`<img class="sketch-img${answers.ratio==='9:16'?' vert':''}" src="${s.sketch_img}" alt="скетч">`:''}${(!s.frame_img&&!s.sketch_img)?previewSVG(s):''}<div class="shot-desc">${esc(s.description)}</div></div>
+      ${checkShot(s, i===shots.length-1).map(w=>`<div class="shot-warn">⚠ ${esc(w)}</div>`).join('')}
+      ${editForm(s,i)}
+      <div class="shot-fields">
+        ${field('Ракурс', s.angle)}
+        ${field('Намерение', s.intent)}
+        ${field('Оптика', s.lens)}
+        ${field('Объект', s.subject)}
+        ${field('Движение / фаза', [s.direction, s.phase].filter(Boolean).join(' · '))}
+        ${field('Темп', s.tempo)}
+        ${field('Поза', s.pose)}
+        ${field('Одежда', s.clothing)}
+        ${field('Мимика', s.expression)}
+        ${field('Окружение', s.environment)}
+        ${field('Освещение', [s.light, s.light_key].filter(Boolean).join(' · '))}
+        ${field('Палитра', s.palette)}
+        ${field('Композиция', s.composition)}
+        ${field('Скетч', s.sketch_desc)}
+        ${field('Текст в кадре', s.text_in_frame)}
+        ${field('Переход', s.transition)}
+      </div>
+      <div class="prompts">
+        <div class="prompt-box">
+          <div class="p-title">◈ Промпт — AI-видео (EN · Sora/Runway/Kling)</div>
+          <div class="p-text">${esc(s.prompt_video)}</div>
+          <button class="copy-btn" data-copy="${i}:v">Копировать</button>
+        </div>
+        <div class="prompt-box">
+          <div class="p-title">✎ Промпт — скетч (RU)</div>
+          <div class="p-text">${esc(s.prompt_sketch)}</div>
+          <button class="copy-btn" data-copy="${i}:s">Копировать</button>
+        </div>
+      </div>
+    </div>`);
+  });
+
+  host.querySelectorAll('.copy-btn').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const [i,t] = btn.dataset.copy.split(':');
+      const text = t==='v' ? shots[+i].prompt_video : shots[+i].prompt_sketch;
+      navigator.clipboard.writeText(text).then(()=>{
+        btn.textContent='✓'; btn.classList.add('copied');
+        setTimeout(()=>{btn.textContent='Копировать';btn.classList.remove('copied');},1500);
+      });
+    });
+  });
+  host.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>$('#ef-'+b.dataset.edit).classList.toggle('visible'));
+  host.querySelectorAll('[data-ef-cancel]').forEach(b=>b.onclick=()=>$('#ef-'+b.dataset.efCancel).classList.remove('visible'));
+  host.querySelectorAll('[data-ef-save]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.efSave;
+    $('#ef-'+i).querySelectorAll('[data-f]').forEach(inp=>{
+      let v=inp.value;
+      if (inp.dataset.f==='duration'||inp.dataset.f==='angle_change') v=+v||0;
+      shots[i][inp.dataset.f]=v;
+    });
+    refresh(); toast('Кадр обновлён, склейки перепроверены');
+  });
+  host.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.del;
+    if (confirm('Удалить кадр '+(shots[i].n||i+1)+'?')){ shots.splice(i,1); refresh(); }
+  });
+  host.querySelectorAll('[data-up]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.up;
+    if (i>0){ [shots[i-1],shots[i]]=[shots[i],shots[i-1]]; refresh(); }
+  });
+  host.querySelectorAll('[data-down]').forEach(b=>b.onclick=()=>{
+    const i=+b.dataset.down;
+    if (i<shots.length-1){ [shots[i+1],shots[i]]=[shots[i],shots[i+1]]; refresh(); }
+  });
+  host.querySelectorAll('[data-regen]').forEach(b=>b.onclick=()=>regenShot(+b.dataset.regen));
+  host.querySelectorAll('[data-sketch]').forEach(b=>b.onclick=()=>genImage(+b.dataset.sketch,'sketch'));
+  host.querySelectorAll('[data-frame]').forEach(b=>b.onclick=()=>genImage(+b.dataset.frame,'frame'));
+}
+
+/* ---- перегенерация одного кадра с комментарием ---- */
+async function regenShot(i){
+  const hasKey = isGemini() ? geminiKey() : claudeKey();
+  if (!hasKey){ toast('Нужен API-ключ — введите его на шаге «Генерация»'); goStep(3); return; }
+  const comment = prompt('Что изменить в кадре '+(shots[i].n||i+1)+'? Например: «сделай крупнее», «замени наезд на статику», «добавь дождь»','');
+  if (comment===null) return;
+  toast('Генерирую кадр '+(shots[i].n||i+1)+'…');
+  const slim = s => s ? JSON.stringify(Object.fromEntries(Object.entries(s).filter(([k])=>!['prompt_video','prompt_sketch','cut_warnings'].includes(k)))) : 'нет (край раскадровки)';
+  const q = `Ты — режиссёр-раскадровщик. Формат видео: ${answers.ratio}. Перегенерируй ОДИН кадр раскадровки по комментарию режиссёра: «${comment||'улучши кадр'}».
+Предыдущий кадр: ${slim(shots[i-1])}
+Текущий кадр (его нужно заменить): ${JSON.stringify(shots[i])}
+Следующий кадр: ${slim(shots[i+1])}
+Правила: шкала планов ${SIZES.join(', ')}; таблица разрешённых переходов для одного объекта: ${Object.entries(ALLOWED).map(([k,v])=>k+'→'+v.join('/')).join('; ')}; новый кадр должен быть монтажно совместим с ОБОИМИ соседями по 10 принципам монтажа; prompt_video на английском по формуле [SUBJECT]+[ENVIRONMENT]+[CAMERA MOVE]+[MODIFIER] (движение камеры отдельным предложением); prompt_sketch на русском (чёрно-белый карандашный скетч). Сохрани тот же набор полей, что у текущего кадра. Ответь ТОЛЬКО JSON: {"shot":{...}}`;
+  try{
+    const parsed = parseJSON(await callClaude(q, 8000));
+    if (!parsed?.shot) throw new Error('неожиданный формат ответа');
+    parsed.shot.n = shots[i].n;
+    shots[i] = parsed.shot;
+    refresh(); toast('Кадр обновлён');
+  }catch(e){ toast('Ошибка: '+e.message); }
+}
+
+/* ========== ЭКСПОРТ ========== */
+function toast(msg, ms=1800){ const t=$('#toast'); t.textContent=msg; t.classList.add('visible'); clearTimeout(toast._t); toast._t=setTimeout(()=>t.classList.remove('visible'),ms); }
+function download(name, content, type='text/plain'){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type:type+';charset=utf-8'}));
+  a.download = name; a.click(); URL.revokeObjectURL(a.href);
+}
+function toMarkdown(){
+  let md = `# Раскадровка\n\nФормат: ${answers.ratio||'—'} · Кадров: ${shots.length}\n\n`;
+  const row = (l,v)=> v ? `| ${l} | ${String(v).replace(/\|/g,'/')} |\n` : '';
+  shots.forEach((s,i)=>{
+    if (i>0) cuts[i-1].forEach(c=>{ if(c.level!=='ok') md += `> ${c.level==='err'?'❌':'⚠️'} **${c.rule}.** ${c.text}\n\n`; });
+    md += `## Кадр ${s.n||i+1} — ${s.scene}\n\n`+
+      `**${SIZE_NAMES[s.size]||s.size}** · ${s.camera} · ${s.duration} сек\n\n${s.description}\n\n`+
+      `| Поле | Значение |\n|---|---|\n`+
+      row('Ракурс',s.angle)+row('Намерение',s.intent)+row('Оптика',s.lens)+row('Объект',s.subject)+row('Движение / фаза',[s.direction,s.phase].filter(Boolean).join(' · '))+
+      row('Темп',s.tempo)+row('Поза',s.pose)+row('Одежда',s.clothing)+row('Мимика',s.expression)+
+      row('Окружение',s.environment)+row('Освещение',[s.light,s.light_key].filter(Boolean).join(' · '))+
+      row('Палитра',s.palette)+row('Композиция',s.composition)+row('Скетч',s.sketch_desc)+
+      row('Текст в кадре',s.text_in_frame)+row('Переход',s.transition)+
+      `\n**Промпт AI-видео:**\n\`\`\`\n${s.prompt_video}\n\`\`\`\n\n`+
+      `**Промпт скетч:**\n\`\`\`\n${s.prompt_sketch}\n\`\`\`\n\n`;
+  });
+  return md;
+}
+function toCSV(){
+  const cols = [['№','n'],['Сцена','scene'],['Действие','description'],['План',s=>SIZE_NAMES[s.size]||s.size],
+    ['Ракурс','angle'],['Намерение','intent'],['Оптика','lens'],['Движение камеры','camera'],['Длительность, сек','duration'],
+    ['Объект','subject'],['Направление','direction'],['Фаза','phase'],['Темп','tempo'],['Поза','pose'],['Одежда','clothing'],
+    ['Мимика','expression'],['Окружение','environment'],['Свет','light'],['Тон','light_key'],['Палитра','palette'],
+    ['Композиция','composition'],['Скетч','sketch_desc'],['Текст в кадре','text_in_frame'],['Переход','transition'],
+    ['Промпт AI-видео (EN)','prompt_video'],['Промпт скетч (RU)','prompt_sketch']];
+  const cell = v => '"'+String(v??'').replace(/"/g,'""')+'"';
+  const rows = [cols.map(c=>cell(c[0])).join(';')];
+  shots.forEach(s=>rows.push(cols.map(c=>cell(typeof c[1]==='function'?c[1](s):s[c[1]])).join(';')));
+  return '﻿'+rows.join('\r\n');
+}
+$('#btn-print').addEventListener('click', ()=>window.print());
+$('#btn-csv').addEventListener('click', ()=>download('раскадровка.csv', toCSV(), 'text/csv'));
+$('#btn-md').addEventListener('click', ()=>download('раскадровка.md', toMarkdown(), 'text/markdown'));
+$('#btn-json').addEventListener('click', ()=>download('раскадровка.json', JSON.stringify({answers,shots,cuts},null,2), 'application/json'));
+$('#btn-copy-all').addEventListener('click', ()=>{
+  const text = shots.map((s,i)=>`— Кадр ${s.n||i+1} —\nAI-видео: ${s.prompt_video}\nСкетч: ${s.prompt_sketch}`).join('\n\n');
+  navigator.clipboard.writeText(text).then(()=>toast('Все промпты скопированы'));
+});
+$('#btn-restart').addEventListener('click', ()=>{ if(confirm('Начать новый проект? Текущая раскадровка будет очищена.')){ localStorage.removeItem('sb_project'); shots=[];cuts=[];maxStep=1;goStep(1);} });
+
+/* ========== ДЕМО ========== */
+const DEMO_SHOTS = [
+ {n:1,scene:'Кухня — утро',description:'Общий план кухни в мягком утреннем свете. Анна у плиты наливает кофе, силуэт против окна.',size:'ОБЩ',angle:'уровень глаз',angle_change:0,camera:'статика',intent:'раскрыть',lens:'24mm, сферическая',duration:4,subject:'Анна',direction:'нейтрально',phase:'покой',tempo:'медленный',pose:'стоит у плиты, слегка ссутулившись',clothing:'бежевый домашний кардиган, футболка',expression:'спокойная, чуть отстранённая',environment:'просторная кухня, деревянный стол, большое окно',light:'мягкий утренний, контровой из окна',light_key:'светлый',palette:'тёплая',focus_pos:'лево',composition:'фигура в левой трети, окно уравновешивает справа, воздух сверху',sketch_desc:'общий план кухни, слева фигура у плиты, справа окно со светом',text_in_frame:'',transition:'прямая склейка',cut_warnings:[],prompt_video:'A woman in her early 30s in a beige cardigan pours coffee, her silhouette backlit. A spacious kitchen at early morning, soft diffused light from a large window, thin haze in the air. Static camera, wide shot. 24mm spherical lens, warm melancholic tones, film grain, 16:9, 4 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч раскадровки: общий план кухни, слева у плиты женская фигура наливает кофе, справа большое окно с мягким светом, штриховка передаёт утреннюю дымку. Горизонт на уровне глаз.'},
+ {n:2,scene:'Кухня — утро',description:'Деталь: пар поднимается над чашкой кофе, медленно клубится в луче света.',size:'ДТЛ',angle:'верхний ракурс 30°',angle_change:40,camera:'лёгкий наезд',intent:'погрузить',lens:'100mm макро, сферическая',duration:3,subject:'чашка кофе',direction:'нейтрально',phase:'покой',tempo:'медленный',pose:'',clothing:'',expression:'',environment:'деревянная столешница, луч света',light:'узкий боковой луч',light_key:'средний',palette:'тёплая',focus_pos:'центр',composition:'чашка в центре, диагональ луча света',sketch_desc:'чашка крупно, волнистые линии пара, диагональный луч',text_in_frame:'',transition:'прямая склейка',cut_warnings:[],prompt_video:'A white ceramic cup of black coffee, steam slowly curling upward. Wooden countertop lit by a narrow beam of morning light, dust particles floating. The camera pushes in very slowly. 100mm macro spherical lens, warm amber tones, shallow depth of field, soft bokeh, 16:9, 3 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч: деталь — чашка кофе крупно, волнистые линии пара уходят вверх, диагональный луч света штриховкой, фон размыт. Верхний ракурс.'},
+ {n:3,scene:'Кухня — утро',description:'2-й средний план: Анна замирает у окна, смотрит на первый снег за стеклом.',size:'С2',angle:'боковой, три четверти',angle_change:45,camera:'статика',intent:'погрузить',lens:'50mm, сферическая',duration:4,subject:'Анна',direction:'нейтрально',phase:'покой',tempo:'медленный',pose:'стоит у окна, чашка в обеих руках',clothing:'бежевый кардиган',expression:'замерла, взгляд в окно',environment:'окно, за стеклом первый снег',light:'холодный дневной из окна',light_key:'светлый',palette:'нейтральная',focus_pos:'центр',composition:'фигура по пояс в центре, окно занимает фон',sketch_desc:'поясной план в три четверти у окна, точки снега за стеклом',text_in_frame:'',transition:'прямая склейка',cut_warnings:[],prompt_video:'A woman in her early 30s holds a cup with both hands, frozen still, gazing at the first snow falling outside. A kitchen window, cold daylight from outside mixing with warm interior light. Static camera, medium shot, three-quarter angle. 50mm spherical lens, natural look, 16:9, 4 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч: поясной план женщины в три четверти у окна, в руках чашка, за окном лёгкие точки снега, мягкая штриховка холодного света на лице.'},
+ {n:4,scene:'Кухня — утро',description:'Деталь: телефон на столе вибрирует, на экране «Папа».',size:'ДТЛ',angle:'верхний ракурс',angle_change:60,camera:'статика',intent:'шокировать',lens:'85mm, сферическая',duration:2,subject:'телефон',direction:'нейтрально',phase:'покой',tempo:'средний',pose:'',clothing:'',expression:'',environment:'деревянный стол в полумраке',light:'свет экрана в полумраке',light_key:'тёмный',palette:'холодная',focus_pos:'центр',composition:'телефон в центре кадра, вокруг тёмная столешница',sketch_desc:'вид сверху на стол, смартфон со светящимся экраном, линии вибрации',text_in_frame:'«Папа»',transition:'прямая склейка',cut_warnings:[],prompt_video:'A smartphone vibrates on a wooden table, its screen glowing with an incoming call that reads «Папа», slight movement from the vibration. Dim kitchen table, screen light reflecting off the surface. Static camera, top-down extreme close-up. 85mm spherical lens, cold tones, tense pause, 16:9, 2 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч: вид сверху на стол, в центре смартфон со светящимся экраном, линии вибрации по бокам, крупная надпись «Папа» на экране.'},
+ {n:5,scene:'Кухня — утро',description:'Крупный план Анны: смотрит на телефон, не двигаясь. Три года молчания в одном взгляде.',size:'КРП',angle:'уровень глаз',angle_change:50,camera:'очень медленный наезд',intent:'погрузить (slow dolly in)',lens:'85mm, сферическая',duration:5,subject:'Анна',direction:'нейтрально',phase:'покой',tempo:'медленный',pose:'неподвижна, плечи напряжены',clothing:'бежевый кардиган',expression:'страх и надежда, не мигает',environment:'размытый фон кухни',light:'половина лица в тени',light_key:'средний',palette:'нейтральная',focus_pos:'центр',composition:'лицо в центре, светотень делит кадр пополам',sketch_desc:'крупный план лица, взгляд вниз, детальная проработка глаз',text_in_frame:'',transition:'прямая склейка',cut_warnings:[],prompt_video:'A close-up of a woman\'s face: she stares down at the phone off-frame, unblinking, a mix of fear and hope. Blurred kitchen background, half of her face in soft shadow, the other lit by cold window light. The camera dollies in very slowly. 85mm spherical lens, shallow depth of field, 16:9, 5 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч: крупный план женского лица, взгляд вниз, светотень делит лицо пополам, детальная проработка глаз, фон едва намечен.'},
+ {n:6,scene:'Кухня — утро',description:'2-й средний план: Анна делает шаг к столу, рука зависает над телефоном. Вибрация прекращается.',size:'С2',angle:'боковой',angle_change:40,camera:'проводка за движением',intent:'погрузить',lens:'35mm, сферическая',duration:4,subject:'Анна',direction:'вправо',phase:'середина',tempo:'средний',pose:'шаг к столу, рука протянута',clothing:'бежевый кардиган',expression:'решимость сквозь сомнение',environment:'стол с телефоном, стул',light:'холодный дневной',light_key:'средний',palette:'нейтральная',focus_pos:'право',composition:'движение слева направо, телефон в правой трети — цель движения',sketch_desc:'поясной план в профиль, рука над телефоном, стрелка движения вправо',text_in_frame:'',transition:'прямая склейка',cut_warnings:[],prompt_video:'A woman takes a step toward the table (moving screen-right), reaches out, her palm hovering over the phone as it falls silent. Kitchen table with a phone, cold daylight. The camera tracks smoothly with her movement, side angle, medium shot. 35mm spherical lens, quiet tension, 16:9, 4 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч: поясной план в профиль, женщина тянется рукой к телефону на столе, стрелка движения вправо, линия руки замерла над телефоном.'},
+ {n:7,scene:'Кухня — утро',description:'Крупный план: Анна выдыхает, берёт телефон и набирает номер сама.',size:'КРП',angle:'три четверти',angle_change:35,camera:'статика',intent:'раскрыть',lens:'85mm, анаморфотная',duration:4,subject:'Анна',direction:'нейтрально',phase:'завершение',tempo:'средний',pose:'телефон у уха, подбородок чуть поднят',clothing:'бежевый кардиган',expression:'закрытые глаза, выдох, решимость',environment:'размытая кухня',light:'тёплый свет возвращается',light_key:'средний',palette:'тёплая',focus_pos:'центр',composition:'лицо и телефон в центре, мягкое боке',sketch_desc:'крупный план в три четверти, телефон у уха, закрытые глаза',text_in_frame:'',transition:'прямая склейка',cut_warnings:[],prompt_video:'A close-up: the woman closes her eyes, exhales slowly, then resolves — she picks up the phone and dials the number herself. Blurred kitchen background, light subtly warming. Static camera, three-quarter angle. 85mm anamorphic lens, gentle lens flares, moment of decision, 16:9, 4 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч: крупный план в три четверти, женщина с телефоном у уха, закрытые глаза, спокойные плавные линии, мягкая штриховка.'},
+ {n:8,scene:'Кухня — утро — финал',description:'Общий план: Анна у окна с телефоном, «Привет, пап». За окном снег усиливается, она улыбается сквозь слёзы.',size:'ОБЩ',angle:'из глубины кухни',angle_change:90,camera:'медленный отъезд',intent:'раскрыть (slow dolly out)',lens:'24mm, анаморфотная',duration:6,subject:'Анна',direction:'нейтрально',phase:'покой',tempo:'медленный',pose:'у окна, телефон у уха, вторая рука обнимает себя',clothing:'бежевый кардиган',expression:'улыбка сквозь слёзы',environment:'вся кухня, за окном густой снег',light:'тёплый интерьерный + холодный снег за окном',light_key:'светлый',palette:'тёплая',focus_pos:'право',composition:'маленькая фигура в правой трети у окна, много воздуха — героиня «отпускает» напряжение',sketch_desc:'общий план из глубины кухни, маленькая фигура у окна, плотная штриховка снега',text_in_frame:'',transition:'наплыв',cut_warnings:['Переход Крупный → Общий вне таблицы — смягчён наплывом как осознанный финальный приём: пространство «обнимает» героиню.'],prompt_video:'A small figure of a woman stands by the window, phone to her ear, speaking her first quiet words, smiling through tears. The whole kitchen seen from its depth, heavy snow falling outside the window, warm interior light. The camera dollies out slowly. 24mm anamorphic lens, cinematic epic feel, fade to black at the end, 16:9, 6 seconds.',prompt_sketch:'Чёрно-белый карандашный скетч: общий план кухни из глубины, у окна маленькая фигура с телефоном, за окном плотная штриховка снега, рамка кадра подчёркивает воздух вокруг героини.'}
+];
+$('#btn-demo').addEventListener('click', ()=>{ if(!answers.ratio){ answers.ratio='16:9'; $$('#ratio-chips .chip')[0]?.classList.add('sel'); } });
+$('#btn-demo').addEventListener('click', ()=>{
+  if (!$('#script-input').value.trim()) $('#script-input').value = EXAMPLE_SCRIPT;
+  shots = JSON.parse(JSON.stringify(DEMO_SHOTS));
+  finishGeneration();
+});
+
+/* ========== СКЕТЧИ ЧЕРЕЗ GEMINI ========== */
+async function _imgCall(model, prompt, withCfg){
+  const key = geminiKey();
+  const gen = {responseModalities:['TEXT','IMAGE']};
+  if (withCfg) gen.imageConfig = {aspectRatio:(answers.ratio==='9:16'?'9:16':'16:9')};
+  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`,{
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({contents:[{parts:[{text:prompt}]}], generationConfig:gen})
+  });
+  if (!res.ok){
+    const e = await res.json().catch(()=>({}));
+    throw new Error((e?.error?.message||('Gemini API '+res.status)).slice(0,300));
+  }
+  const d = await res.json();
+  const part = d?.candidates?.[0]?.content?.parts?.find(p=>p.inlineData);
+  if (!part){
+    const txt = (d?.candidates?.[0]?.content?.parts||[]).map(p=>p.text||'').join('').slice(0,120);
+    throw new Error('Модель не вернула изображение'+(txt?(' (ответ: '+txt+'…)'):''));
+  }
+  return `data:${part.inlineData.mimeType||'image/png'};base64,${part.inlineData.data}`;
+}
+async function geminiImage(prompt){
+  const key = geminiKey();
+  if (!key) throw new Error('Введите Gemini API-ключ на шаге «Генерация»');
+  const primary = $('#gemini-model').value.trim() || 'gemini-2.5-flash-image';
+  const models = [primary];
+  let listLoaded = false, lastErr = null;
+  for (let mi=0; mi<models.length; mi++){
+    const m = models[mi];
+    for (const withCfg of [true,false]){
+      try{
+        const url = await _imgCall(m, prompt, withCfg);
+        if (m!==primary){ $('#gemini-model').value=m; localStorage.setItem('sb_gemini_model',m); toast('Использую модель картинок: '+m, 4000); }
+        return url;
+      }catch(e){
+        lastErr = e;
+        const msg = String(e.message);
+        console.error('sketch:', m, withCfg?'+cfg':'-cfg', msg);
+        if (/429|quota|exhaust/i.test(msg)) break; /* квота ЭТОЙ модели исчерпана (у preview-моделей на бесплатном тарифе она нулевая) — пробуем следующую */
+        if (withCfg && /imageConfig|aspect|Unknown name|Invalid JSON|INVALID_ARGUMENT|modalit/i.test(msg)) continue; /* повтор без imageConfig */
+        break; /* эта модель не годится — к следующей */
+      }
+    }
+    /* кончились кандидаты — подтягиваем реальный список моделей картинок */
+    if (mi===models.length-1 && !listLoaded){
+      listLoaded = true;
+      try{
+        const img = (await listGeminiModels()).filter(n=>/image/i.test(n) && !models.includes(n));
+        const score = n => (/flash/i.test(n)?4:0) + (/preview|exp/i.test(n)?0:2);
+        img.sort((a,b)=>(score(b)-score(a)) || b.localeCompare(a,undefined,{numeric:true}));
+        if (img.length) toast('Подбираю модель картинок: '+img[0]+'…', 3000);
+        models.push(...img.slice(0,4));
+      }catch(e2){ console.error('listModels:', e2.message); }
+    }
+  }
+  throw lastErr || new Error('Не удалось сгенерировать изображение');
+}
+async function pollinationsImage(prompt){
+  const vert = answers.ratio==='9:16';
+  const url = 'https://image.pollinations.ai/prompt/'+encodeURIComponent(prompt.slice(0,1500))
+    +`?width=${vert?768:1344}&height=${vert?1344:768}&nologo=true&seed=${Math.floor(Math.random()*1e9)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Pollinations: ошибка '+res.status+' — попробуйте ещё раз');
+  const blob = await res.blob();
+  if (!/image/.test(blob.type)) throw new Error('Pollinations вернул не изображение — попробуйте ещё раз');
+  return await new Promise((ok,err)=>{ const r=new FileReader(); r.onload=()=>ok(r.result); r.onerror=err; r.readAsDataURL(blob); });
+}
+async function reveImage(prompt){
+  const key = reveKey();
+  if (!key) throw new Error('Введите Reve API-ключ (api.reve.com)');
+  let res;
+  try{
+    res = await fetch('https://api.reve.com/v1/image/create',{
+      method:'POST',
+      headers:{'Authorization':'Bearer '+key, 'Content-Type':'application/json'},
+      body:JSON.stringify({prompt: prompt.slice(0,2000), aspect_ratio: (answers.ratio==='9:16'?'9:16':'16:9')})
+    });
+  }catch(e){
+    throw new Error('Reve API недоступен из браузера (сеть или CORS-ограничение) — используйте Gemini или Pollinations');
+  }
+  if (!res.ok){
+    const t = await res.text().catch(()=> '');
+    throw new Error('Reve: '+res.status+' '+t.slice(0,160));
+  }
+  const d = await res.json();
+  const b64 = d.image || d.image_base64 || d?.data?.[0]?.b64_json || d?.data?.[0]?.image;
+  if (b64) return b64.startsWith('data:') ? b64 : 'data:image/png;base64,'+b64;
+  const url = d.image_url || d?.data?.[0]?.url;
+  if (url){
+    const blob = await (await fetch(url)).blob();
+    return await new Promise((ok,err)=>{ const r=new FileReader(); r.onload=()=>ok(r.result); r.onerror=err; r.readAsDataURL(blob); });
+  }
+  throw new Error('Reve: неожиданный формат ответа');
+}
+async function makeImage(prompt){
+  const eng = $('#img-engine').value;
+  if (eng==='pollinations') return await pollinationsImage(prompt);
+  if (eng==='reve') return await reveImage(prompt);
+  if (eng==='gemini') return await geminiImage(prompt);
+  /* авто: Reve (если есть ключ) → Gemini → Pollinations */
+  if (reveKey()){
+    try{ return await reveImage(prompt); }
+    catch(e){ console.error('Reve → дальше:', e.message); toast('Reve: '+e.message.slice(0,80)+' — пробую другие движки…', 3500); }
+  }
+  try{
+    return await geminiImage(prompt);
+  }catch(e){
+    console.error('Gemini images → Pollinations:', e.message);
+    toast('Gemini-картинки недоступны — рисую бесплатно через Pollinations…', 4000);
+    return await pollinationsImage(prompt);
+  }
+}
+function sketchPrompt(s){
+  return 'Black and white graphite pencil storyboard sketch on lightly textured paper, faint rule-of-thirds grid lines visible, professional hand-drawn style, expressive shading, no text or captions in the image. '+(s.prompt_sketch||s.sketch_desc||s.description||'');
+}
+function framePrompt(s){
+  return 'Photorealistic cinematic film still, high detail, natural light, cinematic color grading, no text, no watermark, no logo. '+(s.prompt_video||s.description||'');
+}
+async function genImage(i, kind, silent){
+  const fld = kind==='frame' ? 'frame_img' : 'sketch_img';
+  const label = kind==='frame' ? 'кадр' : 'скетч';
+  const mk = kind==='frame' ? framePrompt : sketchPrompt;
+  try{
+    if (!silent) toast('Генерирую '+label+' '+(shots[i].n||i+1)+'…');
+    shots[i][fld] = await makeImage(mk(shots[i]));
+    refresh();
+    return true;
+  }catch(e){
+    toast('Кадр '+(shots[i].n||i+1)+': '+e.message, 7000);
+    if (/Введите Gemini/.test(e.message)) goStep(3);
+    return false;
+  }
+}
+async function genAll(kind, btnId, base){
+  const eng = $('#img-engine').value;
+  if (eng==='gemini' && !geminiKey()){ toast('Введите Gemini API-ключ на шаге «Генерация»'); goStep(3); return; }
+  if (eng==='reve' && !reveKey()){ toast('Введите Reve API-ключ на шаге «Генерация»'); goStep(3); return; }
+  const fld = kind==='frame' ? 'frame_img' : 'sketch_img';
+  const btn = $('#'+btnId); btn.disabled = true;
+  let done = 0;
+  for (let i=0;i<shots.length;i++){
+    if (shots[i][fld]) continue;
+    btn.textContent = `${kind==='frame'?'🎬':'✏️'} ${i+1} из ${shots.length}…`;
+    if (await genImage(i, kind, true)) done++;
+    await new Promise(r=>setTimeout(r,800));
+  }
+  btn.disabled = false; btn.textContent = base;
+  toast(done ? 'Готово: '+done+' изображений' : 'Всё уже сгенерировано');
+}
+$('#btn-frames').addEventListener('click', ()=>genAll('frame','btn-frames','🎬 Кадры всех'));
+$('#btn-sketches').addEventListener('click', ()=>genAll('sketch','btn-sketches','✏️ Скетчи всех'));
+
+/* ========== ИМПОРТ JSON ========== */
+function importShots(data){
+  const arr = Array.isArray(data) ? data : (data.shots||[]);
+  if (!arr.length){ toast('В файле нет кадров'); return; }
+  if (data.answers) Object.assign(answers, data.answers);
+  if (!answers.ratio) answers.ratio = '16:9';
+  $$('#ratio-chips .chip').forEach(c=>c.classList.toggle('sel', c.dataset.ratio===answers.ratio));
+  shots = arr;
+  finishGeneration();
+  toast('Проект импортирован');
+}
+$('#file-json').addEventListener('change', e=>{
+  const f = e.target.files[0]; if (!f) return;
+  const r = new FileReader();
+  r.onload = ()=>{ try{ importShots(JSON.parse(r.result)); }catch(_){ toast('Не удалось прочитать JSON'); } };
+  r.readAsText(f); e.target.value='';
+});
+$$('.btn-import').forEach(b=>b.addEventListener('click', ()=>$('#file-json').click()));
+
+/* при старте: если ключ сохранён — сразу определяем модели */
+if (geminiKey()) ensureModels();
+
+/* ========== АВТОВОССТАНОВЛЕНИЕ ПРОЕКТА ========== */
+try{
+  const saved = JSON.parse(localStorage.getItem('sb_project')||'null');
+  if (saved?.shots?.length){
+    Object.assign(answers, saved.answers||{});
+    $('#script-input').value = saved.script||'';
+    if (answers.ratio) $$('#ratio-chips .chip').forEach(c=>c.classList.toggle('sel', c.dataset.ratio===answers.ratio));
+    shots = saved.shots;
+    cuts = checkCuts(shots);
+    renderResults();
+    maxStep = 4; goStep(4);
+    setTimeout(()=>toast('Восстановлен прошлый проект — «Новый проект», чтобы начать заново'), 500);
+  }
+}catch(_){}
+</script>
+</body>
+</html>
