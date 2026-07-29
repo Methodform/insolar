@@ -11,7 +11,7 @@ import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow } from './engine/wind.js';
 import { loginWithYandex } from './yandexAuth.js';
-import { fetchNeighbors } from './engine/osm.js';
+import { fetchNeighbors, fetchVectorContext } from './engine/osm.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
 
@@ -103,10 +103,24 @@ export default function App() {
       setNeighMsg(nb.length ? `Найдено рядом: ${nb.length}` : 'Рядом в OSM зданий нет — их можно добавить вручную');
     } catch (e) { setNeighMsg('Не удалось загрузить карту: ' + e.message); }
   };
+  const [vmapOn, setVmapOn] = useState(false);
+  const [vmap, setVmap] = useState(null);
+  const [vmapMsg, setVmapMsg] = useState('');
+  const loadVectorMap = async (v) => {
+    setVmapOn(v);
+    if (!v) return;
+    if (!built || !isFinite(built.lat0)) { setVmapMsg('Сначала постройте участок'); return; }
+    setVmapMsg('Загружаю карту-схему…');
+    try {
+      const d = await fetchVectorContext(built.lat0, built.lon0, 250);
+      setVmap(d);
+      setVmapMsg(`Схема: дорог ${d.roads.length}, домов ${d.buildings.length}`);
+    } catch (e) { setVmapMsg('Не удалось: ' + e.message); }
+  };
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
-  const [ground3d] = useState('off');  // карты отключены: только бесконечная плоскость, участок, солнце и тени
+  const [ground3d, setGround3d] = useState('vector');  // 'vector' — плоская векторная карта OSM во вьюпорте; 'off' — пустая плоскость
   const [keyDraft, setKeyDraft] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const applyKey = () => setMapKey(keyDraft.trim());
   const [analytics, setAnalytics] = useState(false);
@@ -299,7 +313,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
           windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode}
-          groundKey={mapKey} groundStyle={ground3d} wind={{ on: windFlow, dirDeg: windDeg }} neighbors={neighOn ? neighbors : []} />
+          groundKey={mapKey} groundStyle={ground3d} wind={{ on: windFlow, dirDeg: windDeg }} neighbors={neighOn ? neighbors : []} vectorMap={vmapOn ? vmap : null} />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -494,6 +508,26 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Text>
                 </Flex>
                 {neighOn && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>{neighMsg || 'Здания в 20 м вокруг участка из OpenStreetMap (серые, отбрасывают тень).'}</Text>}
+              </Box>
+              <Box mt="2">
+                <Flex align="center" justify="between" asChild>
+                  <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    <Flex align="center" gap="2">🗺 Карта-схема под участком</Flex>
+                    <Switch checked={vmapOn} onCheckedChange={loadVectorMap} />
+                  </Text>
+                </Flex>
+                {vmapOn && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>{vmapMsg || 'Плоская схема OSM (дороги, вода, зелёнка, дома) в радиусе 250 м.'}</Text>}
+              </Box>
+              <Box mt="3">
+                <Text size="1" color="gray" style={{ display: 'block', marginBottom: 6 }}>🗺 Подложка во вьюпорте</Text>
+                <Flex gap="1">
+                  {[['vector', 'Векторная карта'], ['off', 'Пусто']].map(([v, label]) => (
+                    <Button key={v} size="1" style={{ flex: 1 }}
+                      variant={ground3d === v ? 'solid' : 'soft'} color={ground3d === v ? 'grass' : 'gray'}
+                      onClick={() => setGround3d(v)}>{label}</Button>
+                  ))}
+                </Flex>
+                <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Плоская схема из OpenStreetMap вокруг участка (© OpenStreetMap).</Text>
               </Box>
             </Box>
             <Box>

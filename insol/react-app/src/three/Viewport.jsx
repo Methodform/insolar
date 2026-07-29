@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { sunPosition, compassAz, RAD, offsetInward, pointInPoly, nearestOnSeg, getTimes, localToUTC, plotBasis, clampToPoly } from '../engine/astronomy.js';
+import { fetchVectorMap } from '../engine/vectormap.js';
 
 const SUN_DIST = 400;
 // нормативный отступ от границы участка (дом ≥3 м, прочее ≥1 м)
@@ -488,7 +489,7 @@ function updateComet(c) {
 
 export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onBuildings,
   analytics = false, anM1 = 1, anM2 = 12, anDiff = false, year, onAnalyticsStats, windows = [], plotMarkers = [], plantMode = null,
-  groundKey = '', groundStyle = 'off', wind = { on: false, dirDeg: 315 }, neighbors = [] }) {
+  groundKey = '', groundStyle = 'off', wind = { on: false, dirDeg: 315 }, neighbors = [], vectorMap = null }) {
   const mount = useRef(null);
   const api = useRef({});
   const bRef = useRef(buildings); bRef.current = buildings;
@@ -595,6 +596,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const windGroup = new THREE.Group(); windGroup.visible = false; scene.add(windGroup);   // линии тока ветра
 
     const dyn = new THREE.Group(); scene.add(dyn);
+    const vmapGroup = new THREE.Group(); scene.add(vmapGroup);   // плоская векторная карта-схема (OSM)
     const gizmo = new THREE.Group(); scene.add(gizmo);
 
     const orbit = { az: -0.9, el: 0.6, r: 150, drag: false, px: 0, py: 0 };
@@ -714,7 +716,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       if (windGroup.visible && api.current.comets) { for (let i = 0; i < api.current.comets.length; i++) updateComet(api.current.comets[i]); }
       renderer.render(scene, camera); })();
 
-    api.current = { scene, sun, sunSphere, ambient, dyn, sel, makeGizmo, gizmo, grid, plasterTex, windGroup, comets: [], size: sizeRef, dispose() {
+    api.current = { scene, sun, sunSphere, ambient, dyn, vmapGroup, sel, makeGizmo, gizmo, grid, plasterTex, windGroup, comets: [], size: sizeRef, dispose() {
       cancelAnimationFrame(raf); removeEventListener('mousemove', move); removeEventListener('mouseup', upH); removeEventListener('resize', resize); removeEventListener('keydown', keyH); removeEventListener('touchmove', tmove); removeEventListener('touchend', tend);
       if (scene.environment) scene.environment.dispose();
       plasterTex.dispose();
@@ -948,13 +950,56 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     a.scene.add(grp); a.plotGroup = grp;
   }, [plotMarkers]);
 
-  // карты отключены полностью: только бесконечная нейтральная плоскость, участок, солнце и тени.
-  // эффект оставлен как страховка — убирает любую ранее созданную подложку, ничего не строит.
+  // плоская векторная карта-схема (OSM вокруг участка): вода, зелёнка, дороги, дома — плоско на земле
+  useEffect(() => {
+    const a = api.current, g = a.vmapGroup; if (!g) return;
+    while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+    if (!vectorMap) return;
+    const flatPoly = (rings, color, y, op = 1) => {
+      (rings || []).forEach(pts => { if (!pts || pts.length < 3) return;
+        const sh = new THREE.Shape(); pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
+        const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color, transparent: op < 1, opacity: op, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
+        m.rotation.x = -Math.PI / 2; m.position.y = y; m.renderOrder = 1; g.add(m); });
+    };
+    const ribbon = (lines, color, width, y) => {
+      (lines || []).forEach(pts => { if (!pts || pts.length < 2) return;
+        const pos = [];
+        for (let i = 0; i < pts.length - 1; i++) { const a0 = pts[i], b0 = pts[i + 1];
+          let dx = b0[0] - a0[0], dz = b0[1] - a0[1]; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
+          const nx = -dz * width / 2, nz = dx * width / 2;
+          const p1 = [a0[0] + nx, a0[1] + nz], p2 = [a0[0] - nx, a0[1] - nz], p3 = [b0[0] - nx, b0[1] - nz], p4 = [b0[0] + nx, b0[1] + nz];
+          pos.push(p1[0], y, -p1[1], p2[0], y, -p2[1], p3[0], y, -p3[1], p1[0], y, -p1[1], p3[0], y, -p3[1], p4[0], y, -p4[1]); }
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); });
+    };
+    // фон-подложка под всю схему, чтобы «земля» читалась как карта
+    flatPoly([[[-260, -260], [260, -260], [260, 260], [-260, 260]]], 0xecebe3, 0.005);
+    flatPoly(vectorMap.green, 0xcfe3bf, 0.012);
+    flatPoly(vectorMap.water, 0xa9d3e6, 0.014);
+    ribbon(vectorMap.roads, 0xffffff, 4, 0.02);
+    flatPoly(vectorMap.buildings, 0xdedac9, 0.016);
+    // приёмник тени поверх схемы — чтобы тени домов/объектов не пропадали под подложкой
+    const catcher = new THREE.Mesh(new THREE.PlaneGeometry(520, 520), new THREE.ShadowMaterial({ opacity: 0.3 }));
+    catcher.rotation.x = -Math.PI / 2; catcher.position.y = 0.025; catcher.receiveShadow = true; catcher.renderOrder = 2; g.add(catcher);
+  }, [vectorMap]);
+
+  // плоская векторная карта OSM как «пол» вьюпорта (рисуется плоско в нашей же сцене — камера остаётся нашей)
   useEffect(() => {
     const a = api.current; if (!a.scene) return;
-    if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; }
-    if (a.groundOutline) { a.scene.remove(a.groundOutline); a.groundOutline = null; }
-  }, [poly]);
+    const clear = () => { if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; } };
+    clear();
+    if (groundStyle !== 'vector' || !poly || poly.length < 3 || !isFinite(lat) || !isFinite(lon)) return;
+    let cancelled = false;
+    const halfM = 260;
+    fetchVectorMap(lat, lon, halfM).then(({ canvas }) => {
+      if (cancelled) return;
+      const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
+      const geo = new THREE.PlaneGeometry(halfM * 2, halfM * 2);
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
+      m.rotation.x = -Math.PI / 2; m.position.y = 0.0; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [groundStyle, poly, lat, lon]);
 
   return <div ref={mount} style={{ position: 'absolute', inset: 0 }} />;
 }

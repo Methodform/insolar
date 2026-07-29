@@ -64,3 +64,37 @@ export async function fetchNeighbors(lat0, lon0, localPoly, radius = 20) {
   }
   return out;
 }
+
+// Плоская векторная карта-схема вокруг участка (для подложки во вьюпорте).
+// Возвращает геометрии в локальных метрах [восток,север]: roads (линии), water/green/buildings (полигоны).
+const GREEN_LU = /^(grass|forest|meadow|recreation_ground|village_green|farmland|orchard|cemetery|allotments)$/;
+export async function fetchVectorContext(lat0, lon0, radius = 250) {
+  if (!isFinite(lat0) || !isFinite(lon0) || (Math.abs(lat0) < 0.2 && Math.abs(lon0) < 0.2))
+    throw new Error('нет реальных координат участка');
+  const mLon = 111320 * Math.cos(lat0 * Math.PI / 180);
+  const dLat = radius / M_LAT, dLon = radius / mLon;
+  const s = lat0 - dLat, n = lat0 + dLat, w = lon0 - dLon, e = lon0 + dLon;
+  const bb = `(${s},${w},${n},${e})`;
+  const q = `[out:json][timeout:25];(` +
+    `way["highway"]${bb};` +
+    `way["natural"="water"]${bb};relation["natural"="water"]${bb};` +
+    `way["landuse"]${bb};way["leisure"]${bb};` +
+    `way["building"]${bb};relation["building"]${bb};` +
+    `);out geom 1200;`;
+  const d = await overpass(q);
+  const toXZ = (la, lo) => [(lo - lon0) * mLon, (la - lat0) * M_LAT];
+  const roads = [], water = [], green = [], buildings = [];
+  for (const el of (d.elements || [])) {
+    const t = el.tags || {};
+    const geoms = el.type === 'way' && el.geometry ? [el.geometry]
+      : el.type === 'relation' && el.members ? el.members.filter(m => m.geometry && m.role === 'outer').map(m => m.geometry) : [];
+    for (const gm of geoms) {
+      const pts = gm.map(p => toXZ(p.lat, p.lon)); if (pts.length < 2) continue;
+      if (t.highway) roads.push(pts);
+      else if (t.natural === 'water') water.push(pts);
+      else if (t.building) buildings.push(pts);
+      else if ((t.landuse && GREEN_LU.test(t.landuse)) || (t.leisure && /^(park|garden|pitch|playground|golf_course)$/.test(t.leisure))) green.push(pts);
+    }
+  }
+  return { roads, water, green, buildings };
+}
