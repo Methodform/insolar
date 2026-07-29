@@ -954,15 +954,17 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const a = api.current; if (!a.scene) return;
     const clear = () => { if (a.groundMap) { a.scene.remove(a.groundMap); if (a.groundMap.material.map) a.groundMap.material.map.dispose(); a.groundMap.material.dispose(); a.groundMap.geometry.dispose(); a.groundMap = null; } };
     clear();
-    if (groundStyle !== 'vector' || !poly || poly.length < 3 || !isFinite(lat) || !isFinite(lon)) return;
+    if (groundStyle !== 'vector' || !poly || poly.length < 3 || !isFinite(lat) || !isFinite(lon)) { if (a.grid) a.grid.visible = true; return; }
     let cancelled = false;
     const halfM = 260;
     fetchVectorMap(lat, lon, halfM).then(({ canvas }) => {
       if (cancelled) return;
       const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 8;
       const geo = new THREE.PlaneGeometry(halfM * 2, halfM * 2);
-      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 1 }));
-      m.rotation.x = -Math.PI / 2; m.position.y = 0.0; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
+      // polygonOffset — слой карты всегда «выигрывает» глубину у базовой земли сцены → нет z-fighting полос
+      const m = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ map: tex, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 }));
+      m.rotation.x = -Math.PI / 2; m.position.y = 0.035; m.receiveShadow = true; a.scene.add(m); a.groundMap = m;
+      if (a.grid) a.grid.visible = false;                 // прячем сетку под картой — не мешает и не мерцает
     }).catch(() => {});
     return () => { cancelled = true; };
   }, [groundStyle, poly, lat, lon]);
