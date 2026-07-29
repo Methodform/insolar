@@ -978,15 +978,16 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
       const m = new THREE.Mesh(geo, flatMat(color, order)); m.renderOrder = order - 10; g.add(m);
     };
-    // порядок «этажей» (renderOrder + polygonOffset): фон < зелёнка < вода < дома < дороги
-    flatPoly([[[-260, -260], [260, -260], [260, 260], [-260, 260]]], 0xecebe3, 1);
-    flatPoly(vectorMap.green, 0xcfe3bf, 2);
-    flatPoly(vectorMap.water, 0xa9d3e6, 3);
-    flatPoly(vectorMap.buildings, 0xdedac9, 4);
-    ribbon(vectorMap.roads, 0xffffff, 4, 5);
+    // контрастная схема: фон < зелёнка < вода < дома < окантовка дорог < дороги
+    flatPoly([[[-260, -260], [260, -260], [260, 260], [-260, 260]]], 0xd7d2c2, 1);   // земля (заметно темнее — чтобы дороги читались)
+    flatPoly(vectorMap.green, 0x9fce7a, 2);                                          // зелёнка — насыщённая
+    flatPoly(vectorMap.water, 0x6cb8dd, 3);                                          // вода — насыщённая
+    flatPoly(vectorMap.buildings, 0xa79c85, 4);                                      // дома — тёмный тёплый серый
+    ribbon(vectorMap.roads, 0x7d7360, 7, 5);                                         // тёмная окантовка дорог
+    ribbon(vectorMap.roads, 0xffffff, 4, 6);                                         // белая проезжая часть поверх
     // приёмник тени поверх схемы — чтобы тени домов/объектов не пропадали под подложкой
     const catcher = new THREE.Mesh(new THREE.PlaneGeometry(520, 520), new THREE.ShadowMaterial({ opacity: 0.3 }));
-    catcher.rotation.x = -Math.PI / 2; catcher.position.y = Y + 0.005; catcher.receiveShadow = true; catcher.renderOrder = 6; g.add(catcher);
+    catcher.rotation.x = -Math.PI / 2; catcher.position.y = Y + 0.005; catcher.receiveShadow = true; catcher.renderOrder = 8; g.add(catcher);
   }, [vectorMap]);
 
   // плоская векторная карта OSM как «пол» вьюпорта (рисуется плоско в нашей же сцене — камера остаётся нашей)
