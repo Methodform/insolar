@@ -955,32 +955,37 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const a = api.current, g = a.vmapGroup; if (!g) return;
     while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
     if (!vectorMap) return;
-    const flatPoly = (rings, color, y, op = 1) => {
+    // общий приём против z-fighting плоских слоёв: единая высота + polygonOffset по «этажам»
+    const Y = 0.02;
+    const flatMat = (color, order, op = 1) => new THREE.MeshBasicMaterial({ color, transparent: op < 1, opacity: op, side: THREE.DoubleSide, toneMapped: false,
+      polygonOffset: true, polygonOffsetFactor: -order, polygonOffsetUnits: -order * 2 });
+    const flatPoly = (rings, color, order, op = 1) => {
       (rings || []).forEach(pts => { if (!pts || pts.length < 3) return;
         const sh = new THREE.Shape(); pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
-        const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), new THREE.MeshBasicMaterial({ color, transparent: op < 1, opacity: op, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }));
-        m.rotation.x = -Math.PI / 2; m.position.y = y; m.renderOrder = 1; g.add(m); });
+        const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), flatMat(color, order, op));
+        m.rotation.x = -Math.PI / 2; m.position.y = Y; m.renderOrder = order; g.add(m); });
     };
-    const ribbon = (lines, color, width, y) => {
+    const ribbon = (lines, color, width, order) => {
+      const pos = [];
       (lines || []).forEach(pts => { if (!pts || pts.length < 2) return;
-        const pos = [];
         for (let i = 0; i < pts.length - 1; i++) { const a0 = pts[i], b0 = pts[i + 1];
           let dx = b0[0] - a0[0], dz = b0[1] - a0[1]; const L = Math.hypot(dx, dz) || 1; dx /= L; dz /= L;
           const nx = -dz * width / 2, nz = dx * width / 2;
           const p1 = [a0[0] + nx, a0[1] + nz], p2 = [a0[0] - nx, a0[1] - nz], p3 = [b0[0] - nx, b0[1] - nz], p4 = [b0[0] + nx, b0[1] + nz];
-          pos.push(p1[0], y, -p1[1], p2[0], y, -p2[1], p3[0], y, -p3[1], p1[0], y, -p1[1], p3[0], y, -p3[1], p4[0], y, -p4[1]); }
-        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        g.add(new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, depthWrite: false, toneMapped: false }))); });
+          pos.push(p1[0], Y, -p1[1], p2[0], Y, -p2[1], p3[0], Y, -p3[1], p1[0], Y, -p1[1], p3[0], Y, -p3[1], p4[0], Y, -p4[1]); } });
+      if (!pos.length) return;
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      const m = new THREE.Mesh(geo, flatMat(color, order)); m.renderOrder = order; g.add(m);
     };
-    // фон-подложка под всю схему, чтобы «земля» читалась как карта
-    flatPoly([[[-260, -260], [260, -260], [260, 260], [-260, 260]]], 0xecebe3, 0.005);
-    flatPoly(vectorMap.green, 0xcfe3bf, 0.012);
-    flatPoly(vectorMap.water, 0xa9d3e6, 0.014);
-    ribbon(vectorMap.roads, 0xffffff, 4, 0.02);
-    flatPoly(vectorMap.buildings, 0xdedac9, 0.016);
+    // порядок «этажей» (renderOrder + polygonOffset): фон < зелёнка < вода < дома < дороги
+    flatPoly([[[-260, -260], [260, -260], [260, 260], [-260, 260]]], 0xecebe3, 1);
+    flatPoly(vectorMap.green, 0xcfe3bf, 2);
+    flatPoly(vectorMap.water, 0xa9d3e6, 3);
+    flatPoly(vectorMap.buildings, 0xdedac9, 4);
+    ribbon(vectorMap.roads, 0xffffff, 4, 5);
     // приёмник тени поверх схемы — чтобы тени домов/объектов не пропадали под подложкой
     const catcher = new THREE.Mesh(new THREE.PlaneGeometry(520, 520), new THREE.ShadowMaterial({ opacity: 0.3 }));
-    catcher.rotation.x = -Math.PI / 2; catcher.position.y = 0.025; catcher.receiveShadow = true; catcher.renderOrder = 2; g.add(catcher);
+    catcher.rotation.x = -Math.PI / 2; catcher.position.y = Y + 0.005; catcher.receiveShadow = true; catcher.renderOrder = 6; g.add(catcher);
   }, [vectorMap]);
 
   // плоская векторная карта OSM как «пол» вьюпорта (рисуется плоско в нашей же сцене — камера остаётся нашей)
