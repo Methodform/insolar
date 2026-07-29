@@ -40,7 +40,7 @@ export async function fetchVectorMap(lat0, lon0, halfM = 250, px = 2048) {
 
   const cv = document.createElement('canvas'); cv.width = cv.height = px;
   const g = cv.getContext('2d');
-  g.fillStyle = '#eef0ea'; g.fillRect(0, 0, px, px);           // фон
+  g.fillStyle = '#d9d4c4'; g.fillRect(0, 0, px, px);           // фон (земля) — заметно темнее, чтобы дороги читались
 
   const ways = (d.elements || []).filter(el => el.type === 'way' && el.geometry && el.geometry.length > 1);
   const path = geom => { g.beginPath(); geom.forEach((p, i) => { const x = X(p.lon), y = Y(p.lat); i ? g.lineTo(x, y) : g.moveTo(x, y); }); };
@@ -49,20 +49,20 @@ export async function fetchVectorMap(lat0, lon0, halfM = 250, px = 2048) {
   // 1) зелёнка/земле­пользование (полигоны)
   ways.filter(w2 => (w2.tags.landuse || w2.tags.leisure) && closed(w2)).forEach(w2 => {
     const t = w2.tags, k = t.leisure || t.landuse;
-    let c = '#e7e9e0';
-    if (/park|garden|grass|meadow|recreation_ground|village_green|pitch|playground|golf|forest|wood|nature_reserve/.test(k)) c = /forest|wood/.test(k) ? '#c3ddb2' : '#d8ecd0';
-    else if (/farmland|farmyard|orchard|vineyard/.test(k)) c = '#eee6cf';
-    else if (/residential/.test(k)) c = '#ecebe6';
-    else if (/industrial|commercial|retail/.test(k)) c = '#e6e2df';
+    let c = '#d2ccba';
+    if (/park|garden|grass|meadow|recreation_ground|village_green|pitch|playground|golf|forest|wood|nature_reserve/.test(k)) c = /forest|wood/.test(k) ? '#93c86f' : '#b3db8c';
+    else if (/farmland|farmyard|orchard|vineyard/.test(k)) c = '#e3d5a8';
+    else if (/residential/.test(k)) c = '#dcd6c6';
+    else if (/industrial|commercial|retail/.test(k)) c = '#d3ccc2';
     g.fillStyle = c; path(w2.geometry); g.closePath(); g.fill();
   });
   // 2) вода
   ways.filter(w2 => w2.tags.natural === 'water' || (w2.tags.waterway && closed(w2))).forEach(w2 => {
-    g.fillStyle = '#a9d3e6'; path(w2.geometry); g.closePath(); g.fill();
+    g.fillStyle = '#6fbce0'; path(w2.geometry); g.closePath(); g.fill();
   });
   // 3) водные линии (реки/ручьи)
   ways.filter(w2 => w2.tags.waterway && !closed(w2)).forEach(w2 => {
-    g.strokeStyle = '#a9d3e6'; g.lineWidth = 3 * sc; g.lineJoin = g.lineCap = 'round'; path(w2.geometry); g.stroke();
+    g.strokeStyle = '#6fbce0'; g.lineWidth = 3 * sc; g.lineJoin = g.lineCap = 'round'; path(w2.geometry); g.stroke();
   });
   // 4) дороги (обводка + линия)
   const roadW = t => {
@@ -75,17 +75,17 @@ export async function fetchVectorMap(lat0, lon0, halfM = 250, px = 2048) {
   };
   const roads = ways.filter(w2 => w2.tags.highway);
   g.lineJoin = g.lineCap = 'round';
-  roads.forEach(w2 => { g.strokeStyle = '#d7d5cd'; g.lineWidth = (roadW(w2.tags) + 1.6) * sc; path(w2.geometry); g.stroke(); }); // casing
+  roads.forEach(w2 => { g.strokeStyle = '#8c8674'; g.lineWidth = (roadW(w2.tags) + 2.2) * sc; path(w2.geometry); g.stroke(); }); // тёмная окантовка
   roads.forEach(w2 => {
     const h = w2.tags.highway; const minor = /footway|path|track|steps|cycleway|pedestrian/.test(h);
-    g.strokeStyle = /motorway|trunk|primary/.test(h) ? '#f6d488' : '#ffffff';
-    if (minor) { g.strokeStyle = '#cfc7ba'; g.setLineDash([6 * sc, 5 * sc]); } else g.setLineDash([]);
+    g.strokeStyle = /motorway|trunk|primary/.test(h) ? '#f4c65e' : '#ffffff';
+    if (minor) { g.strokeStyle = '#aca384'; g.setLineDash([6 * sc, 5 * sc]); } else g.setLineDash([]);
     g.lineWidth = roadW(w2.tags) * sc; path(w2.geometry); g.stroke();
   });
   g.setLineDash([]);
   // 5) здания
   ways.filter(w2 => w2.tags.building).forEach(w2 => {
-    g.fillStyle = '#e0dccf'; g.strokeStyle = '#cfc9ba'; g.lineWidth = 1 * sc;
+    g.fillStyle = '#c7bda4'; g.strokeStyle = '#968c74'; g.lineWidth = 1.2 * sc;
     path(w2.geometry); g.closePath(); g.fill(); g.stroke();
   });
 
