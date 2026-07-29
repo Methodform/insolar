@@ -957,13 +957,14 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     if (!vectorMap) return;
     // общий приём против z-fighting плоских слоёв: единая высота + polygonOffset по «этажам»
     const Y = 0.02;
-    const flatMat = (color, order, op = 1) => new THREE.MeshBasicMaterial({ color, transparent: op < 1, opacity: op, side: THREE.DoubleSide, toneMapped: false,
-      polygonOffset: true, polygonOffsetFactor: -order, polygonOffsetUnits: -order * 2 });
+    // слои схемы не пишут глубину → не z-fight'ятся между собой и не пробиваются сквозь участок;
+    // порядок отрисовки держит renderOrder, глубину относительно 3D-объектов — depthTest
+    const flatMat = (color, order, op = 1) => new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, side: THREE.DoubleSide, toneMapped: false, depthWrite: false });
     const flatPoly = (rings, color, order, op = 1) => {
       (rings || []).forEach(pts => { if (!pts || pts.length < 3) return;
         const sh = new THREE.Shape(); pts.forEach((p, i) => i ? sh.lineTo(p[0], p[1]) : sh.moveTo(p[0], p[1])); sh.closePath();
         const m = new THREE.Mesh(new THREE.ShapeGeometry(sh), flatMat(color, order, op));
-        m.rotation.x = -Math.PI / 2; m.position.y = Y; m.renderOrder = order; g.add(m); });
+        m.rotation.x = -Math.PI / 2; m.position.y = Y; m.renderOrder = order - 10; g.add(m); });
     };
     const ribbon = (lines, color, width, order) => {
       const pos = [];
@@ -975,7 +976,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
           pos.push(p1[0], Y, -p1[1], p2[0], Y, -p2[1], p3[0], Y, -p3[1], p1[0], Y, -p1[1], p3[0], Y, -p3[1], p4[0], Y, -p4[1]); } });
       if (!pos.length) return;
       const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      const m = new THREE.Mesh(geo, flatMat(color, order)); m.renderOrder = order; g.add(m);
+      const m = new THREE.Mesh(geo, flatMat(color, order)); m.renderOrder = order - 10; g.add(m);
     };
     // порядок «этажей» (renderOrder + polygonOffset): фон < зелёнка < вода < дома < дороги
     flatPoly([[[-260, -260], [260, -260], [260, 260], [-260, 260]]], 0xecebe3, 1);
