@@ -106,14 +106,14 @@ export function windColor(t) { t = Math.max(0, Math.min(1, t));
   return WSTOPS[WSTOPS.length - 1][1];
 }
 
-// «кометы» — движущиеся отрезки линий тока со скруглением и затуханием прозрачности к хвосту
+// «кометы» — движущиеся отрезки линий тока со скруглением и затуханием прозрачности к хвосту.
+// Рендер обычным MeshBasicMaterial + вершинные цвета RGBA (без кастомного шейдера — надёжно в общем контексте карты).
 export const COMET_K = 16;
-export const COMET_VS = 'attribute float aT; varying float vT; void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
-export const COMET_FS = 'uniform vec3 uColor; uniform float uOpacity; varying float vT; void main(){ float a = pow(1.0 - vT, 1.3) * uOpacity; if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }';
 export function updateComet(c) {
   const n = c.n; if (n < 2) return;
   c.phase += c.speed; if (c.phase > n - 1) c.phase -= (n - 1);
-  const pos = c.mesh.geometry.attributes.position.array, path = c.path, K = COMET_K;
+  const pos = c.mesh.geometry.attributes.position.array, col = c.mesh.geometry.attributes.color.array, path = c.path, K = COMET_K;
+  const hi = Math.min(n - 1, Math.round(c.phase)), rgb = windColor((c.spd[hi] / 1 - 1) / 0.9);
   for (let i = 0; i < K; i++) {
     let idx = c.phase - i * c.spacing; if (idx < 0) idx = 0; else if (idx > n - 1) idx = n - 1;
     const i0 = Math.floor(idx), f = idx - i0, i1 = Math.min(n - 1, i0 + 1);
@@ -123,11 +123,14 @@ export function updateComet(c) {
     let dxx = path[i1 * 3] - path[i0 * 3], dzz = path[i1 * 3 + 2] - path[i0 * 3 + 2];
     let pxx = -dzz, pzz = dxx; const pl = Math.hypot(pxx, pzz) || 1; pxx /= pl; pzz /= pl;
     const w = c.width * (0.25 + 0.75 * (1 - i / (K - 1)));
+    const a = Math.pow(1 - i / (K - 1), 1.3);
     const o = i * 6;
     pos[o] = x + pxx * w; pos[o + 1] = y; pos[o + 2] = z + pzz * w;
     pos[o + 3] = x - pxx * w; pos[o + 4] = y; pos[o + 5] = z - pzz * w;
+    const co = i * 8;
+    col[co] = rgb[0]; col[co + 1] = rgb[1]; col[co + 2] = rgb[2]; col[co + 3] = a;
+    col[co + 4] = rgb[0]; col[co + 5] = rgb[1]; col[co + 6] = rgb[2]; col[co + 7] = a;
   }
   c.mesh.geometry.attributes.position.needsUpdate = true;
-  const hi = Math.min(n - 1, Math.round(c.phase)), col = windColor((c.spd[hi] / 1 - 1) / 0.9);
-  c.mesh.material.uniforms.uColor.value.setRGB(col[0], col[1], col[2]);
+  c.mesh.geometry.attributes.color.needsUpdate = true;
 }

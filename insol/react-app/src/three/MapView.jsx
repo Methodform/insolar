@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as THREE from 'three';
 import { sunPosition, compassAz, localToUTC } from '../engine/astronomy.js';
-import { buildStreamlines, buildWindComfort, windColor, COMET_K, COMET_VS, COMET_FS, updateComet } from '../engine/windviz.js';
+import { buildStreamlines, buildWindComfort, windColor, COMET_K, updateComet } from '../engine/windviz.js';
 import { fetchWindRose, fetchWindNow, prevailingDir } from '../engine/wind.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -225,16 +225,15 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       lines.forEach(ln => {
         const n = ln.pos.length / 3; if (n < 3) return;
         for (let ci = 0; ci < 2; ci++) {
-          const positions = new Float32Array(K * 2 * 3), aT = new Float32Array(K * 2);
-          for (let i = 0; i < K; i++) { aT[i * 2] = i / (K - 1); aT[i * 2 + 1] = i / (K - 1); }
+          const positions = new Float32Array(K * 2 * 3), colors = new Float32Array(K * 2 * 4);
           const geo = new THREE.BufferGeometry();
           geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-          geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+          geo.setAttribute('color', new THREE.BufferAttribute(colors, 4));
           const idx = []; for (let i = 0; i < K - 1; i++) { const A = i * 2, B = i * 2 + 1, C = (i + 1) * 2, D = (i + 1) * 2 + 1; idx.push(A, B, C, B, D, C); }
           geo.setIndex(idx);
-          const mat = new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0.95, 0.8, 0.25) }, uOpacity: { value: 0.95 } }, vertexShader: COMET_VS, fragmentShader: COMET_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+          const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
           const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 4; g.add(mesh);
-          s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.7 });
+          s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.9 });
         }
       });
       m.triggerRepaint();
