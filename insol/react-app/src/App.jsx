@@ -9,7 +9,7 @@ import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
-import { fetchWindRose, prevailingDir, fetchWindNow } from './engine/wind.js';
+import { fetchWindRose, prevailingDir, fetchWindNow, meanDir } from './engine/wind.js';
 import { loginWithYandex } from './yandexAuth.js';
 import { fetchNeighbors } from './engine/osm.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
@@ -84,7 +84,7 @@ export default function App() {
     if (v === 'now') { setWindMode('now'); loadNow(); return; }
     const i = +v.slice(1); setWindMode(v);
     if (monthDegs) setWindDeg(monthDegs[i]);
-    else fetchWindRose(lat, lon).then(d => { const md = (d.months || []).map(mm => prevailingDir(mm).index * 45); setMonthDegs(md); if (md[i] != null) setWindDeg(md[i]); }).catch(() => {});
+    else fetchWindRose(lat, lon).then(d => { const md = (d.months || []).map(mm => meanDir(mm)); setMonthDegs(md); if (md[i] != null) setWindDeg(md[i]); }).catch(() => {});
   };
   const setWindOn = (v) => { if (!pro) { openPaywall(); return; } setWindFlow(v); if (v) pickWind(windSel); };
 

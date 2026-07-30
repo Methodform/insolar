@@ -175,8 +175,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length];
         const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.1) continue;
-        const pl = new THREE.Mesh(new THREE.BoxGeometry(len, fh, 0.12), mat);   // объёмная тонкая стенка → чистая тень
-        pl.position.set((ax + bx) / 2, fh / 2, (az + bz) / 2); pl.rotation.y = Math.atan2(-dz, dx); pl.castShadow = true; pl.receiveShadow = false; g.add(pl);
+        const pl = new THREE.Mesh(new THREE.BoxGeometry(len, fh, 0.12), mat);   // объёмная тонкая стенка
+        pl.position.set((ax + bx) / 2, fh / 2, (az + bz) / 2); pl.rotation.y = Math.atan2(-dz, dx); pl.castShadow = true; pl.receiveShadow = true; g.add(pl);
       }
     }
 
@@ -392,10 +392,16 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
       const slPos = lp3(c[0] + u[0] * (hu + 1.3), c[1] + u[1] * (hu + 1.3)), swPos = lp3(c[0] + v[0] * (hv + 1.3), c[1] + v[1] * (hv + 1.3));
       cube(0xffffff, slPos); cube(0x00e6d0, swPos);
+      // вертикальная ручка высоты (над зданием)
+      const topY = (b.height || 3) + (b.roofH || 0) + 1;
+      const har = arrow(new THREE.Vector3(0, 1, 0), 2.4, 0x9b6bff); har.position.set(c[0], topY, -c[1]); group.add(har);
+      const tyPos = [c[0], topY + 3, -c[1]];
+      const tyCube = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), gmat(0x9b6bff)); tyCube.position.set(tyPos[0], tyPos[1], tyPos[2]); tyCube.renderOrder = 999; group.add(tyCube);
       s.scene.add(group);
       // точки для попадания по экрану
       const ringPts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) ringPts.push(lp3(c[0] + Rr * Math.cos(a), c[1] + Rr * Math.sin(a)));
       giz = { group, c, u, v, handles: [
+        { mode: 'ty', pts: [tyPos] },
         { mode: 'sl', pts: [slPos] }, { mode: 'sw', pts: [swPos] },
         { mode: 'tx', pts: [lp3(c[0] + u[0] * aL, c[1] + u[1] * aL)] },
         { mode: 'tz', pts: [lp3(c[0] + v[0] * aL, c[1] + v[1] * aL)] },
@@ -414,8 +420,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     const onDown = e => {
       const px = e.point.x, py = e.point.y, lp = toLocal(e.lngLat);
       if (selIdx.v >= 0) { const mode = pickHandle(px, py); if (mode) {
-        const b = live.current[selIdx.v]; drag = { idx: selIdx.v, mode, start: lp, orig: b.pts.map(p => p.slice()), c: giz.c, u: giz.u, v: giz.v };
-        m.dragPan.disable(); m.getCanvas().style.cursor = 'grabbing'; e.preventDefault(); return; } }
+        const b = live.current[selIdx.v]; drag = { idx: selIdx.v, mode, start: lp, orig: b.pts.map(p => p.slice()), c: giz.c, u: giz.u, v: giz.v, startY: py, origH: b.height || 3 };
+        m.dragPan.disable(); m.getCanvas().style.cursor = mode === 'ty' ? 'ns-resize' : 'grabbing'; e.preventDefault(); return; } }
       const idx = hitTest(lp);
       if (idx < 0) { if (selIdx.v >= 0) select(-1); return; }
       if (idx !== selIdx.v) select(idx);
@@ -431,6 +437,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       else if (drag.mode === 'sl' || drag.mode === 'sw') { const ax = drag.mode === 'sl' ? drag.u : drag.v;
         const pS = (drag.start[0] - drag.c[0]) * ax[0] + (drag.start[1] - drag.c[1]) * ax[1], pN = (lp[0] - drag.c[0]) * ax[0] + (lp[1] - drag.c[1]) * ax[1];
         const f = Math.max(0.2, Math.min(6, pN / (Math.abs(pS) < 0.5 ? (pS < 0 ? -0.5 : 0.5) : pS))); live.current[drag.idx].pts = o.map(p => scaleAxis(p, drag.c, ax, f)); }
+      else if (drag.mode === 'ty') { const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, m.getZoom()); const dh = (drag.startY - e.point.y) * mpp; live.current[drag.idx].height = Math.max(2, Math.round((drag.origH + dh) * 2) / 2); }
       rebuildObjects(); buildGizmo();
     };
     const onUp = () => {

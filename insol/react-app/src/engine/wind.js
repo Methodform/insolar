@@ -85,3 +85,12 @@ export function prevailingDir(season) {
   let mi = 0; season.freq.forEach((f, i) => { if (f > season.freq[mi]) mi = i; });
   return { index: mi, dir: WIND_DIRS[mi], freq: season.freq[mi] };
 }
+
+// плавное преобладающее направление (°, «откуда дует») — круговое среднее по 8 секторам,
+// чтобы по месяцам направление менялось непрерывно, а не снапилось к 8 сторонам
+export function meanDir(rose) {
+  let sx = 0, sy = 0;
+  (rose.freq || []).forEach((f, i) => { const a = i * 45 * Math.PI / 180; sx += f * Math.sin(a); sy += f * Math.cos(a); });
+  if (Math.abs(sx) < 1e-9 && Math.abs(sy) < 1e-9) return prevailingDir(rose).index * 45;
+  return ((Math.atan2(sx, sy) * 180 / Math.PI) % 360 + 360) % 360;
+}
