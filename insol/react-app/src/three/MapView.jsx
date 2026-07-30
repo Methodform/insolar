@@ -61,9 +61,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   }
   useEffect(() => {                                 // климатические направления: помесячно + «сейчас»
     if (!isFinite(lat) || !isFinite(lon)) return;
-    fetchWindRose(lat, lon).then(d => setMonthDegs(d.months.map(mm => prevailingDir(mm).index * 45))).catch(() => {});
-    fetchWindNow(lat, lon).then(n => setNowDeg(n.dirDeg)).catch(() => {});
-  }, []);
+    fetchWindRose(lat, lon).then(d => setMonthDegs((d.months || []).map(mm => prevailingDir(mm).index * 45))).catch(() => setMonthDegs(null));
+    fetchWindNow(lat, lon).then(n => setNowDeg(n.dirDeg)).catch(() => setNowDeg(null));
+  }, [lat, lon]);
   useEffect(() => { if (embed) { if (date) setDstr(date); if (minutes != null) setMins(minutes); } }, [embed, date, minutes]);  // холст: солнце от таймбара панели
   useEffect(() => { applySun(); }, [dstr, mins]);
   useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH); }, [windShow, windDegLocal, fenceH]);
@@ -408,6 +408,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         {MONTHS.map((mn, i) => <option key={i} value={String(i)}>{mn}</option>)}
       </select>}
       <button style={{ ...btn, ...(insolShow ? { borderColor: '#4faa78', color: '#4faa78' } : {}) }} onClick={() => setInsolShow(v => !v)}>☀ Инсоляция</button>
+      {windShow && <span style={{ color: '#8b968c', fontSize: 12 }}>ветер с {Math.round(windDegLocal)}°{(windSel === 'now' ? nowDeg == null : !monthDegs) ? ' · клим. данные…' : ''}</span>}
     </>
   );
   if (embed) return (
