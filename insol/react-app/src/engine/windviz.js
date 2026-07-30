@@ -99,6 +99,29 @@ export function buildWindComfort(dirDeg, base, buildings, fenceH, neighbors) {
   return { pos, col };
 }
 
+// Поле скорости ветра на мелкой сетке над bbox участка — для плавных зон комфорта (текстурой).
+// Возвращает { vals:Float32Array(N*N), mne,mxe,mnn,mxn, N } в координатах [восток,север].
+export function windSpeedField(dirDeg, base, buildings, fenceH, neighbors, N = 110) {
+  const flowA = (dirDeg + 180) * Math.PI / 180, fx = Math.sin(flowA), fz = -Math.cos(flowA), px = -fz, pz = fx;
+  const polyS = base.map(p => [p[0], -p[1]]);
+  const obs = collectObs(buildings, neighbors);
+  const U = 1;
+  const spd = (x, z) => { let vx = U * fx, vz = U * fz;
+    for (const o of obs) { const dx = x - o.x, dz = z - o.z, X = dx * fx + dz * fz, Y = dx * px + dz * pz, r2 = X * X + Y * Y;
+      if (r2 < 1e-3) continue; const a2 = o.a * o.a, dux = -U * a2 * (X * X - Y * Y) / (r2 * r2), duy = -U * 2 * a2 * X * Y / (r2 * r2);
+      vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
+    return Math.hypot(vx, vz) / U * fenceShelter(x, z, 0, polyS, fenceH, fx, fz); };
+  let mne = 1e9, mxe = -1e9, mnn = 1e9, mxn = -1e9;
+  base.forEach(p => { mne = Math.min(mne, p[0]); mxe = Math.max(mxe, p[0]); mnn = Math.min(mnn, p[1]); mxn = Math.max(mxn, p[1]); });
+  const padE = (mxe - mne) * 0.12 + 2, padN = (mxn - mnn) * 0.12 + 2; mne -= padE; mxe += padE; mnn -= padN; mxn += padN;
+  const vals = new Float32Array(N * N);
+  for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+    const e = mne + (i + 0.5) / N * (mxe - mne), n = mnn + (j + 0.5) / N * (mxn - mnn);
+    vals[j * N + i] = spd(e, -n);
+  }
+  return { vals, mne, mxe, mnn, mxn, N };
+}
+
 const WSTOPS = [[0, [0.96, 0.80, 0.25]], [0.5, [0.95, 0.58, 0.25]], [1, [0.90, 0.26, 0.24]]];
 export function windColor(t) { t = Math.max(0, Math.min(1, t));
   for (let i = 1; i < WSTOPS.length; i++) { if (t <= WSTOPS[i][0]) { const a = WSTOPS[i - 1], b = WSTOPS[i], k = (t - a[0]) / ((b[0] - a[0]) || 1);

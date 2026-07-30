@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as THREE from 'three';
 import { sunPosition, compassAz, localToUTC } from '../engine/astronomy.js';
-import { buildStreamlines, buildWindComfort, windColor, COMET_K, updateComet } from '../engine/windviz.js';
+import { buildStreamlines, windSpeedField, windColor, COMET_K, updateComet } from '../engine/windviz.js';
 import { fetchWindRose, fetchWindNow, prevailingDir } from '../engine/wind.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
@@ -237,11 +237,26 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const baseLocal = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let ph = 6; baseLocal.forEach(p => ph = Math.max(ph, Math.hypot(p[0], p[1])));
       const nb = s.neighborData || [];
-      const cf = buildWindComfort(wDeg, baseLocal, live.current, fh, nb);
-      if (cf.pos.length) {
-        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(cf.pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(cf.col, 3));
-        const mm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false })); mm.renderOrder = 2; g.add(mm);
+      // плавные зоны затишья/продувания: поле скорости → сглаженная (билинейная) текстура на земле
+      const fld = windSpeedField(wDeg, baseLocal, live.current, fh, nb, 110);
+      const N = fld.N, cv = document.createElement('canvas'); cv.width = cv.height = N; const cg = cv.getContext('2d');
+      const img = cg.createImageData(N, N);
+      const smooth = (a, b, x) => { const t = Math.max(0, Math.min(1, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+      for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+        const e = fld.mne + (i + 0.5) / N * (fld.mxe - fld.mne), n = fld.mnn + (j + 0.5) / N * (fld.mxn - fld.mnn), sp = fld.vals[j * N + i];
+        let r = 0, gc = 0, bl = 0, al = 0;
+        if (pointInPoly([e, n], baseLocal)) {
+          if (sp < 0.6) { r = 30; gc = 110; bl = 240; al = 0.72 * smooth(0.6, 0.32, sp); }         // затишье (насыщенный синий)
+          else if (sp > 1.25) { r = 240; gc = 74; bl = 34; al = 0.72 * smooth(1.25, 1.75, sp); }    // продувание (насыщенный оранжевый)
+        }
+        const o = ((N - 1 - j) * N + i) * 4;
+        img.data[o] = r; img.data[o + 1] = gc; img.data[o + 2] = bl; img.data[o + 3] = Math.round(al * 255);
       }
+      cg.putImageData(img, 0, 0);
+      const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter; tex.magFilter = THREE.LinearFilter;
+      const W = fld.mxe - fld.mne, H = fld.mxn - fld.mnn;
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(W, H), new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }));
+      plane.rotation.x = -Math.PI / 2; plane.position.set((fld.mne + fld.mxe) / 2, 0.14, -((fld.mnn + fld.mxn) / 2)); plane.renderOrder = 2; g.add(plane);
       // «кометы» как во вьюпорте — движущиеся отрезки линий тока
       const { lines } = buildStreamlines(wDeg, baseLocal, live.current, ph, fh, nb);
       const K = COMET_K; s.comets = [];
@@ -282,7 +297,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const pts = b.pts; let mnx = 1e9, mxx = -1e9, mnz = 1e9, mxz = -1e9; pts.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mnz = Math.min(mnz, p[1]); mxz = Math.max(mxz, p[1]); });
         const roofY = H + (b.roofH || 0) * 0.55 + 0.1, sx = Math.max(1.5, (mxx - mnx) / 4), sz = Math.max(1.5, (mxz - mnz) / 4);
         for (let e = mnx + sx / 2; e < mxx; e += sx) for (let n = mnz + sz / 2; n < mxz; n += sz) {
-          if (!pointInPoly(e, n, pts)) continue; const h = hours(new THREE.Vector3(e, roofY, -n)); dot(e, roofY, -n, h >= req ? green : red);
+          if (!pointInPoly([e, n], pts)) continue; const h = hours(new THREE.Vector3(e, roofY, -n)); dot(e, roofY, -n, h >= req ? green : red);
         }
       });
       m.triggerRepaint();
@@ -420,7 +435,20 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     };
     m.on('mousedown', onDown); m.on('mousemove', onMove); m.on('mouseup', onUp);
 
-    return () => { m.remove(); map.current = null; t3.current = {}; };
+    // удаление выделенного объекта по Delete/Backspace
+    const onKey = e => {
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
+      const t = e.target, tag = t && t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+      if (selIdx.v < 0) return;
+      const idx = selIdx.v; selIdx.v = -1; buildGizmo();
+      const arr = live.current.filter((_, k) => k !== idx).map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
+      onBuildings && onBuildings(arr);
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+
+    return () => { window.removeEventListener('keydown', onKey); m.remove(); map.current = null; t3.current = {}; };
   }, []);
 
   const bar = { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', padding: '10px 14px', background: '#161b18', color: '#e8ece7', borderBottom: '1px solid #2a322c', fontSize: 13 };

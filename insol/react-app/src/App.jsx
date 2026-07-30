@@ -44,7 +44,7 @@ export default function App() {
   const [polyText, setPolyText] = useState(DEFAULT_POLY);
   const [built, setBuilt] = useState(() => parsePoly(DEFAULT_POLY));
   const [tz, setTz] = useState(4);
-  const [fence, setFence] = useState('1.8');
+  const [fence, setFence] = useState('1.5');
   const [fenceCustom, setFenceCustom] = useState('2');
   const now = new Date();
   const [date, setDate] = useState(() => new Date(now.getTime()+4*3600000).toISOString().slice(0,10));
@@ -415,6 +415,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Select.Trigger mt="1" style={{ width: '100%' }} />
                 <Select.Content>
                   <Select.Item value="0">Нет</Select.Item>
+                  <Select.Item value="1.5">1.5 м (по нормам)</Select.Item>
                   <Select.Item value="1.8">1.8 м</Select.Item>
                   <Select.Item value="custom">Свой размер</Select.Item>
                 </Select.Content>
@@ -452,12 +453,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Добавить объект</Button>
               </Flex>
               <Flex direction="column" gap="1" mt="2">
-                {buildings.map((b, i) => (
-                  <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
-                    <Text size="2">{b.name} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
-                    <IconButton size="1" variant="ghost" color="red" onClick={() => removeBuilding(i)}><TrashIcon /></IconButton>
-                  </Flex>
-                ))}
+                {buildings.map((b, i) => {
+                  const p = b.pts || [];
+                  const w = p.length >= 2 ? Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) : 0;
+                  const d = p.length >= 3 ? Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) : 0;
+                  const isVeg = b.kind === 'tree' || b.kind === 'bush';
+                  return (
+                    <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
+                      <Text size="2">{b.name}{isVeg ? '' : ` · ${w.toFixed(1)}×${d.toFixed(1)} м`} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
+                      <IconButton size="1" variant="ghost" color="red" onClick={() => removeBuilding(i)}><TrashIcon /></IconButton>
+                    </Flex>
+                  );
+                })}
                 {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
               </Flex>
             </Box>
