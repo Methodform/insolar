@@ -303,9 +303,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {/* основной холст — карта 2ГИС/OSM с нашим 3D (бывшая «Карта»); старый Viewport оставлен в коде для отката */}
-        <MapView polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
-          date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow} insolOn={showPlot}
-          plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH} embed />
+        <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
+          date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow}
+          insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH} embed />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -534,7 +534,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 <input type="checkbox" checked={showPlot} onChange={e => setShowPlot(e.target.checked)} /> на участке
               </Text>
               <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <input type="checkbox" checked={showWin} onChange={e => setShowWin(e.target.checked)} /> на окнах
+                <input type="checkbox" checked={showWin} onChange={e => setShowWin(e.target.checked)} /> на стенах
               </Text>
             </Flex>
             <Flex gap="3" align="center">

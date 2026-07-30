@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const t3 = useRef({});
@@ -84,7 +84,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   useEffect(() => { if (embed) { if (date) setDstr(date); if (minutes != null) setMins(minutes); } }, [embed, date, minutes]);  // холст: солнце от таймбара панели
   useEffect(() => { applySun(); }, [dstr, mins]);
   useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH); }, [windShow, windDegLocal, fenceH]);
-  useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH); }, [insolShow, dstr, mins, plotMarkers, reqH]);
+  useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH, insolWalls); }, [insolShow, dstr, mins, plotMarkers, reqH, insolWalls]);
   // синхронизация с панелью приложения: новые объекты и высота забора → пересобрать на карте
   useEffect(() => {
     const s = t3.current; if (!s.rebuildObjects) return;
@@ -188,11 +188,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const roofMat = new THREE.MeshStandardMaterial({ color: 0x8f5a44, roughness: .8, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
+      const plotLoc = ring && ring.length >= 3 ? ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]) : null;
       live.current.forEach((b, bi) => {
         const pts = b.pts; if (!pts || pts.length < 2) return;
         const kind = b.kind || 'house';
         const hl = bi === selIdx.v;                 // подсветка выделенного
         let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
+        const outside = plotLoc ? !pointInPoly([cx, cy], plotLoc) : false;   // вне участка → серый
         if (hl && pts.length >= 3) {                 // жёлтый контур выделения
           const ol = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0], 0.12, -p[1]))), new THREE.LineBasicMaterial({ color: 0xffcc00 }));
           ol.renderOrder = 3; group.add(ol);
@@ -207,7 +209,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         }
         const H = b.height || 3;
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
-        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: wall[kind] || wall.default, roughness: .85, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.4 : 0 }));
+        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: outside ? 0x9aa0a8 : (wall[kind] || wall.default), roughness: .85, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.4 : 0 }));
         walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
         const rh = b.roofH || (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
         if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat); if (roof) group.add(roof); }
@@ -280,8 +282,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     }
 
     // точки инсоляции: на участке (из приложения) + на крышах зданий выше 1 м (расчёт за день)
-    function rebuildInsol(show, y, mo, da, plotMk, req) {
-      const s = t3.current; s._i = { show, y, mo, da, plotMk, req }; const g = s.insolGroup; if (!g) return;
+    function rebuildInsol(show, y, mo, da, plotMk, req, walls) {
+      const s = t3.current; s._i = { show, y, mo, da, plotMk, req, walls }; const g = s.insolGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
       if (!show) { m.triggerRepaint(); return; }
       const green = new THREE.MeshBasicMaterial({ color: 0x1f9d45, toneMapped: false }), red = new THREE.MeshBasicMaterial({ color: 0xc0392b, toneMapped: false });
@@ -294,7 +296,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const rc = new THREE.Raycaster();
       // часы солнца на площадке со стеновой нормалью: учитываем только солнце «в лицо» стене и без затенения
       const hoursN = (origin, nrm) => { let lit = 0; steps.forEach(v => { if (v.dot(nrm) <= 0) return; rc.set(origin.clone().addScaledVector(v, 0.3), v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; }); return lit * stepMin / 60; };
-      live.current.forEach(b => { const H = b.height || 3, kind = b.kind || 'house'; if (!(H > 1) || !b.pts || b.pts.length < 3 || kind === 'tree' || kind === 'bush') return;
+      if (walls) live.current.forEach(b => { const H = b.height || 3, kind = b.kind || 'house'; if (!(H > 1) || !b.pts || b.pts.length < 3 || kind === 'tree' || kind === 'bush') return;
         const pts = b.pts; let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
         const hStep = Math.max(1, H / 3);
         for (let i = 0; i < pts.length; i++) {                     // точки по каждой стене-фасаду
@@ -451,7 +453,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); buildGizmo();
       const s = t3.current;                                   // объекты сдвинулись → пересчёт ветра/инсоляции
       if (s._w && s._w.show) rebuildWind(s._w.show, s._w.wDeg, s._w.fh);
-      if (s._i && s._i.show) rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req);
+      if (s._i && s._i.show) rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req, s._i.walls);
     };
     m.on('mousedown', onDown); m.on('mousemove', onMove); m.on('mouseup', onUp);
 
