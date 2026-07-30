@@ -194,45 +194,103 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       m.triggerRepaint();
     }
 
-    // ===== выделение / перетаскивание / поворот (как во вьюпорте) =====
+    // ===== гизмо как во вьюпорте: кольцо поворота + стрелки перемещения + кубы масштаба =====
     const toLocal = ll => [(ll.lng - lon) * mLon, (ll.lat - lat) * M_LAT];
     const centroidOf = pts => { let x = 0, y = 0; pts.forEach(p => { x += p[0]; y += p[1]; }); return [x / pts.length, y / pts.length]; };
     const radiusOf = (pts, c) => { let r = 1; pts.forEach(p => r = Math.max(r, Math.hypot(p[0] - c[0], p[1] - c[1]))); return r; };
     const rotatePts = (pts, c, a) => { const s = Math.sin(a), co = Math.cos(a); return pts.map(p => { const dx = p[0] - c[0], dy = p[1] - c[1]; return [c[0] + dx * co - dy * s, c[1] + dx * s + dy * co]; }); };
+    const scaleAxis = (p, c, ax, f) => { const U = (p[0] - c[0]) * ax[0] + (p[1] - c[1]) * ax[1]; const rx = (p[0] - c[0]) - U * ax[0], ry = (p[1] - c[1]) - U * ax[1]; return [c[0] + ax[0] * U * f + rx, c[1] + ax[1] * U * f + ry]; };
     const hitTest = lp => live.current.findIndex(b => b.pts && b.pts.length >= 3 && pointInPoly(lp, b.pts));
     const commit = () => onBuildings && onBuildings(live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) })));
 
-    let rotMarker = null;
-    function placeGizmo() {
-      if (rotMarker) { rotMarker.remove(); rotMarker = null; }
+    let giz = null;      // { group, handles:[{mode, pts:[[x,y,z]...]}], c, u, v }
+    // локальная точка [x,y,z] → экранные CSS-пиксели (через матрицу камеры карты)
+    function toScreen(P) {
+      const s = t3.current; if (!s.camera) return null;
+      const v = new THREE.Vector4(P[0], P[1], P[2], 1).applyMatrix4(s.camera.projectionMatrix);
+      if (v.w <= 0) return null;
+      const cv = m.getCanvas();
+      return [(v.x / v.w * 0.5 + 0.5) * cv.clientWidth, (1 - (v.y / v.w * 0.5 + 0.5)) * cv.clientHeight];
+    }
+    function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
+    function arrow(dir, len, color) {
+      const g = new THREE.Group();
+      const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, len, 10), gmat(color)); sh.position.y = len / 2; sh.renderOrder = 999;
+      const tp = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.1, 14), gmat(color)); tp.position.y = len + 0.55; tp.renderOrder = 999;
+      g.add(sh, tp); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()); return g;
+    }
+    function buildGizmo() {
+      const s = t3.current; if (giz && giz.group) { giz.group.traverse(o => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); s.scene.remove(giz.group); } giz = null;
       const i = selIdx.v; if (i < 0) return;
       const b = live.current[i]; if (!b || !b.pts || b.pts.length < 3) return;
-      const c = centroidOf(b.pts), R = radiusOf(b.pts, c) + 3;
-      const el = document.createElement('div');
-      el.textContent = '↻';
-      el.style.cssText = 'width:30px;height:30px;border-radius:50%;background:#2f6bd4;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,.4);user-select:none';
-      rotMarker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([lon + c[0] / mLon, lat + (c[1] + R) / M_LAT]).addTo(m);
-      let cc = null, base = 0, orig = null;
-      rotMarker.on('dragstart', () => { const bb = live.current[i]; cc = centroidOf(bb.pts); orig = bb.pts.map(p => p.slice()); const hl = toLocal(rotMarker.getLngLat()); base = Math.atan2(hl[1] - cc[1], hl[0] - cc[0]); });
-      rotMarker.on('drag', () => { const hl = toLocal(rotMarker.getLngLat()); const a = Math.atan2(hl[1] - cc[1], hl[0] - cc[0]) - base; live.current[i].pts = rotatePts(orig, cc, a); rebuildObjects(); });
-      rotMarker.on('dragend', () => { const hl = toLocal(rotMarker.getLngLat()); let a = Math.atan2(hl[1] - cc[1], hl[0] - cc[0]) - base; a = Math.round(a / (Math.PI / 2)) * (Math.PI / 2); live.current[i].pts = rotatePts(orig, cc, a); rebuildObjects(); commit(); placeGizmo(); });
+      const pts = b.pts, c = centroidOf(pts), ext = radiusOf(pts, c);
+      const u = pts.length >= 4 ? (() => { const dx = pts[1][0] - pts[0][0], dy = pts[1][1] - pts[0][1], L = Math.hypot(dx, dy) || 1; return [dx / L, dy / L]; })() : [1, 0];
+      const v = [-u[1], u[0]];
+      let hu = 1, hv = 1; pts.forEach(p => { hu = Math.max(hu, Math.abs((p[0] - c[0]) * u[0] + (p[1] - c[1]) * u[1])); hv = Math.max(hv, Math.abs((p[0] - c[0]) * v[0] + (p[1] - c[1]) * v[1])); });
+      const group = new THREE.Group(); const Y = 0.4;
+      const lp3 = (e2, n2, y = Y) => [e2, y, -n2];               // [восток,север] → локальные 3D
+      // кольцо поворота
+      const Rr = ext + 1.7;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.16, 8, 52), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
+      // стрелки перемещения (красная вдоль длины, синяя поперёк)
+      const aL = ext + 2;
+      const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, 0xff2222); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
+      const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, 0x2b7bff); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
+      // кубы масштаба
+      const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
+      const slPos = lp3(c[0] + u[0] * (hu + 1.3), c[1] + u[1] * (hu + 1.3)), swPos = lp3(c[0] + v[0] * (hv + 1.3), c[1] + v[1] * (hv + 1.3));
+      cube(0xffffff, slPos); cube(0x00e6d0, swPos);
+      s.scene.add(group);
+      // точки для попадания по экрану
+      const ringPts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) ringPts.push(lp3(c[0] + Rr * Math.cos(a), c[1] + Rr * Math.sin(a)));
+      giz = { group, c, u, v, handles: [
+        { mode: 'sl', pts: [slPos] }, { mode: 'sw', pts: [swPos] },
+        { mode: 'tx', pts: [lp3(c[0] + u[0] * aL, c[1] + u[1] * aL)] },
+        { mode: 'tz', pts: [lp3(c[0] + v[0] * aL, c[1] + v[1] * aL)] },
+        { mode: 'rot', pts: ringPts },
+      ] };
     }
-    function select(idx) { selIdx.v = idx; rebuildObjects(); placeGizmo(); }
+    function select(idx) { selIdx.v = idx; rebuildObjects(); buildGizmo(); }
+
+    function pickHandle(px, py) {
+      if (!giz) return null; let best = null, bd = 18;
+      giz.handles.forEach(h => h.pts.forEach(P => { const s = toScreen(P); if (!s) return; const d = Math.hypot(s[0] - px, s[1] - py); if (d < bd) { bd = d; best = h.mode; } }));
+      return best;
+    }
 
     let drag = null;
     const onDown = e => {
-      const lp = toLocal(e.lngLat), idx = hitTest(lp);
+      const px = e.point.x, py = e.point.y, lp = toLocal(e.lngLat);
+      if (selIdx.v >= 0) { const mode = pickHandle(px, py); if (mode) {
+        const b = live.current[selIdx.v]; drag = { idx: selIdx.v, mode, start: lp, orig: b.pts.map(p => p.slice()), c: giz.c, u: giz.u, v: giz.v };
+        m.dragPan.disable(); m.getCanvas().style.cursor = 'grabbing'; e.preventDefault(); return; } }
+      const idx = hitTest(lp);
       if (idx < 0) { if (selIdx.v >= 0) select(-1); return; }
-      if (idx !== selIdx.v) select(idx);                    // клик по объекту — выделяем
-      drag = { idx, start: lp, orig: live.current[idx].pts.map(p => p.slice()) };
+      if (idx !== selIdx.v) select(idx);
+      drag = { idx, mode: 'move', start: lp, orig: live.current[idx].pts.map(p => p.slice()) };
       m.dragPan.disable(); m.getCanvas().style.cursor = 'grabbing'; e.preventDefault();
     };
     const onMove = e => {
-      if (drag) { const lp = toLocal(e.lngLat), dx = lp[0] - drag.start[0], dy = lp[1] - drag.start[1];
-        live.current[drag.idx].pts = drag.orig.map(p => [p[0] + dx, p[1] + dy]); rebuildObjects(); return; }
-      m.getCanvas().style.cursor = hitTest(toLocal(e.lngLat)) >= 0 ? 'grab' : '';
+      if (!drag) { const px = e.point.x, py = e.point.y; m.getCanvas().style.cursor = (selIdx.v >= 0 && pickHandle(px, py)) ? 'grab' : (hitTest(toLocal(e.lngLat)) >= 0 ? 'grab' : ''); return; }
+      const lp = toLocal(e.lngLat), o = drag.orig;
+      if (drag.mode === 'move') { const dx = lp[0] - drag.start[0], dy = lp[1] - drag.start[1]; live.current[drag.idx].pts = o.map(p => [p[0] + dx, p[1] + dy]); }
+      else if (drag.mode === 'tx' || drag.mode === 'tz') { const ax = drag.mode === 'tx' ? drag.u : drag.v; const t = (lp[0] - drag.start[0]) * ax[0] + (lp[1] - drag.start[1]) * ax[1]; live.current[drag.idx].pts = o.map(p => [p[0] + ax[0] * t, p[1] + ax[1] * t]); }
+      else if (drag.mode === 'rot') { const a = Math.atan2(lp[1] - drag.c[1], lp[0] - drag.c[0]) - Math.atan2(drag.start[1] - drag.c[1], drag.start[0] - drag.c[0]); live.current[drag.idx].pts = rotatePts(o, drag.c, a); }
+      else if (drag.mode === 'sl' || drag.mode === 'sw') { const ax = drag.mode === 'sl' ? drag.u : drag.v;
+        const pS = (drag.start[0] - drag.c[0]) * ax[0] + (drag.start[1] - drag.c[1]) * ax[1], pN = (lp[0] - drag.c[0]) * ax[0] + (lp[1] - drag.c[1]) * ax[1];
+        const f = Math.max(0.2, Math.min(6, pN / (Math.abs(pS) < 0.5 ? (pS < 0 ? -0.5 : 0.5) : pS))); live.current[drag.idx].pts = o.map(p => scaleAxis(p, drag.c, ax, f)); }
+      rebuildObjects(); buildGizmo();
     };
-    const onUp = () => { if (!drag) return; drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); placeGizmo(); };
+    const onUp = () => {
+      if (!drag) return;
+      if (drag.mode === 'rot') {                              // прилипание поворота к шагу 90°
+        const c = drag.c, o = drag.orig, cur = live.current[drag.idx].pts;
+        const a = Math.atan2(cur[0][1] - c[1], cur[0][0] - c[0]) - Math.atan2(o[0][1] - c[1], o[0][0] - c[0]);
+        const snap = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
+        live.current[drag.idx].pts = rotatePts(o, c, snap); rebuildObjects();
+      }
+      drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); buildGizmo();
+    };
     m.on('mousedown', onDown); m.on('mousemove', onMove); m.on('mouseup', onUp);
 
     return () => { m.remove(); map.current = null; t3.current = {}; };
