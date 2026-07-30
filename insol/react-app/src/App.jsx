@@ -11,7 +11,6 @@ import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow, meanDir } from './engine/wind.js';
 import { loginWithYandex } from './yandexAuth.js';
-import { fetchNeighbors } from './engine/osm.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
 
@@ -97,20 +96,7 @@ export default function App() {
   const logoutYandex = () => { setUser(null); try { localStorage.removeItem('insolar_user'); } catch (e) {} };
 
   // соседние здания с карты (OSM)
-  const [neighOn, setNeighOn] = useState(false);
-  const [neighbors, setNeighbors] = useState([]);
-  const [neighMsg, setNeighMsg] = useState('');
-  const loadNeighbors = async (v) => {
-    setNeighOn(v);
-    if (!v) return;
-    if (!built || !built.local) { setNeighMsg('Сначала постройте участок'); return; }
-    setNeighMsg('Загружаю соседние здания с карты…');
-    try {
-      const nb = await fetchNeighbors(built.lat0, built.lon0, built.local, 20);
-      setNeighbors(nb);
-      setNeighMsg(nb.length ? `Найдено рядом: ${nb.length}` : 'Рядом в OSM зданий нет — их можно добавить вручную');
-    } catch (e) { setNeighMsg('Не удалось загрузить карту: ' + e.message); }
-  };
+  // соседние дома берутся из тайлов OpenFreeMap в MapView (queryRenderedFeatures) — Overpass не используется
   const [mapOpen, setMapOpen] = useState(false);
   const [mapKey, setMapKeyState] = useState(() => { try { return localStorage.getItem('maptiler_key') || MAPTILER_KEY; } catch (e) { return MAPTILER_KEY; } });
   const setMapKey = k => { setMapKeyState(k); try { localStorage.setItem('maptiler_key', k); } catch (e) {} };
