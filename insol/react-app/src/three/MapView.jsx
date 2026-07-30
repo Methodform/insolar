@@ -39,6 +39,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   const [windSel, setWindSel] = useState('now');   // 'now' | '0'..'11' (месяц)
   const [monthDegs, setMonthDegs] = useState(null); // [12] градусы «откуда дует»
   const [nowDeg, setNowDeg] = useState(null);
+  const [windDbg, setWindDbg] = useState('');
   const windDegLocal = windSel === 'now' ? (nowDeg != null ? nowDeg : windDeg) : (monthDegs ? monthDegs[+windSel] : windDeg);
   const [err, setErr] = useState('');
   const ring = parseLonLat(polyText);
@@ -236,6 +237,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.9 });
         }
       });
+      s._windDbg = `wDeg=${Math.round(wDeg)} lines=${lines.length} comets=${s.comets.length} pts=${baseLocal.length} ph=${Math.round(ph)}`;
+      setWindDbg(s._windDbg);
       m.triggerRepaint();
     }
 
@@ -408,6 +411,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       </select>}
       <button style={{ ...btn, ...(insolShow ? { borderColor: '#4faa78', color: '#4faa78' } : {}) }} onClick={() => setInsolShow(v => !v)}>☀ Инсоляция</button>
       {windShow && <span style={{ color: '#8b968c', fontSize: 12 }}>ветер с {Math.round(windDegLocal)}°{(windSel === 'now' ? nowDeg == null : !monthDegs) ? ' · клим. данные…' : ''}</span>}
+      {windShow && windDbg && <span style={{ color: '#ffb02e', fontSize: 11 }}>[{windDbg}]</span>}
     </>
   );
   if (embed) return (
