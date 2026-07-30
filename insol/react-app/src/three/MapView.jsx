@@ -137,7 +137,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
         // узкий кадр тени вокруг участка → высокая плотность текселей (резче), VSM даёт гладкое размытие
         const sc = sun.shadow.camera; sc.near = 1; sc.far = 600; sc.left = sc.bottom = -95; sc.right = sc.top = 95; sc.updateProjectionMatrix();
-        sun.shadow.bias = -0.0001; sun.shadow.normalBias = 0.3;
+        sun.shadow.bias = -0.00006; sun.shadow.normalBias = 0.6;
         sun.shadow.radius = 3; sun.shadow.blurSamples = 16;
         scene.add(sun, sun.target);
         const objGroup = new THREE.Group(); scene.add(objGroup);
@@ -168,13 +168,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const s = t3.current, g = s.fenceGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); }
       if (!(fh > 0)) return;
-      const mat = new THREE.MeshStandardMaterial({ color: 0xcdd1d6, roughness: .85, side: THREE.DoubleSide });
+      const mat = new THREE.MeshStandardMaterial({ color: 0xcdd1d6, roughness: .85 });
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length];
         const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.1) continue;
-        const pl = new THREE.Mesh(new THREE.PlaneGeometry(len, fh), mat);
-        pl.position.set((ax + bx) / 2, fh / 2, (az + bz) / 2); pl.rotation.y = Math.atan2(-dz, dx); pl.castShadow = true; pl.receiveShadow = true; g.add(pl);
+        const pl = new THREE.Mesh(new THREE.BoxGeometry(len, fh, 0.12), mat);   // объёмная тонкая стенка → чистая тень
+        pl.position.set((ax + bx) / 2, fh / 2, (az + bz) / 2); pl.rotation.y = Math.atan2(-dz, dx); pl.castShadow = true; pl.receiveShadow = false; g.add(pl);
       }
     }
 
