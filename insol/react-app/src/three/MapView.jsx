@@ -417,7 +417,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   if (embed) return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div ref={box} style={{ position: 'absolute', inset: 0 }} />
-      <div style={{ position: 'absolute', left: '50%', bottom: 14, transform: 'translateX(-50%)', zIndex: 5, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', maxWidth: '94%', padding: '8px 12px', background: 'rgba(22,27,24,.92)', color: '#e8ece7', border: '1px solid #2a322c', borderRadius: 12, boxShadow: '0 6px 22px rgba(0,0,0,.3)', fontSize: 13 }}>
+      <div style={{ position: 'fixed', top: 60, right: 12, zIndex: 40, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', maxWidth: '70vw', padding: '8px 12px', background: 'rgba(22,27,24,.94)', color: '#e8ece7', border: '1px solid #2a322c', borderRadius: 12, boxShadow: '0 6px 22px rgba(0,0,0,.35)', fontSize: 13 }}>
         {windBtns}
         <span style={{ color: '#8b968c', fontSize: 12 }}>тени — по таймбару слева</span>
         {err && <span style={{ color: '#ff8a80' }}>{err}</span>}
