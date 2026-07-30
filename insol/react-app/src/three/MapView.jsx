@@ -4,6 +4,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import * as THREE from 'three';
 import { sunPosition, compassAz, localToUTC } from '../engine/astronomy.js';
 import { buildStreamlines, buildWindComfort, windColor, COMET_K, COMET_VS, COMET_FS, updateComet } from '../engine/windviz.js';
+import { fetchWindRose, fetchWindNow, prevailingDir } from '../engine/wind.js';
+
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
 // подложка: OpenFreeMap (OSM, без ключа). В проде меняется на свой self-host PMTiles одной строкой.
 const OFM_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
@@ -33,6 +36,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   const [mins, setMins] = useState(minutes);
   const [windShow, setWindShow] = useState(false);
   const [insolShow, setInsolShow] = useState(false);
+  const [windSel, setWindSel] = useState('now');   // 'now' | '0'..'11' (месяц)
+  const [monthDegs, setMonthDegs] = useState(null); // [12] градусы «откуда дует»
+  const [nowDeg, setNowDeg] = useState(null);
+  const windDegLocal = windSel === 'now' ? (nowDeg != null ? nowDeg : windDeg) : (monthDegs ? monthDegs[+windSel] : windDeg);
   const [err, setErr] = useState('');
   const ring = parseLonLat(polyText);
   const cosLat = Math.cos((lat || 0) * Math.PI / 180);
@@ -52,8 +59,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     s.sun.intensity = alt > 0 ? 1.7 : 0;
     if (map.current) map.current.triggerRepaint();
   }
+  useEffect(() => {                                 // климатические направления: помесячно + «сейчас»
+    if (!isFinite(lat) || !isFinite(lon)) return;
+    fetchWindRose(lat, lon).then(d => setMonthDegs(d.months.map(mm => prevailingDir(mm).index * 45))).catch(() => {});
+    fetchWindNow(lat, lon).then(n => setNowDeg(n.dirDeg)).catch(() => {});
+  }, []);
   useEffect(() => { applySun(); }, [dstr, mins]);
-  useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDeg, fenceH); }, [windShow, windDeg, fenceH]);
+  useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH); }, [windShow, windDegLocal, fenceH]);
   useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH); }, [insolShow, dstr, mins, plotMarkers, reqH]);
 
   const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
@@ -382,6 +394,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         <span style={{ minWidth: 46, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{hhmm(mins)}</span>
         <input type="range" min={0} max={1439} step={5} value={mins} onChange={e => setMins(+e.target.value)} style={{ width: 220 }} />
         <button style={{ ...btn, ...(windShow ? { borderColor: '#e6663d', color: '#e6663d' } : {}) }} onClick={() => setWindShow(v => !v)}>🌬 Ветер</button>
+        {windShow && <select value={windSel} onChange={e => setWindSel(e.target.value)} style={inp} title="Направление ветра">
+          <option value="now">Сейчас{nowDeg != null ? '' : ' (загрузка…)'}</option>
+          {MONTHS.map((mn, i) => <option key={i} value={String(i)}>{mn}</option>)}
+        </select>}
         <button style={{ ...btn, ...(insolShow ? { borderColor: '#4faa78', color: '#4faa78' } : {}) }} onClick={() => setInsolShow(v => !v)}>☀ Инсоляция</button>
         <span style={{ color: '#8b968c', fontSize: 12 }}>клик — выделить · тащить — двигать · ↻ — повернуть</span>
         {err && <span style={{ color: '#ff8a80' }}>{err}</span>}

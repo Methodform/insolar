@@ -29,14 +29,15 @@ export async function fetchWindRose(lat, lon, years = 2) {
 
   const mk = () => ({ count: new Array(8).fill(0), spdSum: new Array(8).fill(0), total: 0, calm: 0, spdAll: 0 });
   const acc = { winter: mk(), spring: mk(), summer: mk(), autumn: mk(), year: mk() };
+  const macc = Array.from({ length: 12 }, mk);               // помесячно (0=январь … 11=декабрь)
 
   for (let i = 0; i < times.length; i++) {
     const wd = dir[i], ws = spd[i];
     if (wd == null || isNaN(wd)) continue;
     const mo = parseInt(times[i].slice(5, 7), 10);
     const sec = Math.round(((wd % 360) + 360) % 360 / 45) % 8;   // 0=С,1=СВ,...
-    for (const key of [seasonOf(mo), 'year']) {
-      const a = acc[key]; a.total++;
+    for (const a of [acc[seasonOf(mo)], acc.year, macc[mo - 1]]) {
+      a.total++;
       if (ws != null && !isNaN(ws)) {
         a.spdAll += ws;
         if (ws < 1) a.calm++;                    // штиль < 1 м/с
@@ -62,6 +63,7 @@ export async function fetchWindRose(lat, lon, years = 2) {
       winter: finalize(acc.winter), spring: finalize(acc.spring),
       summer: finalize(acc.summer), autumn: finalize(acc.autumn), year: finalize(acc.year),
     },
+    months: macc.map(finalize),               // 12 роз ветров: [январь … декабрь]
   };
 }
 
