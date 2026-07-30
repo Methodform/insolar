@@ -67,6 +67,19 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   useEffect(() => { applySun(); }, [dstr, mins]);
   useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH); }, [windShow, windDegLocal, fenceH]);
   useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH); }, [insolShow, dstr, mins, plotMarkers, reqH]);
+  // синхронизация с панелью приложения: новые объекты и высота забора → пересобрать на карте
+  useEffect(() => {
+    const s = t3.current; if (!s.rebuildObjects) return;
+    live.current = (buildings || []).map(b => ({ ...b, pts: (b.pts || []).map(p => p.slice()) }));
+    s.rebuildObjects(); if (s.buildGizmo) s.buildGizmo();
+    if (s._w && s._w.show) s.rebuildWind(s._w.show, s._w.wDeg, s._w.fh);
+    if (s._i && s._i.show) s.rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req);
+  }, [buildings]);
+  useEffect(() => {
+    const s = t3.current; if (!s.buildFence) return;
+    s.buildFence(fenceH);
+    if (s._w && s._w.show) s.rebuildWind(s._w.show, s._w.wDeg, fenceH);
+  }, [fenceH]);
 
   const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 
@@ -115,8 +128,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        t3.current = { scene, camera, renderer, sun, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol };
-        buildFence(); rebuildObjects(); applySun();
+        t3.current = { scene, camera, renderer, sun, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
+        buildFence(fenceH); rebuildObjects(); applySun();
       },
       render(gl, matrix) {
         const s = t3.current; if (!s.renderer) return;
@@ -128,18 +141,18 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       }
     };
 
-    // забор по периметру участка
-    function buildFence() {
+    // забор по периметру участка (fh — текущая высота из панели)
+    function buildFence(fh = fenceH) {
       const s = t3.current, g = s.fenceGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); }
-      if (!(fenceH > 0)) return;
+      if (!(fh > 0)) return;
       const mat = new THREE.MeshStandardMaterial({ color: 0xcdd1d6, roughness: .85, side: THREE.DoubleSide });
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length];
         const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.1) continue;
-        const pl = new THREE.Mesh(new THREE.PlaneGeometry(len, fenceH), mat);
-        pl.position.set((ax + bx) / 2, fenceH / 2, (az + bz) / 2); pl.rotation.y = Math.atan2(-dz, dx); pl.castShadow = true; pl.receiveShadow = true; g.add(pl);
+        const pl = new THREE.Mesh(new THREE.PlaneGeometry(len, fh), mat);
+        pl.position.set((ax + bx) / 2, fh / 2, (az + bz) / 2); pl.rotation.y = Math.atan2(-dz, dx); pl.castShadow = true; pl.receiveShadow = true; g.add(pl);
       }
     }
 
