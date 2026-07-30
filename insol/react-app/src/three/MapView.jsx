@@ -151,7 +151,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const catcher = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.ShadowMaterial({ opacity: 0.5 }));
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
-        renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.VSMShadowMap;   // гладкое размытие теней
+        renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // мягкие тени без VSM light-bleeding
         t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
         buildFence(fenceH); rebuildObjects(); applySun();
       },
