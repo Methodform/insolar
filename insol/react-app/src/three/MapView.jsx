@@ -27,7 +27,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const t3 = useRef({});
@@ -40,7 +40,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   const [monthDegs, setMonthDegs] = useState(null); // [12] градусы «откуда дует»
   const [nowDeg, setNowDeg] = useState(null);
   const [windDbg, setWindDbg] = useState('');
-  const windDegLocal = windSel === 'now' ? (nowDeg != null ? nowDeg : windDeg) : (monthDegs ? monthDegs[+windSel] : windDeg);
+  const windDegLocal = embed ? windDeg : (windSel === 'now' ? (nowDeg != null ? nowDeg : windDeg) : (monthDegs ? monthDegs[+windSel] : windDeg));
   const [err, setErr] = useState('');
   const ring = parseLonLat(polyText);
   const cosLat = Math.cos((lat || 0) * Math.PI / 180);
@@ -60,8 +60,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     s.sun.intensity = alt > 0 ? 1.7 : 0;
     if (map.current) map.current.triggerRepaint();
   }
+  useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
+  useEffect(() => { if (embed) setInsolShow(!!insolOn); }, [embed, insolOn]);
   useEffect(() => {                                 // климатические направления: помесячно + «сейчас»
-    if (!isFinite(lat) || !isFinite(lon)) return;
+    if (embed || !isFinite(lat) || !isFinite(lon)) return;
     fetchWindRose(lat, lon).then(d => setMonthDegs((d.months || []).map(mm => prevailingDir(mm).index * 45))).catch(() => setMonthDegs(null));
     fetchWindNow(lat, lon).then(n => setNowDeg(n.dirDeg)).catch(() => setNowDeg(null));
   }, [lat, lon]);
@@ -118,7 +120,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         scene.add(new THREE.HemisphereLight(0xdfe9f5, 0x55603f, 0.32));
         const sun = new THREE.DirectionalLight(0xfff1d6, 1.7);
         sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
-        const sc = sun.shadow.camera; sc.near = 1; sc.far = 900; sc.left = sc.bottom = -180; sc.right = sc.top = 180; sc.updateProjectionMatrix(); sun.shadow.bias = -0.0004;
+        const sc = sun.shadow.camera; sc.near = 1; sc.far = 900; sc.left = sc.bottom = -180; sc.right = sc.top = 180; sc.updateProjectionMatrix();
+        sun.shadow.bias = -0.00004; sun.shadow.normalBias = 0.4;   // тени вплотную к основанию (без Peter Panning)
         scene.add(sun, sun.target);
         const objGroup = new THREE.Group(); scene.add(objGroup);
         const fenceGroup = new THREE.Group(); scene.add(fenceGroup);
@@ -417,11 +420,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   if (embed) return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div ref={box} style={{ position: 'absolute', inset: 0 }} />
-      <div style={{ position: 'fixed', top: 60, right: 12, zIndex: 40, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', maxWidth: '70vw', padding: '8px 12px', background: 'rgba(22,27,24,.94)', color: '#e8ece7', border: '1px solid #2a322c', borderRadius: 12, boxShadow: '0 6px 22px rgba(0,0,0,.35)', fontSize: 13 }}>
-        {windBtns}
-        <span style={{ color: '#8b968c', fontSize: 12 }}>тени — по таймбару слева</span>
-        {err && <span style={{ color: '#ff8a80' }}>{err}</span>}
-      </div>
+      {err && <div style={{ position: 'fixed', top: 60, right: 12, zIndex: 40, padding: '6px 10px', background: 'rgba(22,27,24,.94)', color: '#ff8a80', borderRadius: 10, fontSize: 12 }}>{err}</div>}
     </div>
   );
   return (

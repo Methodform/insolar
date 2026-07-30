@@ -75,10 +75,18 @@ export default function App() {
   const [windDeg, setWindDeg] = useState(315);
   const [windMode, setWindMode] = useState('climate');   // 'climate' | 'now'
   const [windNow, setWindNow] = useState(null);           // { dirDeg, speed, time }
+  const [windSel, setWindSel] = useState('now');          // 'now' | 'm0'..'m11' (месяц)
+  const [monthDegs, setMonthDegs] = useState(null);        // [12] преобладающих направлений по месяцам
   const loadClimate = () => fetchWindRose(lat, lon).then(d => setWindDeg(prevailingDir(d.seasons.year).index * 45)).catch(() => {});
   const loadNow = () => fetchWindNow(lat, lon).then(n => { setWindNow(n); setWindDeg(n.dirDeg); }).catch(() => {});
-  const setWindOn = (v) => { if (!pro) { openPaywall(); return; } setWindFlow(v);
-    if (v) { windMode === 'now' ? loadNow() : loadClimate(); } };
+  const pickWind = (v) => {
+    setWindSel(v);
+    if (v === 'now') { setWindMode('now'); loadNow(); return; }
+    const i = +v.slice(1); setWindMode(v);
+    if (monthDegs) setWindDeg(monthDegs[i]);
+    else fetchWindRose(lat, lon).then(d => { const md = (d.months || []).map(mm => prevailingDir(mm).index * 45); setMonthDegs(md); if (md[i] != null) setWindDeg(md[i]); }).catch(() => {});
+  };
+  const setWindOn = (v) => { if (!pro) { openPaywall(); return; } setWindFlow(v); if (v) pickWind(windSel); };
 
   const [user, setUser] = useState(() => { try { return JSON.parse(localStorage.getItem('insolar_user') || 'null'); } catch (e) { return null; } });
   const loginYandex = async () => {
@@ -296,7 +304,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {/* основной холст — карта 2ГИС/OSM с нашим 3D (бывшая «Карта»); старый Viewport оставлен в коде для отката */}
         <MapView polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
-          date={date} minutes={minutes} windDeg={windDeg} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH} embed />
+          date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow} insolOn={showPlot}
+          plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH} embed />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -462,17 +471,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Text>
                 </Flex>
                 {pro && windFlow && <Box mt="2">
-                  <Flex gap="1" mb="2">
-                    <Button size="1" style={{ flex: 1 }} variant={windMode === 'climate' ? 'solid' : 'soft'} color={windMode === 'climate' ? 'grass' : 'gray'}
-                      onClick={() => { setWindMode('climate'); loadClimate(); }}>Климат (год)</Button>
-                    <Button size="1" style={{ flex: 1 }} variant={windMode === 'now' ? 'solid' : 'soft'} color={windMode === 'now' ? 'grass' : 'gray'}
-                      onClick={() => { setWindMode('now'); loadNow(); }}>Сейчас</Button>
-                  </Flex>
-                  {windMode === 'climate'
-                    ? <Text size="1" color="gray" style={{ display: 'block' }}>Линии тока с господствующего направления за год, огибают строения.</Text>
-                    : (windNow
-                        ? <Text size="1" color="gray" style={{ display: 'block' }}>Ветер сейчас: с {compassFrom(windNow.dirDeg)}{windNow.speed != null ? `, ${windNow.speed.toFixed(1)} м/с` : ''} · данные на {String(windNow.time || '').slice(11, 16)} <Text size="1" color="gray" style={{ opacity: .7 }}>(ближайший узел прогноза, не датчик на участке)</Text></Text>
-                        : <Text size="1" color="gray" style={{ display: 'block' }}>Загружаю текущий ветер…</Text>)}
+                  <Select.Root value={windSel} onValueChange={pickWind}>
+                    <Select.Trigger variant="soft" style={{ width: '100%' }} />
+                    <Select.Content>
+                      <Select.Item value="now">Сейчас</Select.Item>
+                      {months.map((m, i) => <Select.Item key={i} value={'m' + i}>{m}</Select.Item>)}
+                    </Select.Content>
+                  </Select.Root>
+                  <Text size="1" color="gray" mt="2" style={{ display: 'block' }}>
+                    {windSel === 'now'
+                      ? (windNow ? `Ветер сейчас: с ${compassFrom(windNow.dirDeg)}${windNow.speed != null ? `, ${windNow.speed.toFixed(1)} м/с` : ''}` : 'Загружаю текущий ветер…')
+                      : `Преобладающий ветер за месяц: с ${Math.round(windDeg)}°`}
+                  </Text>
                   <Flex align="center" gap="2" mt="2"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#4d8be6', display: 'inline-block' }} /><Text size="1" color="gray">Затишье — беседку и зону отдыха сюда</Text></Flex>
                   <Flex align="center" gap="2" mt="1"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#e6663d', display: 'inline-block' }} /><Text size="1" color="gray">Продувание — грядки/теплицу защитить</Text></Flex>
                 </Box>}
