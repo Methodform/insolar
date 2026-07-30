@@ -136,7 +136,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(7, 20, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a, toneMapped: false })); sunSphere.frustumCulled = false; scene.add(sunSphere);
         sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
         // узкий кадр тени вокруг участка → высокая плотность текселей (резче), VSM даёт гладкое размытие
-        const sc = sun.shadow.camera; sc.near = 1; sc.far = 600; sc.left = sc.bottom = -95; sc.right = sc.top = 95; sc.updateProjectionMatrix();
+        const sc = sun.shadow.camera; sc.near = 1; sc.far = 1400; sc.left = sc.bottom = -95; sc.right = sc.top = 95; sc.updateProjectionMatrix();
         sun.shadow.bias = -0.00006; sun.shadow.normalBias = 0.6;
         sun.shadow.radius = 3; sun.shadow.blurSamples = 16;
         scene.add(sun, sun.target);
@@ -155,6 +155,11 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       },
       render(gl, matrix) {
         const s = t3.current; if (!s.renderer) return;
+        // адаптивная зона теней: узкая и резкая при приближении, широкая при отдалении (покрывает всю видимую застройку)
+        const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, m.getZoom());
+        const half = Math.max(70, Math.min(500, mpp * 480));
+        const sc = s.sun.shadow.camera;
+        if (Math.abs(sc.right - half) > 2) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.updateProjectionMatrix(); }
         const l = new THREE.Matrix4().makeTranslation(mc.x, mc.y, mc.z)
           .multiply(new THREE.Matrix4().makeScale(S, -S, S)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
         s.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
