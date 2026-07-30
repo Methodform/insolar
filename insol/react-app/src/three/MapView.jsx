@@ -12,6 +12,7 @@ const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', '�
 const OFM_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const M_LAT = 110540;
 const SUN_DIST = 400;
+const SHADOW_R = 700;                     // радиус (м): в нём дома объёмные и с тенями, дальше — плоские
 
 function parseLonLat(txt) {
   const out = [];
@@ -116,6 +117,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       m.addLayer({ id: 'plot-line', type: 'line', source: 'plot', paint: { 'line-color': '#f5a623', 'line-width': 3 } });
       m.fitBounds([[mnx, mny], [mxx, mxy]], { padding: 140, pitch: 55, bearing: -20, duration: 0 });
       m.addLayer(customLayer);
+      // дома дальше SHADOW_R показываем плоскими (высота 0) — чтобы объёмными были только те, что в зоне теней
+      const pt = { type: 'Point', coordinates: [lon, lat] };
+      m.getStyle().layers.filter(l => l.type === 'fill-extrusion').forEach(l => {
+        try {
+          const h = ['to-number', ['coalesce', ['get', 'render_height'], ['get', 'height'], 3]];
+          m.setPaintProperty(l.id, 'fill-extrusion-height', ['case', ['<', ['distance', pt], SHADOW_R], h, 0]);
+        } catch (e) {}
+      });
     });
     m.on('idle', rebuildNeighbors);
     m.on('error', e => setErr('Карта: ' + (e && e.error && e.error.message || '')));
@@ -157,7 +166,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const s = t3.current; if (!s.renderer) return;
         // адаптивная зона теней: узкая и резкая при приближении, широкая при отдалении (покрывает всю видимую застройку)
         const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, m.getZoom());
-        const half = Math.max(70, Math.min(500, mpp * 480));
+        const half = Math.max(70, Math.min(SHADOW_R, mpp * 480));
         const sc = s.sun.shadow.camera;
         if (Math.abs(sc.right - half) > 2) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.updateProjectionMatrix(); }
         const l = new THREE.Matrix4().makeTranslation(mc.x, mc.y, mc.z)
