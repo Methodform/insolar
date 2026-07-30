@@ -27,7 +27,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, plotMarkers = [], reqH = 2.5, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const t3 = useRef({});
@@ -386,6 +386,28 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   const bar = { display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap', padding: '10px 14px', background: '#161b18', color: '#e8ece7', borderBottom: '1px solid #2a322c', fontSize: 13 };
   const btn = { background: 'transparent', color: '#e8ece7', border: '1px solid #3a463c', borderRadius: 6, padding: '7px 12px', cursor: 'pointer', fontSize: 13 };
   const inp = { background: '#0e1116', color: '#e8ece7', border: '1px solid #3a463c', borderRadius: 6, padding: '5px 8px', fontSize: 13 };
+  const windCtl = (
+    <>
+      <input type="date" value={dstr} onChange={e => setDstr(e.target.value)} style={inp} />
+      <span style={{ minWidth: 46, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{hhmm(mins)}</span>
+      <input type="range" min={0} max={1439} step={5} value={mins} onChange={e => setMins(+e.target.value)} style={{ width: 200 }} />
+      <button style={{ ...btn, ...(windShow ? { borderColor: '#e6663d', color: '#e6663d' } : {}) }} onClick={() => setWindShow(v => !v)}>🌬 Ветер</button>
+      {windShow && <select value={windSel} onChange={e => setWindSel(e.target.value)} style={inp} title="Направление ветра">
+        <option value="now">Сейчас{nowDeg != null ? '' : ' (загрузка…)'}</option>
+        {MONTHS.map((mn, i) => <option key={i} value={String(i)}>{mn}</option>)}
+      </select>}
+      <button style={{ ...btn, ...(insolShow ? { borderColor: '#4faa78', color: '#4faa78' } : {}) }} onClick={() => setInsolShow(v => !v)}>☀ Инсоляция</button>
+    </>
+  );
+  if (embed) return (
+    <div style={{ position: 'absolute', inset: 0 }}>
+      <div ref={box} style={{ position: 'absolute', inset: 0 }} />
+      <div style={{ position: 'absolute', left: '50%', bottom: 14, transform: 'translateX(-50%)', zIndex: 5, display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', maxWidth: '94%', padding: '8px 12px', background: 'rgba(22,27,24,.92)', color: '#e8ece7', border: '1px solid #2a322c', borderRadius: 12, boxShadow: '0 6px 22px rgba(0,0,0,.3)', fontSize: 13 }}>
+        {windCtl}
+        {err && <span style={{ color: '#ff8a80' }}>{err}</span>}
+      </div>
+    </div>
+  );
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', flexDirection: 'column', background: '#0e1116' }}>
       <div style={bar}>

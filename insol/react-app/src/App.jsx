@@ -294,12 +294,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
-        {mapOpen && <MapView polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH} date={date} minutes={minutes} windDeg={windDeg} plotMarkers={plotReport.rows} reqH={reqH} onClose={() => setMapOpen(false)} />}
-        <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={fenceH} buildings={buildings} onBuildings={setBuildings}
-          analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
-          plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
-          windows={showWin && !(pro && analytics) ? winReport.rows : []} plantMode={plantMode}
-          groundKey={mapKey} groundStyle={ground3d} wind={{ on: windFlow, dirDeg: windDeg }} neighbors={neighOn ? neighbors : []} />
+        {/* основной холст — карта 2ГИС/OSM с нашим 3D (бывшая «Карта»); старый Viewport оставлен в коде для отката */}
+        <MapView polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
+          date={date} minutes={minutes} windDeg={windDeg} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH} embed />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -352,7 +349,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
-          <Button variant="soft" color="gray" onClick={() => setMapOpen(true)}>🗺{!mobile && ' Карта'}</Button>
           <Button variant="soft" color="gray" onClick={requirePro(() => setWindOpen(true))}>🌀{!mobile && ' Роза ветров'}</Button>
           <Dialog.Root open={windOpen} onOpenChange={setWindOpen}>
             <Dialog.Content maxWidth="440px">
@@ -455,57 +451,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 ))}
                 {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
               </Flex>
-            </Box>
-            <Box>
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>3D-АНАЛИТИКА</Text>
-              <Box mt="2">
-                <Flex align="center" justify="between" asChild>
-                  <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: pro ? 'pointer' : 'default' }}>
-                    <Flex align="center" gap="2"><LayersIcon /> 3D-аналитика поверхностей</Flex>
-                    <Switch checked={pro && analytics} onCheckedChange={v => { if (!pro) { openPaywall(); return; } setAnalytics(v); }} />
-                  </Text>
-                </Flex>
-                {pro && analytics && <>
-                  <Flex gap="2" mt="2" align="center">
-                    <Text size="1" color="gray">Месяцы</Text>
-                    <Select.Root value={String(anM1)} onValueChange={v => setAnM1(+v)}>
-                      <Select.Trigger variant="soft" style={{ flex: 1 }} />
-                      <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
-                    </Select.Root>
-                    <Text size="1" color="gray">–</Text>
-                    <Select.Root value={String(anM2)} onValueChange={v => setAnM2(+v)}>
-                      <Select.Trigger variant="soft" style={{ flex: 1 }} />
-                      <Select.Content>{months.map((m, i) => <Select.Item key={i} value={String(i + 1)}>{m}</Select.Item>)}</Select.Content>
-                    </Select.Root>
-                  </Flex>
-                  <Text as="label" size="1" color="gray" mt="2" style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <input type="checkbox" checked={anDiff} onChange={e => setAnDiff(e.target.checked)} /> учитывать рассеянный свет
-                  </Text>
-                </>}
-              </Box>
-            </Box>
-            <Box>
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ОКРУЖЕНИЕ</Text>
-              <Box mt="2">
-                <Flex align="center" justify="between" asChild>
-                  <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
-                    <Flex align="center" gap="2">🏘 Соседние дома с карты</Flex>
-                    <Switch checked={neighOn} onCheckedChange={loadNeighbors} />
-                  </Text>
-                </Flex>
-                {neighOn && <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>{neighMsg || 'Здания в 20 м вокруг участка из OpenStreetMap (серые, отбрасывают тень).'}</Text>}
-              </Box>
-              <Box mt="3">
-                <Text size="1" color="gray" style={{ display: 'block', marginBottom: 6 }}>🗺 Подложка во вьюпорте</Text>
-                <Flex gap="1">
-                  {[['vector', 'Векторная карта'], ['off', 'Пусто']].map(([v, label]) => (
-                    <Button key={v} size="1" style={{ flex: 1 }}
-                      variant={ground3d === v ? 'solid' : 'soft'} color={ground3d === v ? 'grass' : 'gray'}
-                      onClick={() => setGround3d(v)}>{label}</Button>
-                  ))}
-                </Flex>
-                <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Плоская схема из OpenStreetMap вокруг участка (© OpenStreetMap).</Text>
-              </Box>
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ВЕТЕР</Text>
