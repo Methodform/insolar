@@ -74,6 +74,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     const mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);
     const S = mc.meterInMercatorCoordinateUnits();
+    const selIdx = { v: -1 };                       // индекс выделенного объекта
 
     const customLayer = {
       id: 'plot3d', type: 'custom', renderingMode: '3d',
@@ -129,10 +130,15 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const roofMat = new THREE.MeshStandardMaterial({ color: 0x8f5a44, roughness: .8, side: THREE.DoubleSide });
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
-      live.current.forEach(b => {
+      live.current.forEach((b, bi) => {
         const pts = b.pts; if (!pts || pts.length < 2) return;
         const kind = b.kind || 'house';
+        const hl = bi === selIdx.v;                 // подсветка выделенного
         let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
+        if (hl && pts.length >= 3) {                 // жёлтый контур выделения
+          const ol = new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(pts.map(p => new THREE.Vector3(p[0], 0.12, -p[1]))), new THREE.LineBasicMaterial({ color: 0xffcc00 }));
+          ol.renderOrder = 3; group.add(ol);
+        }
         if (kind === 'tree' || kind === 'bush') {
           let rad = 0.7; pts.forEach(p => rad = Math.max(rad, Math.hypot(p[0] - cx, p[1] - cy)));
           const H = b.height || (kind === 'tree' ? 5 : 1.2);
@@ -143,7 +149,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         }
         const H = b.height || 3;
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
-        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: wall[kind] || wall.default, roughness: .85 }));
+        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: wall[kind] || wall.default, roughness: .85, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.4 : 0 }));
         walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
         const rh = b.roofH || (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
         if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat); if (roof) group.add(roof); }
@@ -188,23 +194,45 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       m.triggerRepaint();
     }
 
-    // перетаскивание объектов: unproject точки на землю → локальные метры → сдвиг контура
+    // ===== выделение / перетаскивание / поворот (как во вьюпорте) =====
     const toLocal = ll => [(ll.lng - lon) * mLon, (ll.lat - lat) * M_LAT];
+    const centroidOf = pts => { let x = 0, y = 0; pts.forEach(p => { x += p[0]; y += p[1]; }); return [x / pts.length, y / pts.length]; };
+    const radiusOf = (pts, c) => { let r = 1; pts.forEach(p => r = Math.max(r, Math.hypot(p[0] - c[0], p[1] - c[1]))); return r; };
+    const rotatePts = (pts, c, a) => { const s = Math.sin(a), co = Math.cos(a); return pts.map(p => { const dx = p[0] - c[0], dy = p[1] - c[1]; return [c[0] + dx * co - dy * s, c[1] + dx * s + dy * co]; }); };
+    const hitTest = lp => live.current.findIndex(b => b.pts && b.pts.length >= 3 && pointInPoly(lp, b.pts));
+    const commit = () => onBuildings && onBuildings(live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) })));
+
+    let rotMarker = null;
+    function placeGizmo() {
+      if (rotMarker) { rotMarker.remove(); rotMarker = null; }
+      const i = selIdx.v; if (i < 0) return;
+      const b = live.current[i]; if (!b || !b.pts || b.pts.length < 3) return;
+      const c = centroidOf(b.pts), R = radiusOf(b.pts, c) + 3;
+      const el = document.createElement('div');
+      el.textContent = '↻';
+      el.style.cssText = 'width:30px;height:30px;border-radius:50%;background:#2f6bd4;color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:grab;box-shadow:0 2px 8px rgba(0,0,0,.4);user-select:none';
+      rotMarker = new maplibregl.Marker({ element: el, draggable: true }).setLngLat([lon + c[0] / mLon, lat + (c[1] + R) / M_LAT]).addTo(m);
+      let cc = null, base = 0, orig = null;
+      rotMarker.on('dragstart', () => { const bb = live.current[i]; cc = centroidOf(bb.pts); orig = bb.pts.map(p => p.slice()); const hl = toLocal(rotMarker.getLngLat()); base = Math.atan2(hl[1] - cc[1], hl[0] - cc[0]); });
+      rotMarker.on('drag', () => { const hl = toLocal(rotMarker.getLngLat()); const a = Math.atan2(hl[1] - cc[1], hl[0] - cc[0]) - base; live.current[i].pts = rotatePts(orig, cc, a); rebuildObjects(); });
+      rotMarker.on('dragend', () => { const hl = toLocal(rotMarker.getLngLat()); let a = Math.atan2(hl[1] - cc[1], hl[0] - cc[0]) - base; a = Math.round(a / (Math.PI / 2)) * (Math.PI / 2); live.current[i].pts = rotatePts(orig, cc, a); rebuildObjects(); commit(); placeGizmo(); });
+    }
+    function select(idx) { selIdx.v = idx; rebuildObjects(); placeGizmo(); }
+
     let drag = null;
     const onDown = e => {
-      const lp = toLocal(e.lngLat);
-      const idx = live.current.findIndex(b => b.pts && b.pts.length >= 3 && pointInPoly(lp, b.pts));
-      if (idx < 0) return;
+      const lp = toLocal(e.lngLat), idx = hitTest(lp);
+      if (idx < 0) { if (selIdx.v >= 0) select(-1); return; }
+      if (idx !== selIdx.v) select(idx);                    // клик по объекту — выделяем
       drag = { idx, start: lp, orig: live.current[idx].pts.map(p => p.slice()) };
       m.dragPan.disable(); m.getCanvas().style.cursor = 'grabbing'; e.preventDefault();
     };
     const onMove = e => {
-      if (!drag) { const lp = toLocal(e.lngLat); const over = live.current.some(b => b.pts && b.pts.length >= 3 && pointInPoly(lp, b.pts)); m.getCanvas().style.cursor = over ? 'grab' : ''; return; }
-      const lp = toLocal(e.lngLat), dx = lp[0] - drag.start[0], dy = lp[1] - drag.start[1];
-      live.current[drag.idx].pts = drag.orig.map(p => [p[0] + dx, p[1] + dy]);
-      rebuildObjects();
+      if (drag) { const lp = toLocal(e.lngLat), dx = lp[0] - drag.start[0], dy = lp[1] - drag.start[1];
+        live.current[drag.idx].pts = drag.orig.map(p => [p[0] + dx, p[1] + dy]); rebuildObjects(); return; }
+      m.getCanvas().style.cursor = hitTest(toLocal(e.lngLat)) >= 0 ? 'grab' : '';
     };
-    const onUp = () => { if (!drag) return; drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; onBuildings && onBuildings(live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }))); };
+    const onUp = () => { if (!drag) return; drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); placeGizmo(); };
     m.on('mousedown', onDown); m.on('mousemove', onMove); m.on('mouseup', onUp);
 
     return () => { m.remove(); map.current = null; t3.current = {}; };
@@ -220,7 +248,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         <input type="date" value={dstr} onChange={e => setDstr(e.target.value)} style={inp} />
         <span style={{ minWidth: 46, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{hhmm(mins)}</span>
         <input type="range" min={0} max={1439} step={5} value={mins} onChange={e => setMins(+e.target.value)} style={{ width: 220 }} />
-        <span style={{ color: '#8b968c', fontSize: 12 }}>тащите дом мышью</span>
+        <span style={{ color: '#8b968c', fontSize: 12 }}>клик — выделить · тащить — двигать · ↻ — повернуть</span>
         {err && <span style={{ color: '#ff8a80' }}>{err}</span>}
         <span style={{ flex: 1 }} />
         <span style={{ color: '#8b968c' }}>© OpenStreetMap · OpenFreeMap</span>
