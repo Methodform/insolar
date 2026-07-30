@@ -120,9 +120,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         scene.add(new THREE.HemisphereLight(0xdfe9f5, 0x55603f, 0.32));
         const sun = new THREE.DirectionalLight(0xfff1d6, 1.7);
         sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
-        const sc = sun.shadow.camera; sc.near = 1; sc.far = 900; sc.left = sc.bottom = -180; sc.right = sc.top = 180; sc.updateProjectionMatrix();
-        sun.shadow.bias = -0.00004; sun.shadow.normalBias = 0.4;   // тени вплотную к основанию (без Peter Panning)
-        sun.shadow.radius = 2;                                       // умеренно мягкие края
+        // узкий кадр тени вокруг участка → высокая плотность текселей (резче), VSM даёт гладкое размытие
+        const sc = sun.shadow.camera; sc.near = 1; sc.far = 600; sc.left = sc.bottom = -95; sc.right = sc.top = 95; sc.updateProjectionMatrix();
+        sun.shadow.bias = -0.0001; sun.shadow.normalBias = 0.3;
+        sun.shadow.radius = 3; sun.shadow.blurSamples = 16;
         scene.add(sun, sun.target);
         const objGroup = new THREE.Group(); scene.add(objGroup);
         const fenceGroup = new THREE.Group(); scene.add(fenceGroup);
@@ -133,7 +134,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const catcher = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.ShadowMaterial({ opacity: 0.5 }));
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
-        renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;   // radius управляет мягкостью
+        renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.VSMShadowMap;   // гладкое размытие теней
         t3.current = { scene, camera, renderer, sun, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
         buildFence(fenceH); rebuildObjects(); applySun();
       },
