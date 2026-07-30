@@ -3,7 +3,7 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as THREE from 'three';
 import { sunPosition, compassAz, localToUTC } from '../engine/astronomy.js';
-import { buildStreamlines, buildWindComfort, windColor } from '../engine/windviz.js';
+import { buildStreamlines, buildWindComfort, windColor, COMET_K, COMET_VS, COMET_FS, updateComet } from '../engine/windviz.js';
 
 // подложка: OpenFreeMap (OSM, без ключа). В проде меняется на свой self-host PMTiles одной строкой.
 const OFM_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
@@ -111,6 +111,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const l = new THREE.Matrix4().makeTranslation(mc.x, mc.y, mc.z)
           .multiply(new THREE.Matrix4().makeScale(S, -S, S)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
         s.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
+        if (s.comets && s.comets.length) s.comets.forEach(updateComet);   // анимация «комет» ветра
         s.renderer.resetState(); s.renderer.render(s.scene, s.camera); m.triggerRepaint();
       }
     };
@@ -182,6 +183,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function rebuildWind(show, wDeg, fh) {
       const s = t3.current; s._w = { show, wDeg, fh }; const g = s.windGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      s.comets = [];                                          // сброс до пересборки (меши уже удалены выше)
       if (!show) { m.triggerRepaint(); return; }
       const baseLocal = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let ph = 6; baseLocal.forEach(p => ph = Math.max(ph, Math.hypot(p[0], p[1])));
@@ -191,12 +193,23 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(cf.pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(cf.col, 3));
         const mm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false })); mm.renderOrder = 2; g.add(mm);
       }
+      // «кометы» как во вьюпорте — движущиеся отрезки линий тока
       const { lines } = buildStreamlines(wDeg, baseLocal, live.current, ph, fh, nb);
+      const K = COMET_K; s.comets = [];
       lines.forEach(ln => {
-        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(ln.pos, 3));
-        let mean = 0; ln.spd.forEach(v => mean += v); mean /= ln.spd.length || 1;
-        const col = windColor((mean - 1) / 0.9);
-        g.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: new THREE.Color(col[0], col[1], col[2]), transparent: true, opacity: 0.9 })));
+        const n = ln.pos.length / 3; if (n < 3) return;
+        for (let ci = 0; ci < 2; ci++) {
+          const positions = new Float32Array(K * 2 * 3), aT = new Float32Array(K * 2);
+          for (let i = 0; i < K; i++) { aT[i * 2] = i / (K - 1); aT[i * 2 + 1] = i / (K - 1); }
+          const geo = new THREE.BufferGeometry();
+          geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+          geo.setAttribute('aT', new THREE.BufferAttribute(aT, 1));
+          const idx = []; for (let i = 0; i < K - 1; i++) { const A = i * 2, B = i * 2 + 1, C = (i + 1) * 2, D = (i + 1) * 2 + 1; idx.push(A, B, C, B, D, C); }
+          geo.setIndex(idx);
+          const mat = new THREE.ShaderMaterial({ uniforms: { uColor: { value: new THREE.Color(0.95, 0.8, 0.25) }, uOpacity: { value: 0.95 } }, vertexShader: COMET_VS, fragmentShader: COMET_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide });
+          const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 4; g.add(mesh);
+          s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.7 });
+        }
       });
       m.triggerRepaint();
     }

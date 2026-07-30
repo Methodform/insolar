@@ -105,3 +105,29 @@ export function windColor(t) { t = Math.max(0, Math.min(1, t));
     return [a[1][0] + (b[1][0] - a[1][0]) * k, a[1][1] + (b[1][1] - a[1][1]) * k, a[1][2] + (b[1][2] - a[1][2]) * k]; } }
   return WSTOPS[WSTOPS.length - 1][1];
 }
+
+// «кометы» — движущиеся отрезки линий тока со скруглением и затуханием прозрачности к хвосту
+export const COMET_K = 16;
+export const COMET_VS = 'attribute float aT; varying float vT; void main(){ vT = aT; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }';
+export const COMET_FS = 'uniform vec3 uColor; uniform float uOpacity; varying float vT; void main(){ float a = pow(1.0 - vT, 1.3) * uOpacity; if (a < 0.01) discard; gl_FragColor = vec4(uColor, a); }';
+export function updateComet(c) {
+  const n = c.n; if (n < 2) return;
+  c.phase += c.speed; if (c.phase > n - 1) c.phase -= (n - 1);
+  const pos = c.mesh.geometry.attributes.position.array, path = c.path, K = COMET_K;
+  for (let i = 0; i < K; i++) {
+    let idx = c.phase - i * c.spacing; if (idx < 0) idx = 0; else if (idx > n - 1) idx = n - 1;
+    const i0 = Math.floor(idx), f = idx - i0, i1 = Math.min(n - 1, i0 + 1);
+    const x = path[i0 * 3] + (path[i1 * 3] - path[i0 * 3]) * f;
+    const y = path[i0 * 3 + 1];
+    const z = path[i0 * 3 + 2] + (path[i1 * 3 + 2] - path[i0 * 3 + 2]) * f;
+    let dxx = path[i1 * 3] - path[i0 * 3], dzz = path[i1 * 3 + 2] - path[i0 * 3 + 2];
+    let pxx = -dzz, pzz = dxx; const pl = Math.hypot(pxx, pzz) || 1; pxx /= pl; pzz /= pl;
+    const w = c.width * (0.25 + 0.75 * (1 - i / (K - 1)));
+    const o = i * 6;
+    pos[o] = x + pxx * w; pos[o + 1] = y; pos[o + 2] = z + pzz * w;
+    pos[o + 3] = x - pxx * w; pos[o + 4] = y; pos[o + 5] = z - pzz * w;
+  }
+  c.mesh.geometry.attributes.position.needsUpdate = true;
+  const hi = Math.min(n - 1, Math.round(c.phase)), col = windColor((c.spd[hi] / 1 - 1) / 0.9);
+  c.mesh.material.uniforms.uColor.value.setRGB(col[0], col[1], col[2]);
+}
