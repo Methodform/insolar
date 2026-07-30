@@ -40,6 +40,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   const [monthDegs, setMonthDegs] = useState(null); // [12] градусы «откуда дует»
   const [nowDeg, setNowDeg] = useState(null);
   const [windDbg, setWindDbg] = useState('');
+  const [sunAlt, setSunAlt] = useState(30);        // высота солнца, ° — для вуали день/ночь
+  const skyVeil = alt => alt >= 8 ? 'transparent'
+    : alt >= 0 ? `rgba(255,138,54,${0.16 * (1 - alt / 8)})`
+    : `rgba(10,20,46,${(0.32 + 0.32 * Math.min(1, -alt / 8)).toFixed(3)})`;
   const windDegLocal = embed ? windDeg : (windSel === 'now' ? (nowDeg != null ? nowDeg : windDeg) : (monthDegs ? monthDegs[+windSel] : windDeg));
   const [err, setErr] = useState('');
   const ring = parseLonLat(polyText);
@@ -55,9 +59,18 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   }
   function applySun() {
     const s = t3.current; if (!s.sun) return;
-    const { az, alt } = sunAngles(); const R = 200, a = az * Math.PI / 180, al = Math.max(1, alt) * Math.PI / 180, ca = Math.cos(al);
-    s.sun.position.set(R * ca * Math.sin(a), R * Math.sin(al), -R * ca * Math.cos(a)); s.sun.target.position.set(0, 0, 0);
-    s.sun.intensity = alt > 0 ? 1.7 : 0;
+    const { az, alt } = sunAngles(); setSunAlt(alt);
+    const a = az * Math.PI / 180, al = alt * Math.PI / 180, ca = Math.cos(al);
+    const dir = [ca * Math.sin(a), Math.sin(al), -ca * Math.cos(a)];   // единичное направление на солнце
+    s.sun.position.set(dir[0] * 200, Math.max(2, dir[1] * 200), dir[2] * 200); s.sun.target.position.set(0, 0, 0);
+    // диск солнца в небе (далеко), виден когда над горизонтом
+    if (s.sunSphere) { s.sunSphere.position.set(dir[0] * 480, dir[1] * 480, dir[2] * 480); s.sunSphere.visible = alt > -1;
+      s.sunSphere.material.color.setHex(alt < 6 ? 0xff9a52 : 0xffe08a); }   // тёплый у горизонта
+    // яркость по высоте солнца: день → полно, сумерки → приглушённо, ночь → почти темно
+    const dayK = alt >= 8 ? 1 : alt > -6 ? Math.max(0, (alt + 6) / 14) : 0;
+    s.sun.intensity = 1.9 * (alt > 0 ? (0.45 + 0.55 * Math.min(1, alt / 8)) : 0);
+    if (s.amb) s.amb.intensity = 0.12 + 0.3 * dayK;
+    if (s.hemi) s.hemi.intensity = 0.08 + 0.28 * dayK;
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
@@ -116,9 +129,11 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       onAdd(mp, gl) {
         const scene = new THREE.Scene();
         const camera = new THREE.Camera();
-        scene.add(new THREE.AmbientLight(0xffffff, 0.4));
-        scene.add(new THREE.HemisphereLight(0xdfe9f5, 0x55603f, 0.32));
+        const amb = new THREE.AmbientLight(0xffffff, 0.4); scene.add(amb);
+        const hemi = new THREE.HemisphereLight(0xdfe9f5, 0x55603f, 0.32); scene.add(hemi);
         const sun = new THREE.DirectionalLight(0xfff1d6, 1.7);
+        // видимое солнце-диск в небе (свечение), чтобы читалось время суток
+        const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(7, 20, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a, toneMapped: false })); sunSphere.frustumCulled = false; scene.add(sunSphere);
         sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
         // узкий кадр тени вокруг участка → высокая плотность текселей (резче), VSM даёт гладкое размытие
         const sc = sun.shadow.camera; sc.near = 1; sc.far = 600; sc.left = sc.bottom = -95; sc.right = sc.top = 95; sc.updateProjectionMatrix();
@@ -135,7 +150,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.VSMShadowMap;   // гладкое размытие теней
-        t3.current = { scene, camera, renderer, sun, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
+        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
         buildFence(fenceH); rebuildObjects(); applySun();
       },
       render(gl, matrix) {
@@ -422,6 +437,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   if (embed) return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div ref={box} style={{ position: 'absolute', inset: 0 }} />
+      <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: skyVeil(sunAlt), transition: 'background .35s', zIndex: 1 }} />
+      {sunAlt <= 0 && <div style={{ position: 'absolute', left: '50%', top: 14, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2, color: '#dfe6f2', background: 'rgba(10,20,46,.55)', border: '1px solid #2a3550', borderRadius: 999, padding: '4px 12px', fontSize: 12 }}>🌙 Ночь · солнце ниже горизонта</div>}
       {err && <div style={{ position: 'fixed', top: 60, right: 12, zIndex: 40, padding: '6px 10px', background: 'rgba(22,27,24,.94)', color: '#ff8a80', borderRadius: 10, fontSize: 12 }}>{err}</div>}
     </div>
   );
