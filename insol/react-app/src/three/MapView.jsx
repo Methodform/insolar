@@ -117,14 +117,6 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       m.addLayer({ id: 'plot-line', type: 'line', source: 'plot', paint: { 'line-color': '#f5a623', 'line-width': 3 } });
       m.fitBounds([[mnx, mny], [mxx, mxy]], { padding: 140, pitch: 55, bearing: -20, duration: 0 });
       m.addLayer(customLayer);
-      // дома дальше SHADOW_R показываем плоскими (высота 0) — чтобы объёмными были только те, что в зоне теней
-      const pt = { type: 'Point', coordinates: [lon, lat] };
-      m.getStyle().layers.filter(l => l.type === 'fill-extrusion').forEach(l => {
-        try {
-          const h = ['to-number', ['coalesce', ['get', 'render_height'], ['get', 'height'], 3]];
-          m.setPaintProperty(l.id, 'fill-extrusion-height', ['case', ['<', ['distance', pt], SHADOW_R], h, 0]);
-        } catch (e) {}
-      });
     });
     m.on('idle', rebuildNeighbors);
     m.on('error', e => setErr('Карта: ' + (e && e.error && e.error.message || '')));
@@ -145,7 +137,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(7, 20, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a, toneMapped: false })); sunSphere.frustumCulled = false; scene.add(sunSphere);
         sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
         // узкий кадр тени вокруг участка → высокая плотность текселей (резче), VSM даёт гладкое размытие
-        const sc = sun.shadow.camera; sc.near = 1; sc.far = 1400; sc.left = sc.bottom = -95; sc.right = sc.top = 95; sc.updateProjectionMatrix();
+        // фиксированный кадр тени: покрывает квадрат 40×40 м вокруг участка + вынос теней от домов в нём
+        const sc = sun.shadow.camera; sc.near = 1; sc.far = 500; sc.left = sc.bottom = -80; sc.right = sc.top = 80; sc.updateProjectionMatrix();
         sun.shadow.bias = -0.00006; sun.shadow.normalBias = 0.6;
         sun.shadow.radius = 3; sun.shadow.blurSamples = 16;
         scene.add(sun, sun.target);
@@ -164,11 +157,6 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       },
       render(gl, matrix) {
         const s = t3.current; if (!s.renderer) return;
-        // адаптивная зона теней: узкая и резкая при приближении, широкая при отдалении (покрывает всю видимую застройку)
-        const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, m.getZoom());
-        const half = Math.max(70, Math.min(SHADOW_R, mpp * 480));
-        const sc = s.sun.shadow.camera;
-        if (Math.abs(sc.right - half) > 2) { sc.left = sc.bottom = -half; sc.right = sc.top = half; sc.updateProjectionMatrix(); }
         const l = new THREE.Matrix4().makeTranslation(mc.x, mc.y, mc.z)
           .multiply(new THREE.Matrix4().makeScale(S, -S, S)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
         s.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
@@ -316,11 +304,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : null; if (!polys) return;
         polys.forEach(rings => {
           const outer = rings[0]; if (!outer || outer.length < 3) return;
-          const shape = new THREE.Shape(); const loc = [];
-          outer.forEach((c, i) => { const ex = (c[0] - lon) * mLon, ny = (c[1] - lat) * M_LAT; loc.push([ex, ny]); i ? shape.lineTo(ex, ny) : shape.moveTo(ex, ny); });
+          const loc = []; let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9;
+          outer.forEach(c => { const ex = (c[0] - lon) * mLon, ny = (c[1] - lat) * M_LAT; loc.push([ex, ny]); mnx = Math.min(mnx, ex); mxx = Math.max(mxx, ex); mny = Math.min(mny, ny); mxy = Math.max(mxy, ny); });
+          nd.push({ pts: loc, height: h });                                   // ветер учитывает всех соседей
+          if (mnx > 20 || mxx < -20 || mny > 20 || mxy < -20) return;         // тень — домам, пересекающим квадрат 40×40 м
+          const shape = new THREE.Shape(); loc.forEach((c2, i) => i ? shape.lineTo(c2[0], c2[1]) : shape.moveTo(c2[0], c2[1]));
           const geo = new THREE.ExtrudeGeometry(shape, { depth: Math.max(2, h - b0), bevelEnabled: false });
           const mesh = new THREE.Mesh(geo, s.casterMat); mesh.rotation.x = -Math.PI / 2; mesh.position.y = b0; mesh.castShadow = true; s.neigh.add(mesh);
-          nd.push({ pts: loc, height: h });
         });
       });
       s.neighborData = nd;
