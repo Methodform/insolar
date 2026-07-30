@@ -291,13 +291,26 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const steps = [], stepMin = 20;
       for (let mm2 = 0; mm2 < 1440; mm2 += stepMin) { const utc = localToUTC(y, mo - 1, da, Math.floor(mm2 / 60), mm2 % 60, tz); const pos = sunPosition(utc, lat, lon); if (pos.altitude <= 0.03) continue; const az = compassAz(pos.azimuth) * Math.PI / 180, ca = Math.cos(pos.altitude); steps.push(new THREE.Vector3(ca * Math.sin(az), Math.sin(pos.altitude), -ca * Math.cos(az))); }
       const occ = []; s.objGroup.traverse(o => { if (o.isMesh) occ.push(o); }); s.neigh.traverse(o => { if (o.isMesh) occ.push(o); }); s.fenceGroup.traverse(o => { if (o.isMesh) occ.push(o); });
-      const rc = new THREE.Raycaster(); const up = new THREE.Vector3(0, 1, 0);
-      const hours = (origin) => { let lit = 0; steps.forEach(v => { rc.set(origin.clone().addScaledVector(v, 0.3), v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; }); return lit * stepMin / 60; };
+      const rc = new THREE.Raycaster();
+      // часы солнца на площадке со стеновой нормалью: учитываем только солнце «в лицо» стене и без затенения
+      const hoursN = (origin, nrm) => { let lit = 0; steps.forEach(v => { if (v.dot(nrm) <= 0) return; rc.set(origin.clone().addScaledVector(v, 0.3), v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; }); return lit * stepMin / 60; };
       live.current.forEach(b => { const H = b.height || 3, kind = b.kind || 'house'; if (!(H > 1) || !b.pts || b.pts.length < 3 || kind === 'tree' || kind === 'bush') return;
-        const pts = b.pts; let mnx = 1e9, mxx = -1e9, mnz = 1e9, mxz = -1e9; pts.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mnz = Math.min(mnz, p[1]); mxz = Math.max(mxz, p[1]); });
-        const roofY = H + (b.roofH || 0) * 0.55 + 0.1, sx = Math.max(1.5, (mxx - mnx) / 4), sz = Math.max(1.5, (mxz - mnz) / 4);
-        for (let e = mnx + sx / 2; e < mxx; e += sx) for (let n = mnz + sz / 2; n < mxz; n += sz) {
-          if (!pointInPoly([e, n], pts)) continue; const h = hours(new THREE.Vector3(e, roofY, -n)); dot(e, roofY, -n, h >= req ? green : red);
+        const pts = b.pts; let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
+        const hStep = Math.max(1, H / 3);
+        for (let i = 0; i < pts.length; i++) {                     // точки по каждой стене-фасаду
+          const A = pts[i], B = pts[(i + 1) % pts.length];
+          let dx = B[0] - A[0], dy = B[1] - A[1]; const L = Math.hypot(dx, dy); if (L < 0.6) continue; dx /= L; dy /= L;
+          let nx = dy, ny = -dx; const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+          if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }   // нормаль наружу
+          const nrm = new THREE.Vector3(nx, 0, -ny);
+          const nAlong = Math.max(1, Math.floor(L / 2.5));
+          for (let a = 0; a < nAlong; a++) {
+            const t = (a + 0.5) / nAlong, ex = A[0] + dx * L * t, ny2 = A[1] + dy * L * t;
+            for (let hy = hStep * 0.6; hy < H; hy += hStep) {
+              const org = new THREE.Vector3(ex + nx * 0.15, hy, -ny2 + (-ny) * 0.15);
+              const h = hoursN(org, nrm); dot(org.x, org.y, org.z, h >= req ? green : red);
+            }
+          }
         }
       });
       m.triggerRepaint();
