@@ -99,10 +99,11 @@ box(12.55,.25,12.55,M.plinth,0,.125,0);
 
 /* стены: квадрат с вырезом-нишей на фронте (+z) */
 (function(){
+  // экструзия с rotation.x=-90° отображает y-форму в -z: ниша на фронте (+z) задаётся при y<0
   const s=new THREE.Shape();
-  s.moveTo(-HALF,-HALF); s.lineTo(HALF,-HALF); s.lineTo(HALF,HALF);
-  s.lineTo(NX1,HALF); s.lineTo(NX1,NZ); s.lineTo(NX0,NZ); s.lineTo(NX0,HALF);
-  s.lineTo(-HALF,HALF); s.closePath();
+  s.moveTo(-HALF,HALF); s.lineTo(HALF,HALF); s.lineTo(HALF,-HALF);
+  s.lineTo(NX1,-HALF); s.lineTo(NX1,-NZ); s.lineTo(NX0,-NZ); s.lineTo(NX0,-HALF);
+  s.lineTo(-HALF,-HALF); s.closePath();
   const g=new THREE.ExtrudeGeometry(s,{depth:WH,bevelEnabled:false});
   const m=new THREE.Mesh(g,M.brick);
   m.rotation.x=-Math.PI/2; m.position.y=Y0;

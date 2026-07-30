@@ -89,5 +89,30 @@ export async function fetchVectorMap(lat0, lon0, halfM = 250, px = 2048) {
     path(w2.geometry); g.closePath(); g.fill(); g.stroke();
   });
 
+  // 6) подписи улиц (по одной на название, вдоль самого длинного сегмента, с белым ореолом)
+  const segLen = (a, b) => Math.hypot(X(a.lon) - X(b.lon), Y(a.lat) - Y(b.lat));
+  const named = {};
+  roads.forEach(w2 => {
+    const nm = w2.tags.name; if (!nm) return;
+    let len = 0; for (let i = 0; i < w2.geometry.length - 1; i++) len += segLen(w2.geometry[i], w2.geometry[i + 1]);
+    if (!named[nm] || len > named[nm].len) named[nm] = { w: w2, len };
+  });
+  g.textAlign = 'center'; g.textBaseline = 'middle';
+  const fs = Math.round(6 * sc);
+  g.font = `600 ${fs}px 'Segoe UI', Arial, sans-serif`;
+  Object.values(named).forEach(({ w: w2, len }) => {
+    if (len < 40 * sc) return;                          // короткие проезды не подписываем
+    const gm = w2.geometry;
+    let best = -1, bi = 0;
+    for (let i = 0; i < gm.length - 1; i++) { const d = segLen(gm[i], gm[i + 1]); if (d > best) { best = d; bi = i; } }
+    const ax = X(gm[bi].lon), ay = Y(gm[bi].lat), bx = X(gm[bi + 1].lon), by = Y(gm[bi + 1].lat);
+    let ang = Math.atan2(by - ay, bx - ax);
+    if (ang > Math.PI / 2) ang -= Math.PI; if (ang < -Math.PI / 2) ang += Math.PI;   // держим текст «не вверх ногами»
+    g.save(); g.translate((ax + bx) / 2, (ay + by) / 2); g.rotate(ang);
+    g.lineWidth = fs * 0.3; g.strokeStyle = 'rgba(255,255,255,0.92)'; g.lineJoin = 'round'; g.strokeText(nm, 0, 0);
+    g.fillStyle = '#40403a'; g.fillText(nm, 0, 0);
+    g.restore();
+  });
+
   return { canvas: cv, halfM };
 }

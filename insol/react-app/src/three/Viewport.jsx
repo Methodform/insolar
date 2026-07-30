@@ -111,192 +111,109 @@ function buildTypicalHouse(W, D, H) {
   return g;
 }
 
-// ===== ГОТОВАЯ детальная модель дома (точный порт uploads/index.html) =====
-// текстуры и материалы строятся один раз (синглтон), геометрия — на каждый инстанс
-let READY_MATS = null;
-function readyMats() {
-  if (READY_MATS) return READY_MATS;
-  const tex = (w, h, draw, rx = 1, ry = 1) => {
-    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
-    draw(cv.getContext('2d'), w, h);
-    const t = new THREE.CanvasTexture(cv);
-    t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.anisotropy = 8;
-    t.colorSpace = THREE.SRGBColorSpace; return t;
+// ===== ГОТОВАЯ модель дома: одноэтажный кирпичный, low-poly, плоские цвета =====
+// референс: 3ddd.ru "Одноэтажный кирпичный дом с деревянной отделкой фасада"
+// натуральные габариты: кровля 13.75×13.75 м, стены 3.0 м, конёк 6.16, дымоход ~6.5 м
+let BRICK_MATS = null;
+function brickMats() {
+  if (BRICK_MATS) return BRICK_MATS;
+  const std = (c, r = .9) => new THREE.MeshStandardMaterial({ color: c, roughness: r });
+  BRICK_MATS = {
+    brick: std(0x99473a),
+    roof: new THREE.MeshStandardMaterial({ color: 0x41464d, roughness: .85, flatShading: true }),
+    ridge: std(0x2b2f34, .7),
+    trim: std(0xc9a36b, .85),      // деревянная обвязка свесов
+    slats: std(0xbe9159, .85),     // рейки крыльца
+    deck: std(0xa87f4f),
+    frame: new THREE.MeshStandardMaterial({ color: 0x272b30, roughness: .55, metalness: .2 }),
+    glass: new THREE.MeshPhongMaterial({ color: 0x33474f, specular: 0xcfe0ee, shininess: 160, transparent: true, opacity: .95 }),
+    dark: std(0x2e3338, .6),
+    plinth: std(0x8d8d89, .95),
   };
-  const sidingTex = tex(256, 256, (g, w, h) => {
-    g.fillStyle = '#f2f3f1'; g.fillRect(0, 0, w, h);
-    for (let x = 0; x < w; x += 16) { g.fillStyle = '#e0e2df'; g.fillRect(x, 0, 2, h); g.fillStyle = '#fafbf9'; g.fillRect(x + 2, 0, 1, h); }
-  }, 4, 1.6);
-  const woodTexture = (rx, ry) => tex(256, 256, (g, w, h) => {
-    const shades = ['#6d4f36', '#75563b', '#654830', '#7c5c40'];
-    for (let y = 0, i = 0; y < h; y += 22, i++) {
-      g.fillStyle = shades[i % shades.length]; g.fillRect(0, y, w, 22);
-      g.fillStyle = 'rgba(40,25,12,.85)'; g.fillRect(0, y, w, 2);
-      g.strokeStyle = 'rgba(30,18,8,.25)';
-      for (let k = 0; k < 6; k++) { g.beginPath(); const yy = y + 3 + Math.random() * 17; g.moveTo(0, yy); g.lineTo(w, yy + Math.random() * 2 - 1); g.stroke(); }
-    }
-  }, rx, ry);
-  const woodTex = woodTexture(2.2, 1.6);
-  const deckTex = tex(512, 512, (g, w, h) => {
-    const shades = ['#8a6b4d', '#93745a', '#7e6045', '#886849'];
-    for (let y = 0, i = 0; y < h; y += 32, i++) {
-      g.fillStyle = shades[i % shades.length]; g.fillRect(0, y, w, 32);
-      g.fillStyle = 'rgba(35,22,10,.9)'; g.fillRect(0, y, w, 3);
-      g.strokeStyle = 'rgba(40,25,12,.3)';
-      for (let k = 0; k < 8; k++) { g.beginPath(); const yy = y + 4 + Math.random() * 26; g.moveTo(0, yy); g.lineTo(w, yy); g.stroke(); }
-    }
-  }, 1.2, 3);
-  const shingleTex = tex(512, 512, (g, w, h) => {
-    g.fillStyle = '#4a3d33'; g.fillRect(0, 0, w, h);
-    const pal = ['#8a6a4f', '#7b5a42', '#6e564b', '#5f5148', '#93705a', '#55483f', '#7d6553'];
-    const sw = 42, sh = 30;
-    for (let row = -1; row < h / sh + 1; row++) {
-      const off = (row % 2) ? sw / 2 : 0;
-      for (let x = -1; x < w / sw + 1; x++) {
-        const cx = x * sw + off, cy = row * sh;
-        g.fillStyle = pal[Math.floor(Math.random() * pal.length)];
-        g.beginPath(); g.moveTo(cx, cy); g.lineTo(cx + sw, cy); g.lineTo(cx + sw, cy + sh - 10);
-        g.arc(cx + sw / 2, cy + sh - 10, sw / 2, 0, Math.PI); g.closePath(); g.fill();
-        g.strokeStyle = 'rgba(30,24,18,.5)'; g.stroke();
-      }
-    }
-  }, 1, 1);
-  READY_MATS = {
-    siding: new THREE.MeshStandardMaterial({ map: sidingTex, roughness: .85 }),
-    wood: new THREE.MeshStandardMaterial({ map: woodTex, roughness: .8 }),
-    deck: new THREE.MeshStandardMaterial({ map: deckTex, roughness: .85 }),
-    shingle: new THREE.MeshStandardMaterial({ map: shingleTex, roughness: .95 }),
-    dark: new THREE.MeshStandardMaterial({ color: 0x2e3338, roughness: .6, metalness: .25 }),
-    frame: new THREE.MeshStandardMaterial({ color: 0x23272b, roughness: .5, metalness: .3 }),
-    glass: new THREE.MeshPhongMaterial({ color: 0x30414d, specular: 0xcfe0ee, shininess: 180, reflectivity: .6, transparent: true, opacity: .94 }),
-    white: new THREE.MeshStandardMaterial({ color: 0xf4f5f3, roughness: .9 }),
-    concrete: new THREE.MeshStandardMaterial({ color: 0x9aa0a3, roughness: .95 }),
-    woodTexture,
-  };
-  return READY_MATS;
+  return BRICK_MATS;
 }
-function buildReadyHouse() {
-  const M = readyMats();
+export function buildReadyHouse() {
+  const M = brickMats();
   const h = new THREE.Group();
-  const box = (w, ht, d, mat, x, y, z, parent = h) => {
+  const box = (w, ht, d, mat, x, y, z) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, ht, d), mat);
-    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; parent.add(m); return m;
+    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; h.add(m); return m;
   };
-  const hipRoof = (w, d, hh, capW, capD, y, x = 0, z = 0) => {
+  const Y0 = .2, WH = 3.0, HALF = 6.175, NX0 = 0.8, NX1 = 5.0, NZ = 3.6;
+  // цоколь
+  box(12.55, .25, 12.55, M.plinth, 0, .125, 0);
+  // стены: квадрат 12.35 с нишей-крыльцом на фронте (+z); y-форма отображается в -z
+  {
+    const s = new THREE.Shape();
+    s.moveTo(-HALF, HALF); s.lineTo(HALF, HALF); s.lineTo(HALF, -HALF);
+    s.lineTo(NX1, -HALF); s.lineTo(NX1, -NZ); s.lineTo(NX0, -NZ); s.lineTo(NX0, -HALF);
+    s.lineTo(-HALF, -HALF); s.closePath();
+    const m = new THREE.Mesh(new THREE.ExtrudeGeometry(s, { depth: WH, bevelEnabled: false }), M.brick);
+    m.rotation.x = -Math.PI / 2; m.position.y = Y0;
+    m.castShadow = true; m.receiveShadow = true; h.add(m);
+  }
+  // кирпичные пилоны по краям крыльца
+  box(.45, WH, .45, M.brick, 1.05, Y0 + WH / 2, 5.9);
+  box(.45, WH, .45, M.brick, 4.75, Y0 + WH / 2, 5.9);
+  // потолок-софит и деревянная обвязка по периметру свеса
+  const sof = box(13.45, .07, 13.45, M.trim, 0, Y0 + WH + .1, 0); sof.castShadow = false;
+  {
+    const t = .18, hh = .34, W = 13.75, y = Y0 + WH + .16;
+    box(W, hh, t, M.trim, 0, y, W / 2 - t / 2); box(W, hh, t, M.trim, 0, y, -W / 2 + t / 2);
+    box(t, hh, W, M.trim, -W / 2 + t / 2, y, 0); box(t, hh, W, M.trim, W / 2 - t / 2, y, 0);
+  }
+  // вальмовая крыша (почти пирамида) 13.75×13.75
+  {
+    const W = 13.75, hh = 2.7, cap = .6, y = Y0 + WH + .26;
     const g = new THREE.BufferGeometry();
-    const b = [[-w / 2, 0, d / 2], [w / 2, 0, d / 2], [w / 2, 0, -d / 2], [-w / 2, 0, -d / 2]];
-    const t = [[-capW / 2, hh, capD / 2], [capW / 2, hh, capD / 2], [capW / 2, hh, -capD / 2], [-capW / 2, hh, -capD / 2]];
-    const pos = [], uv = [], s = 1.6;
-    const quad = (p1, p2, p3, p4) => {
-      const eb = Math.hypot(p2[0] - p1[0], p2[2] - p1[2]);
-      const sl = Math.hypot((p4[0] + p3[0]) / 2 - (p1[0] + p2[0]) / 2, hh, (p4[2] + p3[2]) / 2 - (p1[2] + p2[2]) / 2);
-      const et = Math.hypot(p4[0] - p3[0], p4[2] - p3[2]);
-      const o = (eb - et) / 2;
-      const P = [p1, p2, p3, p1, p3, p4];
-      const U = [[0, 0], [eb / s, 0], [(o + et) / s, sl / s], [0, 0], [(o + et) / s, sl / s], [o / s, sl / s]];
-      P.forEach(p => pos.push(...p)); U.forEach(u => uv.push(...u));
-    };
+    const b = [[-W / 2, 0, W / 2], [W / 2, 0, W / 2], [W / 2, 0, -W / 2], [-W / 2, 0, -W / 2]];
+    const t = [[-cap / 2, hh, cap / 2], [cap / 2, hh, cap / 2], [cap / 2, hh, -cap / 2], [-cap / 2, hh, -cap / 2]];
+    const pos = [];
+    const quad = (p1, p2, p3, p4) => { pos.push(...p1, ...p2, ...p3, ...p1, ...p3, ...p4); };
     quad(b[0], b[1], t[1], t[0]); quad(b[1], b[2], t[2], t[1]); quad(b[2], b[3], t[3], t[2]); quad(b[3], b[0], t[0], t[3]);
     pos.push(...t[0], ...t[1], ...t[2], ...t[0], ...t[2], ...t[3]);
-    uv.push(0, 0, capW / s, 0, capW / s, capD / s, 0, 0, capW / s, capD / s, 0, capD / s);
     g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     g.computeVertexNormals();
-    const m = new THREE.Mesh(g, M.shingle);
-    m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; h.add(m);
-    box(capW + .15, .12, capD + .15, M.dark, x, y + hh + .04, z);
-    return m;
-  };
-  const fascia = (w, d, y, x = 0, z = 0) => {
-    const t = .16, hh = .38;
-    box(w, hh, t, M.dark, x, y, z + d / 2 - t / 2);
-    box(w, hh, t, M.dark, x, y, z - d / 2 + t / 2);
-    box(t, hh, d, M.dark, x - w / 2 + t / 2, y, z);
-    box(t, hh, d, M.dark, x + w / 2 - t / 2, y, z);
-    const sof = box(w - .2, .06, d - .2, M.white, x, y + .14, z); sof.castShadow = false;
-  };
-  const glazing = (x, y, z, w, ht, rot, divs = 2, door = false) => {
-    const gr = new THREE.Group();
-    const fd = .14, ft = .09;
-    const mk = (bw, bh, bd, px, py, pz) => { const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bd), M.frame); m.position.set(px, py, pz); m.castShadow = true; gr.add(m); };
-    mk(w, ft, fd, 0, ht / 2 - ft / 2, 0); mk(w, ft, fd, 0, -ht / 2 + ft / 2, 0);
-    mk(ft, ht, fd, -w / 2 + ft / 2, 0, 0); mk(ft, ht, fd, w / 2 - ft / 2, 0, 0);
-    for (let i = 1; i < divs; i++) mk(.06, ht - .1, fd - .02, -w / 2 + i * w / divs, 0, 0);
+    const m = new THREE.Mesh(g, M.roof); m.position.y = y;
+    m.castShadow = true; m.receiveShadow = true; h.add(m);
+    box(.8, .1, .8, M.ridge, 0, y + hh + .03, 0);
+  }
+  // дымоход
+  box(.95, 3.3, .75, M.brick, 2.6, 4.8, -2.4);
+  box(1.15, .14, .95, M.dark, 2.6, 6.45, -2.4);
+  // остекление: тёмная рама + стекло
+  const glazing = (x, y, z, w, ht, rot, divs = 1) => {
+    const gr = new THREE.Group(); const fd = .12, ft = .09;
+    const mk = (bw, bh, px, py) => { const m = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, fd), M.frame); m.position.set(px, py, 0); m.castShadow = true; gr.add(m); };
+    mk(w, ft, 0, ht / 2 - ft / 2); mk(w, ft, 0, -ht / 2 + ft / 2);
+    mk(ft, ht, -w / 2 + ft / 2, 0); mk(ft, ht, w / 2 - ft / 2, 0);
+    if (divs > 1) for (let i = 1; i < divs; i++) mk(.06, ht - .1, -w / 2 + i * w / divs, 0);
     const gl = new THREE.Mesh(new THREE.PlaneGeometry(w - .12, ht - .12), M.glass);
     gl.position.z = .01; gr.add(gl);
-    if (door) { const hd = new THREE.Mesh(new THREE.BoxGeometry(.03, .5, .05), M.frame); hd.position.set(w / 2 - .22, 0, .09); gr.add(hd); }
     gr.position.set(x, y, z); gr.rotation.y = [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot];
     h.add(gr); return gr;
   };
-  const panel = (x, y, z, w, ht, rot) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, ht, .07), new THREE.MeshStandardMaterial({ map: M.woodTexture(w / 1.4, ht / 1.4), roughness: .8 }));
-    m.position.set(x, y, z); m.rotation.y = [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot];
-    m.castShadow = true; m.receiveShadow = true; h.add(m);
-    const e = new THREE.Mesh(new THREE.BoxGeometry(w + .1, ht + .1, .05), M.dark);
-    e.position.copy(m.position); e.rotation.copy(m.rotation); e.translateZ(-.02); h.add(e);
-  };
-  const lamp = (x, y, z, rot) => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(.045, .045, .26, 12), M.frame);
-    m.position.set(x, y, z); m.rotation.y = [0, Math.PI / 2, Math.PI, -Math.PI / 2][rot];
-    m.translateZ(.07); h.add(m);
-  };
-  const pipe = (x, z, top) => {
-    const m = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, top - .2, 10), M.dark);
-    m.position.set(x, (top + .2) / 2, z); m.castShadow = true; h.add(m);
-  };
-  const vent = (x, y, z) => {
-    const v = new THREE.Mesh(new THREE.CylinderGeometry(.11, .13, .75, 12), M.frame); v.position.set(x, y, z); v.castShadow = true; h.add(v);
-    const c = new THREE.Mesh(new THREE.CylinderGeometry(.16, .16, .1, 12), M.frame); c.position.set(x, y + .42, z); h.add(c);
-  };
-  const deckPlat = (w, d, x, z) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, .16, d), M.deck);
-    m.position.set(x, .1, z); m.receiveShadow = true; m.castShadow = true; h.add(m);
-  };
-  const WALL_Y0 = .2;
-  // фундамент-цоколь
-  box(12.7, .25, 11.7, M.concrete, 0, .125, 0);
-  box(5.7, .25, 8.2, M.concrete, 9, .125, 0);
-  // объёмы стен
-  box(12.5, 3.0, 11.5, M.siding, 0, WALL_Y0 + 1.5, 0);
-  box(5.5, 2.55, 8.0, M.siding, 9, WALL_Y0 + 1.275, 0);
-  // крыши
-  fascia(14.3, 13.3, 3.13);
-  hipRoof(14.3, 13.3, 2.25, 2.6, 1.3, 3.32);
-  fascia(7.1, 9.6, 2.67, 9, 0);
-  hipRoof(7.1, 9.6, 1.35, 1.1, 3.4, 2.86, 9, 0);
-  // фронт основного объёма
-  panel(0.4, WALL_Y0 + 1.5, 5.79, 7.4, 2.9, 0);
-  glazing(-1.6, WALL_Y0 + 1.5, 5.85, 2.7, 2.6, 0, 3, true);
-  glazing(2.1, WALL_Y0 + 1.55, 5.85, 2.2, 2.3, 0, 2);
-  glazing(-5.2, WALL_Y0 + 1.35, 5.85, 1.0, 2.3, 0, 1, true);
-  lamp(-4.45, WALL_Y0 + 2.05, 5.83, 0); lamp(-.05, WALL_Y0 + 2.05, 5.83, 0); lamp(3.3, WALL_Y0 + 2.05, 5.83, 0);
-  // левый фасад
-  panel(-6.29, WALL_Y0 + 1.5, -.2, 5.4, 2.9, 3);
-  glazing(-6.35, WALL_Y0 + 1.7, 1.5, 1.8, 1.5, 3, 2);
-  glazing(-6.35, WALL_Y0 + 1.7, -1.9, 1.8, 1.5, 3, 2);
-  lamp(-6.33, WALL_Y0 + 2.05, -.2, 3);
-  // задний фасад
-  panel(-2, WALL_Y0 + 1.5, -5.79, 6.0, 2.9, 2);
-  glazing(-3.6, WALL_Y0 + 1.55, -5.85, 2.0, 2.3, 2, 2);
-  glazing(-.6, WALL_Y0 + 1.7, -5.85, 1.6, 1.5, 2, 2);
-  glazing(3.9, WALL_Y0 + 1.7, -5.85, 1.6, 1.5, 2, 2);
-  lamp(-2.1, WALL_Y0 + 2.05, -5.83, 2);
-  // пристройка
-  panel(9.3, WALL_Y0 + 1.27, 4.04, 4.4, 2.45, 0);
-  glazing(9.3, WALL_Y0 + 1.35, 4.1, 3.2, 2.25, 0, 3, true);
-  lamp(7.4, WALL_Y0 + 1.85, 4.08, 0); lamp(11.2, WALL_Y0 + 1.85, 4.08, 0);
-  glazing(11.81, WALL_Y0 + 1.5, 0, 1.6, 1.4, 1, 2);
-  glazing(9.3, WALL_Y0 + 1.5, -4.05, 1.6, 1.4, 2, 2);
-  // водостоки
-  pipe(-6.05, 5.55, 3.25); pipe(-6.05, -5.55, 3.25); pipe(6.05, -5.55, 3.25);
-  pipe(11.55, 3.8, 2.8); pipe(11.55, -3.8, 2.8);
-  // вентвыходы
-  vent(-2.2, 5.35, -1.5); vent(1.8, 5.45, .6); vent(9.6, 4.3, -.8);
-  // террасы
-  deckPlat(9.0, 3.6, -2.6, 7.7);
-  deckPlat(3.4, 7.6, -8.1, 2.2);
-  deckPlat(5.6, 2.8, 9.2, 5.6);
-  deckPlat(1.6, .5, -5.2, 9.7);
+  // крыльцо-ниша: рейки, раздвижная дверь, окно, настил, ступень, светильники
+  box(4.2, 2.9, .06, M.slats, 2.9, Y0 + 1.45, NZ + .04);
+  glazing(3.6, Y0 + 1.4, NZ + .12, 2.3, 2.5, 0, 2);
+  glazing(1.75, Y0 + 1.5, NZ + .12, 1.3, 1.4, 0, 1);
+  box(4.1, .12, 2.5, M.deck, 2.9, Y0 - .02, 4.85);
+  box(3.2, .14, 1.0, M.deck, 2.9, .07, 6.6);
+  [[1.35, 5.92], [4.45, 5.92]].forEach(([x, z]) => {
+    const l = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, .24, 8), M.frame);
+    l.position.set(x, Y0 + 2.2, z + .15); h.add(l);
+  });
+  // окна по фасадам
+  glazing(-4.3, Y0 + 1.95, HALF + .06, 1.6, 1.5, 0, 2);
+  glazing(-1.6, Y0 + 1.95, HALF + .06, 1.6, 1.5, 0, 2);
+  [-3.5, 0, 3.5].forEach(z => glazing(HALF + .06, Y0 + 1.95, z, 1.7, 1.5, 1, 2));
+  [-3.5, 0, 3.5].forEach(x => glazing(x, Y0 + 1.95, -HALF - .06, 1.7, 1.5, 2, 2));
+  [-3.5, .2, 3.8].forEach(z => glazing(-HALF - .06, Y0 + 1.95, z, 1.7, 1.5, 3, 2));
+  // водосточные трубы по углам
+  [[6.05, 6.05], [6.05, -6.05], [-6.05, 6.05], [-6.05, -6.05]].forEach(([x, z]) => {
+    const p = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, WH + .2, 8), M.dark);
+    p.position.set(x, (WH + .2) / 2 + .1, z); p.castShadow = true; h.add(p);
+  });
   return h;
 }
 function inferKind(name) { const n = (name || '').toLowerCase();
@@ -571,8 +488,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     pmrem.dispose();
 
     // ambient/hemi приглушены, т.к. окружение теперь добавляет заполнение
-    const ambient = new THREE.AmbientLight(0xffffff, 0.12); scene.add(ambient);
-    const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a5a3a, 0.16); scene.add(hemi);
+    scene.environmentIntensity = 0.5;               // приглушаем IBL-заполнение → тени глубже
+    const ambient = new THREE.AmbientLight(0xffffff, 0.06); scene.add(ambient);
+    const hemi = new THREE.HemisphereLight(0xbcd4ff, 0x4a5a3a, 0.08); scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff2d6, 1.4);
     sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
     const sc = sun.shadow.camera; sc.near = 1; sc.far = SUN_DIST * 2 + 200; sc.left = sc.bottom = -60; sc.right = sc.top = 60;
@@ -761,10 +679,9 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
         const D = Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) || 8;
         const ux = (p[1][0] - p[0][0]) / W, uy = (p[1][1] - p[0][1]) / W;
         // готовая модель строится в своих натуральных размерах; масштабируем под контур.
-        // габарит корпуса+кровли: X≈19.7 (осн.объём+пристройка), Z≈13.3, центр по X ≈ 2.7
-        const CW = 19.7, CD = 13.3, CX = 2.7;
+        // габарит кровли кирпичного дома: 13.75 × 13.75, модель центрирована
+        const CW = 13.75, CD = 13.75;
         const model = buildReadyHouse();
-        model.position.x = -CX;                      // центр корпуса → в начало координат
         const pivot = new THREE.Group();
         pivot.add(model);
         pivot.scale.set(W / CW, (bd.height || 3) / 3.0, D / CD);
@@ -865,7 +782,7 @@ export default function Viewport({ utcMs, lat, lon, poly, fenceH, buildings, onB
     const v = new THREE.Vector3(Math.sin(az) * ca, Math.sin(p.altitude), -Math.cos(az) * ca);
     a.sun.position.copy(v.clone().multiplyScalar(SUN_DIST)); a.sun.target.position.set(0, 0, 0);
     a.sunSphere.position.copy(v.clone().multiplyScalar(SUN_DIST));
-    const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 1.15 : 2.0) : 0; a.ambient.intensity = up ? 0.1 : 0.04; a.sunSphere.visible = altDeg > -2;
+    const up = altDeg > 0; a.sun.intensity = up ? (altDeg < 8 ? 1.15 : 2.0) : 0; a.ambient.intensity = up ? 0.05 : 0.02; a.sunSphere.visible = altDeg > -2;
     // фон постоянный, нейтральный — без имитации неба/заката
   }, [utcMs, lat, lon]);
 
