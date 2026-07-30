@@ -122,6 +122,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         sun.castShadow = true; sun.shadow.mapSize.set(4096, 4096);
         const sc = sun.shadow.camera; sc.near = 1; sc.far = 900; sc.left = sc.bottom = -180; sc.right = sc.top = 180; sc.updateProjectionMatrix();
         sun.shadow.bias = -0.00004; sun.shadow.normalBias = 0.4;   // тени вплотную к основанию (без Peter Panning)
+        sun.shadow.radius = 5; sun.shadow.blurSamples = 16;         // мягкие края, без «лесенки»
         scene.add(sun, sun.target);
         const objGroup = new THREE.Group(); scene.add(objGroup);
         const fenceGroup = new THREE.Group(); scene.add(fenceGroup);
@@ -132,7 +133,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const catcher = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.ShadowMaterial({ opacity: 0.5 }));
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
-        renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;   // radius управляет мягкостью
         t3.current = { scene, camera, renderer, sun, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
         buildFence(fenceH); rebuildObjects(); applySun();
       },
