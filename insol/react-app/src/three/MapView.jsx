@@ -3,10 +3,12 @@ import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import * as THREE from 'three';
 import { sunPosition, compassAz, localToUTC } from '../engine/astronomy.js';
+import { buildStreamlines, buildWindComfort, windColor } from '../engine/windviz.js';
 
 // подложка: OpenFreeMap (OSM, без ключа). В проде меняется на свой self-host PMTiles одной строкой.
 const OFM_STYLE = 'https://tiles.openfreemap.org/styles/liberty';
 const M_LAT = 110540;
+const SUN_DIST = 400;
 
 function parseLonLat(txt) {
   const out = [];
@@ -22,13 +24,15 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, plotMarkers = [], reqH = 2.5, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const t3 = useRef({});
   const live = useRef((buildings || []).map(b => ({ ...b, pts: (b.pts || []).map(p => p.slice()) })));
   const [dstr, setDstr] = useState(date || new Date().toISOString().slice(0, 10));
   const [mins, setMins] = useState(minutes);
+  const [windShow, setWindShow] = useState(false);
+  const [insolShow, setInsolShow] = useState(false);
   const [err, setErr] = useState('');
   const ring = parseLonLat(polyText);
   const cosLat = Math.cos((lat || 0) * Math.PI / 180);
@@ -49,6 +53,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { applySun(); }, [dstr, mins]);
+  useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDeg, fenceH); }, [windShow, windDeg, fenceH]);
+  useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH); }, [insolShow, dstr, mins, plotMarkers, reqH]);
 
   const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 
@@ -90,12 +96,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const objGroup = new THREE.Group(); scene.add(objGroup);
         const fenceGroup = new THREE.Group(); scene.add(fenceGroup);
         const neigh = new THREE.Group(); scene.add(neigh);
+        const windGroup = new THREE.Group(); scene.add(windGroup);
+        const insolGroup = new THREE.Group(); scene.add(insolGroup);
         const casterMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
         const catcher = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.ShadowMaterial({ opacity: 0.5 }));
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-        t3.current = { scene, camera, renderer, sun, objGroup, fenceGroup, neigh, casterMat };
+        t3.current = { scene, camera, renderer, sun, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol };
         buildFence(); rebuildObjects(); applySun();
       },
       render(gl, matrix) {
@@ -170,7 +178,54 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; return mesh;
     }
 
-    // здания карты → невидимые тене-отбрасыватели
+    // поток ветра (линии тока + зоны затишья/продувания) с учётом забора и соседей
+    function rebuildWind(show, wDeg, fh) {
+      const s = t3.current; s._w = { show, wDeg, fh }; const g = s.windGroup; if (!g) return;
+      while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      if (!show) { m.triggerRepaint(); return; }
+      const baseLocal = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
+      let ph = 6; baseLocal.forEach(p => ph = Math.max(ph, Math.hypot(p[0], p[1])));
+      const nb = s.neighborData || [];
+      const cf = buildWindComfort(wDeg, baseLocal, live.current, fh, nb);
+      if (cf.pos.length) {
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(cf.pos, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(cf.col, 3));
+        const mm = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.3, depthWrite: false })); mm.renderOrder = 2; g.add(mm);
+      }
+      const { lines } = buildStreamlines(wDeg, baseLocal, live.current, ph, fh, nb);
+      lines.forEach(ln => {
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(ln.pos, 3));
+        let mean = 0; ln.spd.forEach(v => mean += v); mean /= ln.spd.length || 1;
+        const col = windColor((mean - 1) / 0.9);
+        g.add(new THREE.Line(geo, new THREE.LineBasicMaterial({ color: new THREE.Color(col[0], col[1], col[2]), transparent: true, opacity: 0.9 })));
+      });
+      m.triggerRepaint();
+    }
+
+    // точки инсоляции: на участке (из приложения) + на крышах зданий выше 1 м (расчёт за день)
+    function rebuildInsol(show, y, mo, da, plotMk, req) {
+      const s = t3.current; s._i = { show, y, mo, da, plotMk, req }; const g = s.insolGroup; if (!g) return;
+      while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      if (!show) { m.triggerRepaint(); return; }
+      const green = new THREE.MeshBasicMaterial({ color: 0x1f9d45, toneMapped: false }), red = new THREE.MeshBasicMaterial({ color: 0xc0392b, toneMapped: false });
+      const dot = (x, yy, z, mat) => { const sp = new THREE.Mesh(new THREE.SphereGeometry(0.4, 10, 8), mat); sp.position.set(x, yy, z); g.add(sp); };
+      (plotMk || []).forEach(pm => { if (pm.e === undefined) return; dot(pm.e, 0.4, -pm.n, pm.ok ? green : red); });
+      // солнечные направления за выбранный день
+      const steps = [], stepMin = 20;
+      for (let mm2 = 0; mm2 < 1440; mm2 += stepMin) { const utc = localToUTC(y, mo - 1, da, Math.floor(mm2 / 60), mm2 % 60, tz); const pos = sunPosition(utc, lat, lon); if (pos.altitude <= 0.03) continue; const az = compassAz(pos.azimuth) * Math.PI / 180, ca = Math.cos(pos.altitude); steps.push(new THREE.Vector3(ca * Math.sin(az), Math.sin(pos.altitude), -ca * Math.cos(az))); }
+      const occ = []; s.objGroup.traverse(o => { if (o.isMesh) occ.push(o); }); s.neigh.traverse(o => { if (o.isMesh) occ.push(o); }); s.fenceGroup.traverse(o => { if (o.isMesh) occ.push(o); });
+      const rc = new THREE.Raycaster(); const up = new THREE.Vector3(0, 1, 0);
+      const hours = (origin) => { let lit = 0; steps.forEach(v => { rc.set(origin.clone().addScaledVector(v, 0.3), v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; }); return lit * stepMin / 60; };
+      live.current.forEach(b => { const H = b.height || 3, kind = b.kind || 'house'; if (!(H > 1) || !b.pts || b.pts.length < 3 || kind === 'tree' || kind === 'bush') return;
+        const pts = b.pts; let mnx = 1e9, mxx = -1e9, mnz = 1e9, mxz = -1e9; pts.forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); mnz = Math.min(mnz, p[1]); mxz = Math.max(mxz, p[1]); });
+        const roofY = H + (b.roofH || 0) * 0.55 + 0.1, sx = Math.max(1.5, (mxx - mnx) / 4), sz = Math.max(1.5, (mxz - mnz) / 4);
+        for (let e = mnx + sx / 2; e < mxx; e += sx) for (let n = mnz + sz / 2; n < mxz; n += sz) {
+          if (!pointInPoly(e, n, pts)) continue; const h = hours(new THREE.Vector3(e, roofY, -n)); dot(e, roofY, -n, h >= req ? green : red);
+        }
+      });
+      m.triggerRepaint();
+    }
+
+    // здания карты → невидимые тене-отбрасыватели (+ данные для ветра)
     let lastKey = '';
     function rebuildNeighbors() {
       const s = t3.current; if (!s.neigh || !m.isStyleLoaded()) return;
@@ -179,18 +234,22 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const extLayers = m.getStyle().layers.filter(l => l.type === 'fill-extrusion').map(l => l.id); if (!extLayers.length) return;
       let feats; try { feats = m.queryRenderedFeatures({ layers: extLayers }); } catch (e) { return; }
       while (s.neigh.children.length) { const c = s.neigh.children.pop(); if (c.geometry) c.geometry.dispose(); }
+      const nd = [];
       feats.forEach(f => {
         const p = f.properties || {}, g = f.geometry; if (!g) return;
         const h = (+p.render_height) || (+p.height) || 12, b0 = (+p.render_min_height) || 0;
         const polys = g.type === 'Polygon' ? [g.coordinates] : g.type === 'MultiPolygon' ? g.coordinates : null; if (!polys) return;
         polys.forEach(rings => {
           const outer = rings[0]; if (!outer || outer.length < 3) return;
-          const shape = new THREE.Shape();
-          outer.forEach((c, i) => { const ex = (c[0] - lon) * mLon, ny = (c[1] - lat) * M_LAT; i ? shape.lineTo(ex, ny) : shape.moveTo(ex, ny); });
+          const shape = new THREE.Shape(); const loc = [];
+          outer.forEach((c, i) => { const ex = (c[0] - lon) * mLon, ny = (c[1] - lat) * M_LAT; loc.push([ex, ny]); i ? shape.lineTo(ex, ny) : shape.moveTo(ex, ny); });
           const geo = new THREE.ExtrudeGeometry(shape, { depth: Math.max(2, h - b0), bevelEnabled: false });
           const mesh = new THREE.Mesh(geo, s.casterMat); mesh.rotation.x = -Math.PI / 2; mesh.position.y = b0; mesh.castShadow = true; s.neigh.add(mesh);
+          nd.push({ pts: loc, height: h });
         });
       });
+      s.neighborData = nd;
+      if (s._w && s._w.show) rebuildWind(s._w.show, s._w.wDeg, s._w.fh);   // соседи влияют на ветер
       m.triggerRepaint();
     }
 
@@ -290,6 +349,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         live.current[drag.idx].pts = rotatePts(o, c, snap); rebuildObjects();
       }
       drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); buildGizmo();
+      const s = t3.current;                                   // объекты сдвинулись → пересчёт ветра/инсоляции
+      if (s._w && s._w.show) rebuildWind(s._w.show, s._w.wDeg, s._w.fh);
+      if (s._i && s._i.show) rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req);
     };
     m.on('mousedown', onDown); m.on('mousemove', onMove); m.on('mouseup', onUp);
 
@@ -306,6 +368,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         <input type="date" value={dstr} onChange={e => setDstr(e.target.value)} style={inp} />
         <span style={{ minWidth: 46, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{hhmm(mins)}</span>
         <input type="range" min={0} max={1439} step={5} value={mins} onChange={e => setMins(+e.target.value)} style={{ width: 220 }} />
+        <button style={{ ...btn, ...(windShow ? { borderColor: '#e6663d', color: '#e6663d' } : {}) }} onClick={() => setWindShow(v => !v)}>🌬 Ветер</button>
+        <button style={{ ...btn, ...(insolShow ? { borderColor: '#4faa78', color: '#4faa78' } : {}) }} onClick={() => setInsolShow(v => !v)}>☀ Инсоляция</button>
         <span style={{ color: '#8b968c', fontSize: 12 }}>клик — выделить · тащить — двигать · ↻ — повернуть</span>
         {err && <span style={{ color: '#ff8a80' }}>{err}</span>}
         <span style={{ flex: 1 }} />

@@ -294,7 +294,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
-        {mapOpen && <MapView polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH} date={date} minutes={minutes} onClose={() => setMapOpen(false)} />}
+        {mapOpen && <MapView polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH} date={date} minutes={minutes} windDeg={windDeg} plotMarkers={plotReport.rows} reqH={reqH} onClose={() => setMapOpen(false)} />}
         <Viewport utcMs={utcMs} lat={lat} lon={lon} poly={poly} fenceH={fenceH} buildings={buildings} onBuildings={setBuildings}
           analytics={pro && analytics} anM1={anM1} anM2={anM2} anDiff={anDiff} year={y} onAnalyticsStats={setAnStats}
           plotMarkers={showPlot && !(pro && analytics) ? plotReport.rows : []}
