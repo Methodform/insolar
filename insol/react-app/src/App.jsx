@@ -110,6 +110,8 @@ export default function App() {
   const [anStats, setAnStats] = useState(null);
   const [showPlot, setShowPlot] = useState(true);
   const [showWin, setShowWin] = useState(true);
+  const [relief, setRelief] = useState(true);       // отмывка рельефа (hillshade)
+  const [terrain3d, setTerrain3d] = useState(false); // 3D-рельеф (объём под наклоном камеры)
   const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767px)').matches);
@@ -291,7 +293,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {/* основной холст — карта 2ГИС/OSM с нашим 3D (бывшая «Карта»); старый Viewport оставлен в коде для отката */}
         <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow}
-          insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH} embed />
+          insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
+          relief={relief} terrain3d={terrain3d} embed />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -527,6 +530,17 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
               <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
             </Flex>
+
+            <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>РЕЛЬЕФ</Text>
+            <Flex gap="4" align="center">
+              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                <input type="checkbox" checked={relief} onChange={e => setRelief(e.target.checked)} /> отмывка
+              </Text>
+              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                <input type="checkbox" checked={terrain3d} onChange={e => setTerrain3d(e.target.checked)} /> 3D-рельеф
+              </Text>
+            </Flex>
+            <Text size="1" color="gray">Открытый DEM (~30 м): виден общий склон, не микрорельеф.</Text>
             <Stat k="Соответствуют норме" v={`${plotReport.okc} из ${plotReport.n}`} color={plotReport.okc === plotReport.n ? 'var(--grass-11)' : 'var(--amber-11)'} />
 
             {(buildings.length > 0) && <>

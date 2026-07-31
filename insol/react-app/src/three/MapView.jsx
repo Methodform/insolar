@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, relief = true, terrain3d = false, embed = false, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const t3 = useRef({});
@@ -100,6 +100,19 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   }, [fenceH]);
 
   const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+
+  // рельеф: отмывка (hillshade) вкл/выкл + опциональный 3D-terrain (объём под наклоном камеры)
+  useEffect(() => {
+    const m = map.current; if (!m) return;
+    const apply = () => {
+      try {
+        if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', relief ? 'visible' : 'none');
+        if (terrain3d && m.getSource('dem')) m.setTerrain({ source: 'dem', exaggeration: 1.3 });
+        else m.setTerrain(null);
+      } catch (e) { /* рельеф не критичен */ }
+    };
+    if (m.isStyleLoaded && m.isStyleLoaded()) apply(); else m.once('load', apply);
+  }, [relief, terrain3d]);
 
   useEffect(() => {
     if (ring.length < 3 || !isFinite(lat) || !isFinite(lon)) { setErr('Сначала постройте участок (≥ 3 точек «широта долгота»).'); return; }
