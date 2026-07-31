@@ -111,6 +111,27 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     map.current = m;
 
     m.on('load', () => {
+      // рельеф: бесплатный открытый DEM AWS (terrarium, без ключа) → мягкая отмывка hillshade.
+      // только подложка рельефа, 3D-плоскость участка не трогаем (subtle relief).
+      try {
+        if (!m.getSource('dem')) m.addSource('dem', {
+          type: 'raster-dem',
+          tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+          encoding: 'terrarium', tileSize: 256, maxzoom: 15,
+          attribution: '© Terrain: AWS Open Data / SRTM',
+        });
+        const firstSym = (m.getStyle().layers || []).find(l => l.type === 'symbol');
+        m.addLayer({
+          id: 'hillshade', type: 'hillshade', source: 'dem',
+          paint: {
+            'hillshade-exaggeration': 0.45,          // «чуть-чуть» — мягко, не забивает карту
+            'hillshade-shadow-color': '#5b5546',
+            'hillshade-highlight-color': '#ffffff',
+            'hillshade-accent-color': '#6b6350',
+          },
+        }, firstSym && firstSym.id);                 // под подписями, чтобы лейблы читались
+      } catch (e) { /* рельеф не критичен — молча пропускаем */ }
+
       m.addSource('plot', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } } });
       m.addLayer({ id: 'plot-fill', type: 'fill', source: 'plot', paint: { 'fill-color': '#f5a623', 'fill-opacity': 0.15 } });
       m.addLayer({ id: 'plot-line', type: 'line', source: 'plot', paint: { 'line-color': '#f5a623', 'line-width': 3 } });
