@@ -412,6 +412,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
             </Box>
             <Box>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>РЕЛЬЕФ</Text>
+              <Flex gap="4" align="center" mt="1">
+                <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <input type="checkbox" checked={relief} onChange={e => setRelief(e.target.checked)} /> отмывка
+                </Text>
+                <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+                  <input type="checkbox" checked={terrain3d} onChange={e => setTerrain3d(e.target.checked)} /> 3D-рельеф
+                </Text>
+              </Flex>
+              <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Открытый DEM ~30 м: общий склон, ориентировочно (не для стройки).</Text>
+            </Box>
+            <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
               <Select.Root value={preset} onValueChange={setPreset}>
                 <Select.Trigger mt="1" style={{ width: '100%' }} />
@@ -530,17 +542,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
               <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
             </Flex>
-
-            <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>РЕЛЬЕФ</Text>
-            <Flex gap="4" align="center">
-              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <input type="checkbox" checked={relief} onChange={e => setRelief(e.target.checked)} /> отмывка
-              </Text>
-              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <input type="checkbox" checked={terrain3d} onChange={e => setTerrain3d(e.target.checked)} /> 3D-рельеф
-              </Text>
-            </Flex>
-            <Text size="1" color="gray">Открытый DEM (~30 м): виден общий склон, не микрорельеф.</Text>
             <Stat k="Соответствуют норме" v={`${plotReport.okc} из ${plotReport.n}`} color={plotReport.okc === plotReport.n ? 'var(--grass-11)' : 'var(--amber-11)'} />
 
             {(buildings.length > 0) && <>
