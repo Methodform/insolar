@@ -109,7 +109,6 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     const m = new maplibregl.Map({ container: box.current, style: OFM_STYLE, center: [lon, lat], zoom: 18.5, pitch: 55, bearing: -20, attributionControl: true });
     map.current = m;
-    m.addControl(new maplibregl.NavigationControl(), 'top-left');
 
     m.on('load', () => {
       m.addSource('plot', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } } });
@@ -420,6 +419,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     let drag = null;
     const onDown = e => {
+      if (drag) return;                                       // уже тащим (страховка от синтетических событий)
       const px = e.point.x, py = e.point.y, lp = toLocal(e.lngLat);
       if (selIdx.v >= 0) { const mode = pickHandle(px, py); if (mode) {
         const b = live.current[selIdx.v]; drag = { idx: selIdx.v, mode, start: lp, orig: b.pts.map(p => p.slice()), c: giz.c, u: giz.u, v: giz.v, startY: py, origH: b.height || 3 };
@@ -456,6 +456,12 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (s._i && s._i.show) rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req, s._i.walls);
     };
     m.on('mousedown', onDown); m.on('mousemove', onMove); m.on('mouseup', onUp);
+
+    // тач-управление (мобильные): 1 палец — тащим объект/ручку гизмо, 2+ пальцев — жест карты (зум/поворот)
+    const multi = e => e.points && e.points.length > 1;
+    const onTouchStart = e => { if (multi(e)) return; onDown(e); };
+    const onTouchMove = e => { if (!drag || multi(e)) return; onMove(e); };
+    m.on('touchstart', onTouchStart); m.on('touchmove', onTouchMove); m.on('touchend', onUp); m.on('touchcancel', onUp);
 
     // удаление выделенного объекта по Delete/Backspace
     const onKey = e => {

@@ -22,9 +22,9 @@ const dstr = d => `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth()
 // тарифы: цена и месячная выручка (для MRR)
 const PLANS = {
   free:   { label: 'Free',        color: 'gray',  price: 0,    monthly: 0,          plots: 1 },
-  month:  { label: 'Месяц',       color: 'blue',  price: 490,  monthly: 490,        plots: 3 },
-  season: { label: 'Сезон · 6м',  color: 'amber', price: 1490, monthly: 1490 / 6,  plots: 3 },
-  year:   { label: 'Год',         color: 'grass', price: 1990, monthly: 1990 / 12, plots: 3 },
+  month:  { label: 'Месяц',       color: 'blue',  price: 990,  monthly: 990,        plots: 3 },
+  season: { label: 'Сезон · 6м',  color: 'amber', price: 1990, monthly: 1990 / 6,  plots: 3 },
+  year:   { label: 'Год',         color: 'grass', price: 2990, monthly: 2990 / 12, plots: 3 },
   b2b:    { label: 'B2B риелторам', color: 'purple', price: 8990, monthly: 8990 / 12, plots: 20 },
 };
 const STATUS = {
@@ -293,6 +293,26 @@ export default function AdminApp() {
     return { rev, sign };
   }, [users, txns]);
 
+  // ------- цель по годовой выручке -------
+  const [goal, setGoal] = useState(10000000);
+  const goalCalc = useMemo(() => {
+    const arr = Math.round(m.mrr * 12);                     // ARR = MRR × 12 (пересчёт активных подписок на год)
+    const payPlans = ['month', 'season', 'year', 'b2b'];
+    const byPlan = payPlans.map(p => {
+      const annual = Math.round(PLANS[p].monthly * 12);     // годовой вклад одного аккаунта этого тарифа
+      const count = users.filter(u => u.plan === p && (u.status === 'active' || u.status === 'trial')).length;
+      return { p, label: PLANS[p].label, annual, count, revenue: count * annual };
+    });
+    const gap = Math.max(0, goal - arr);
+    const needed = byPlan.map(b => ({
+      ...b,
+      more: b.annual > 0 ? Math.ceil(gap / b.annual) : 0,       // ещё аккаунтов этого тарифа, чтобы закрыть разрыв
+      forGoal: b.annual > 0 ? Math.ceil(goal / b.annual) : 0,   // аккаунтов, если всю цель делать только этим тарифом
+    }));
+    const pct = goal > 0 ? Math.min(100, Math.round(arr / goal * 100)) : 0;
+    return { arr, gap, pct, needed };
+  }, [users, m.mrr, goal]);
+
   const planDist = useMemo(() => ['free', 'month', 'season', 'year'].map(p => ({
     label: PLANS[p].label, value: users.filter(u => u.plan === p).length,
     color: `var(--${PLANS[p].color === 'gray' ? 'gray' : PLANS[p].color}-9)`,
@@ -350,7 +370,7 @@ export default function AdminApp() {
 
         {/* content */}
         <Box style={{ flex: 1, minWidth: 0, padding: 24, maxWidth: 1180 }}>
-          {nav === 'overview' && <Overview m={m} trends={trends} planDist={planDist} funnel={funnel} productKpis={productKpis} />}
+          {nav === 'overview' && <Overview m={m} trends={trends} planDist={planDist} funnel={funnel} productKpis={productKpis} goal={goal} setGoal={setGoal} goalCalc={goalCalc} />}
           {nav === 'users' && <Users users={users} setUsers={setUsers} />}
           {nav === 'projects' && <Projects projects={projects} setProjects={setProjects} />}
           {nav === 'finance' && <Finance m={m} trends={trends} txns={txns} />}
@@ -365,7 +385,7 @@ export default function AdminApp() {
 }
 
 /* ------------------------------- ОБЗОР ------------------------------- */
-function Overview({ m, trends, planDist, funnel, productKpis }) {
+function Overview({ m, trends, planDist, funnel, productKpis, goal, setGoal, goalCalc }) {
   return (
     <>
       <Heading size="6" mb="1">Обзор</Heading>
@@ -376,6 +396,7 @@ function Overview({ m, trends, planDist, funnel, productKpis }) {
         <Kpi label="Новые за 30 дней" value={m.signups30} delta={12} />
         <Kpi label="Конверсия Free→платно" value={m.conv + '%'} delta={2} />
       </Grid>
+      <Box mb="4"><GoalPanel goal={goal} setGoal={setGoal} goalCalc={goalCalc} /></Box>
       <Grid columns={{ initial: '1', md: '3' }} gap="4">
         <Box style={{ gridColumn: 'span 2' }}>
           <Section title="Выручка по месяцам" desc="Подписки (зелёный) и разовые паспорта (янтарный), ₽">
@@ -411,6 +432,55 @@ function Overview({ m, trends, planDist, funnel, productKpis }) {
 const Legend = ({ color, label }) => (
   <Flex align="center" gap="1"><Box style={{ width: 10, height: 10, borderRadius: 3, background: color }} /><Text size="1" color="gray">{label}</Text></Flex>
 );
+
+/* ---- Цель по годовой выручке (данные из аккаунтов по тарифам) ---- */
+function GoalPanel({ goal, setGoal, goalCalc }) {
+  const g = goalCalc;
+  const R = { textAlign: 'right' };
+  return (
+    <Section title="Цель по годовой выручке" desc="ARR = активные подписки × 12. Считается из числа аккаунтов по тарифам."
+      right={
+        <Flex align="center" gap="2">
+          <Text size="1" color="gray">Цель, ₽/год</Text>
+          <TextField.Root value={String(goal)}
+            onChange={e => setGoal(Math.max(0, parseInt((e.target.value.replace(/\D/g, '') || '0'), 10)))}
+            style={{ width: 130 }} />
+        </Flex>
+      }>
+      <Grid columns={{ initial: '1', md: '3' }} gap="3" mb="3">
+        <Kpi label="ARR сейчас" value={rub(g.arr)} sub={g.pct + '% от цели'} />
+        <Kpi label="Осталось до цели" value={rub(g.gap)} />
+        <Kpi label="Цель" value={rub(goal)} />
+      </Grid>
+      <Box style={{ background: 'var(--gray-a4)', borderRadius: 999, height: 10, overflow: 'hidden', marginBottom: 16 }}>
+        <Box style={{ width: g.pct + '%', height: '100%', background: 'var(--grass-9)' }} />
+      </Box>
+      <Table.Root variant="surface" size="1">
+        <Table.Header>
+          <Table.Row>
+            <Table.ColumnHeaderCell>Тариф</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell style={R}>Активных сейчас</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell style={R}>Годовой вклад аккаунта</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell style={R}>Ещё нужно до цели</Table.ColumnHeaderCell>
+            <Table.ColumnHeaderCell style={R}>Если только этим тарифом</Table.ColumnHeaderCell>
+          </Table.Row>
+        </Table.Header>
+        <Table.Body>
+          {g.needed.map(b => (
+            <Table.Row key={b.p}>
+              <Table.RowHeaderCell><Badge color={PLANS[b.p].color}>{b.label}</Badge></Table.RowHeaderCell>
+              <Table.Cell style={R}>{b.count}</Table.Cell>
+              <Table.Cell style={R}>{rub(b.annual)}</Table.Cell>
+              <Table.Cell style={R}><Text weight="medium">{b.more.toLocaleString('ru-RU')}</Text></Table.Cell>
+              <Table.Cell style={{ ...R, color: 'var(--gray-11)' }}>{b.forGoal.toLocaleString('ru-RU')}</Table.Cell>
+            </Table.Row>
+          ))}
+        </Table.Body>
+      </Table.Root>
+      <Text size="1" color="gray" as="p" mt="2">«Ещё нужно» — сколько добрать аккаунтов только этого тарифа, чтобы закрыть разрыв. Всё пересчитывается при смене тарифов пользователей (вкладка «Пользователи») и цели.</Text>
+    </Section>
+  );
+}
 
 /* ---------------------------- ПОЛЬЗОВАТЕЛИ ---------------------------- */
 function Users({ users, setUsers }) {
