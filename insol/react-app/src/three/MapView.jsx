@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, relief = true, terrain3d = false, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, terrain3d = false, embed = false, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const t3 = useRef({});
@@ -101,18 +101,17 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
   const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 
-  // рельеф: отмывка (hillshade) вкл/выкл + опциональный 3D-terrain (объём под наклоном камеры)
+  // 3D-terrain (объём рельефа под наклоном камеры) — вкл/выкл
   useEffect(() => {
     const m = map.current; if (!m) return;
     const apply = () => {
       try {
-        if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', relief ? 'visible' : 'none');
         if (terrain3d && m.getSource('dem')) m.setTerrain({ source: 'dem', exaggeration: 1.3 });
         else m.setTerrain(null);
       } catch (e) { /* рельеф не критичен */ }
     };
     if (m.isStyleLoaded && m.isStyleLoaded()) apply(); else m.once('load', apply);
-  }, [relief, terrain3d]);
+  }, [terrain3d]);
 
   useEffect(() => {
     if (ring.length < 3 || !isFinite(lat) || !isFinite(lon)) { setErr('Сначала постройте участок (≥ 3 точек «широта долгота»).'); return; }
@@ -124,8 +123,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     map.current = m;
 
     m.on('load', () => {
-      // рельеф: бесплатный открытый DEM AWS (terrarium, без ключа) → мягкая отмывка hillshade.
-      // только подложка рельефа, 3D-плоскость участка не трогаем (subtle relief).
+      // источник рельефа: бесплатный открытый DEM AWS (terrarium, без ключа) — для 3D-terrain.
       try {
         if (!m.getSource('dem')) m.addSource('dem', {
           type: 'raster-dem',
@@ -133,16 +131,6 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           encoding: 'terrarium', tileSize: 256, maxzoom: 15,
           attribution: '© Terrain: AWS Open Data / SRTM',
         });
-        const firstSym = (m.getStyle().layers || []).find(l => l.type === 'symbol');
-        m.addLayer({
-          id: 'hillshade', type: 'hillshade', source: 'dem',
-          paint: {
-            'hillshade-exaggeration': 0.45,          // «чуть-чуть» — мягко, не забивает карту
-            'hillshade-shadow-color': '#5b5546',
-            'hillshade-highlight-color': '#ffffff',
-            'hillshade-accent-color': '#6b6350',
-          },
-        }, firstSym && firstSym.id);                 // под подписями, чтобы лейблы читались
       } catch (e) { /* рельеф не критичен — молча пропускаем */ }
 
       m.addSource('plot', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } } });

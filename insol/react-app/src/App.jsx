@@ -110,7 +110,6 @@ export default function App() {
   const [anStats, setAnStats] = useState(null);
   const [showPlot, setShowPlot] = useState(true);
   const [showWin, setShowWin] = useState(true);
-  const [relief, setRelief] = useState(true);       // отмывка рельефа (hillshade)
   const [terrain3d, setTerrain3d] = useState(false); // 3D-рельеф (объём под наклоном камеры)
   const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
@@ -294,7 +293,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
-          relief={relief} terrain3d={terrain3d} embed />
+          terrain3d={terrain3d} embed />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -388,17 +387,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               )}
             </Box>
             <Box>
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДАТА И ВРЕМЯ</Text>
-              <Flex gap="2" mt="1">
-                <TextField.Root type="date" value={date} onChange={e => setDate(e.target.value)} readOnly={!pro}
-                  onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }} style={{ flex: 1, cursor: pro ? 'auto' : 'pointer' }} />
-                <TextField.Root type="number" value={tz} onChange={e => setTz(parseFloat(e.target.value) || 0)} style={{ width: 84 }} />
-              </Flex>
-              <Flex gap="2" mt="2">
-                <Button onClick={setNow}><ResetIcon /> Сейчас</Button>
-              </Flex>
-            </Box>
-            <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗАБОР ПО ПЕРИМЕТРУ</Text>
               <Select.Root value={fence} onValueChange={v => { if (v === 'custom' && !pro) { openPaywall(); return; } setFence(v); }}>
                 <Select.Trigger mt="1" style={{ width: '100%' }} />
@@ -412,14 +400,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
             </Box>
             <Box>
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>РЕЛЬЕФ</Text>
-              <Flex gap="4" align="center" mt="1">
-                <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                  <input type="checkbox" checked={relief} onChange={e => setRelief(e.target.checked)} /> отмывка
-                </Text>
-                <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                  <input type="checkbox" checked={terrain3d} onChange={e => setTerrain3d(e.target.checked)} /> 3D-рельеф
-                </Text>
+              <Flex align="center" justify="between">
+                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>3D-РЕЛЬЕФ</Text>
+                <Switch checked={terrain3d} onCheckedChange={setTerrain3d} />
               </Flex>
               <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Открытый DEM ~30 м: общий склон, ориентировочно (не для стройки).</Text>
             </Box>
@@ -756,9 +739,13 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
-          <Flex align="center" gap={mobile ? '2' : '4'}>
+          <Flex align="center" gap={mobile ? '2' : '3'}>
             <Text size={mobile ? '4' : '6'} weight="bold" style={{ fontVariantNumeric: 'tabular-nums', minWidth: mobile ? 56 : 92 }}>{clock}</Text>
-            {!mobile && <Text size="2" color="gray" style={{ minWidth: 150 }}>{da} {months[mo - 1]} {y} · UTC{tz >= 0 ? '+' : ''}{tz}</Text>}
+            <TextField.Root type="date" size="1" value={date} readOnly={!pro}
+              onChange={e => setDate(e.target.value)}
+              onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }}
+              style={{ width: mobile ? 132 : 150, cursor: pro ? 'auto' : 'pointer' }} />
+            <IconButton variant="soft" color="gray" onClick={setNow} title="Сейчас"><ResetIcon /></IconButton>
             <Box style={{ flex: 1 }}>
               <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
             </Box>
