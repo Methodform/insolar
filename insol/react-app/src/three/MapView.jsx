@@ -71,8 +71,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     const dayK = alt >= 8 ? 1 : alt > -6 ? Math.max(0, (alt + 6) / 14) : 0;
     s.sun.intensity = 1.9 * (alt > 0 ? (0.45 + 0.55 * Math.min(1, alt / 8)) : 0);
     s.sun.castShadow = alt > 0;                        // ночью (солнце за горизонтом) — тени нет совсем
-    if (s.amb) s.amb.intensity = 0.12 + 0.3 * dayK;
-    if (s.hemi) s.hemi.intensity = 0.08 + 0.28 * dayK;
+    if (s.amb) s.amb.intensity = 0.15 + 0.5 * dayK;      // ярче заполняющий свет → строения светлые как дома карты
+    if (s.hemi) s.hemi.intensity = 0.1 + 0.5 * dayK;
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
@@ -176,7 +176,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const scene = new THREE.Scene();
         const camera = new THREE.Camera();
         const amb = new THREE.AmbientLight(0xffffff, 0.4); scene.add(amb);
-        const hemi = new THREE.HemisphereLight(0xdfe9f5, 0x55603f, 0.32); scene.add(hemi);
+        const hemi = new THREE.HemisphereLight(0xeef2f6, 0xd6d2cc, 0.5); scene.add(hemi);   // светлый нейтральный низ — грани не темнеют/не зеленят
         const sun = new THREE.DirectionalLight(0xfff1d6, 1.7);
         // видимое солнце-диск в небе (свечение), чтобы читалось время суток
         const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(7, 20, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a, toneMapped: false })); sunSphere.frustumCulled = false; scene.add(sunSphere);
