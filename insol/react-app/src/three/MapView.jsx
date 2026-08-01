@@ -69,11 +69,11 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       s.sunSphere.material.color.setHex(alt < 6 ? 0xff9a52 : 0xffe08a); }   // тёплый у горизонта
     // яркость по высоте солнца: день → полно, сумерки → приглушённо, ночь → почти темно
     const dayK = alt >= 8 ? 1 : alt > -6 ? Math.max(0, (alt + 6) / 14) : 0;
-    // высокий заполняющий свет → грани в цвете домов карты; солнце и полусфера дают лишь чуть заметную разницу верх/бок
-    s.sun.intensity = alt > 0 ? (0.1 + 0.15 * Math.min(1, alt / 8)) : 0;
+    // солнце освещает грани и даёт видимые тени на земле и зданиях; заполняющий свет держит теневые места не чёрными
+    s.sun.intensity = alt > 0 ? (0.35 + 0.4 * Math.min(1, alt / 8)) : 0;   // 0.35..0.75
     s.sun.castShadow = alt > 0;                        // ночью (солнце за горизонтом) — тени нет совсем
-    if (s.amb) s.amb.intensity = 0.35 + 0.5 * dayK;      // день ~0.85 → грани светлые как у карты, ночь темнее
-    if (s.hemi) s.hemi.intensity = 0.06 + 0.18 * dayK;
+    if (s.amb) s.amb.intensity = 0.4 + 0.15 * dayK;      // заполняющий: тень не чёрная, но контраст виден
+    if (s.hemi) s.hemi.intensity = 0.15 + 0.15 * dayK;
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
@@ -234,18 +234,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const g = mesh.geometry;
       if (!g.attributes.normal) g.computeVertexNormals();
       const n = g.attributes.normal; mesh.updateMatrix(); _nm.getNormalMatrix(mesh.matrix);
-      const L = (t3.current && t3.current.lightDir) || computeLightDir();
-      const base = new THREE.Color(hex), cols = new Float32Array(n.count * 3);
-      const INT = 0.5, OP = 0.8;                              // как у MapLibre: light intensity 0.5, fill-extrusion opacity 0.8
-      for (let i = 0; i < n.count; i++) {
-        _v3.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix3(_nm).normalize();
-        const dir = Math.max(0, _v3.dot(L));
-        const sh = (1 - INT) + INT * dir;                     // fill-extrusion: mix(1-intensity, 1, dot(normal, lightpos))
-        // цвет грани, затем «поверх фона карты» (opacity 0.8) — чтобы непрозрачный дом совпал с полупрозрачными домами карты
-        cols[i * 3] = base.r * sh * OP + _bgCol.r * (1 - OP);
-        cols[i * 3 + 1] = base.g * sh * OP + _bgCol.g * (1 - OP);
-        cols[i * 3 + 2] = base.b * sh * OP + _bgCol.b * (1 - OP);
-      }
+      // ровная базовая заливка (albedo): цвет карты «поверх фона» (opacity 0.8). Объём даёт солнце (Lambert), не запекаем.
+      const base = new THREE.Color(hex), OP = 0.8, cols = new Float32Array(n.count * 3);
+      const r = base.r * OP + _bgCol.r * (1 - OP), gc = base.g * OP + _bgCol.g * (1 - OP), bl = base.b * OP + _bgCol.b * (1 - OP);
+      for (let i = 0; i < n.count; i++) { cols[i * 3] = r; cols[i * 3 + 1] = gc; cols[i * 3 + 2] = bl; }
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     }
     function reshadeAll() {                                   // пересвет граней строений/забора при повороте карты
@@ -255,16 +247,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (map.current) map.current.triggerRepaint();
     }
 
-    // материал строений: плоский цвет грани (vertexColors) × затемнение по теневой маске — принцип 2GIS.
-    // одной поверхностью принимает падающую тень (без оверлея → без «квадратного пятна»), без двойного затенения от солнца.
+    // материал строений: обычный Lambert — рисуется и штатно принимает тени (земля + здания).
+    // солнце освещает грани (объём как у 2GIS), падающие тени затемняют; базовая заливка ровная (vertexColors).
     function flatShadowMat(opts = {}) {
-      const mat = new THREE.MeshLambertMaterial(Object.assign({ vertexColors: true }, opts));
-      mat.onBeforeCompile = sh => {
-        sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
-          'float _sm = getShadowMask();\n  outgoingLight = diffuseColor.rgb * mix(0.62, 1.0, _sm);\n#include <opaque_fragment>');
-      };
-      mat.customProgramCacheKey = () => 'flatShadow';
-      return mat;
+      return new THREE.MeshLambertMaterial(Object.assign({ vertexColors: true }, opts));
     }
 
     // смещение контура участка внутрь на d метров (offset рёбер + пересечение соседних) — «зона застройки»
