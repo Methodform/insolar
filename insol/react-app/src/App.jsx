@@ -401,10 +401,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             </Box>
             <Box>
               <Flex align="center" justify="between">
-                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>3D-РЕЛЬЕФ</Text>
+                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>РЕЛЬЕФ</Text>
                 <Switch checked={relief} onCheckedChange={setRelief} />
               </Flex>
-              <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Объём рельефа по открытому DEM ~30 м, тени падают на рельеф. Ориентировочно, не для стройки.</Text>
+              <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Отмывка по открытому DEM ~30 м: общий склон, ориентировочно. Тени остаются корректными.</Text>
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>

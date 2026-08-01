@@ -152,50 +152,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     let mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);  // let: при 3D-рельефе поднимаем сцену на высоту центра
     const S = mc.meterInMercatorCoordinateUnits();
     const selIdx = { v: -1 };                       // индекс выделенного объекта
-    const TERR_EX = 1.3;                            // экзаджерация рельефа (карта и ловец теней синхронно)
-    const localToLngLat = (east, north) => [        // локальные метры [восток,север] → lng/lat
-      lon + east / (111320 * Math.cos(lat * Math.PI / 180)),
-      lat + north / 111320,
-    ];
-
-    // 3D-рельеф: поднять землю карты + построить «ловец теней» по форме DEM, чтобы тени падали на рельеф
+    // рельеф = отмывка (hillshade). Геометрический terrain не включаем: DEM ~30 м на масштабе
+    // участка — грубые «ступени», тени на них дробятся. Тени рисуем на плоскости (корректно).
     function applyTerrain(on) {
-      const s = t3.current; if (!s.scene) return;
       try {
-        m.setTerrain(on ? { source: 'dem', exaggeration: TERR_EX } : null);
+        m.setTerrain(null);
         if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', on ? 'visible' : 'none');
-      } catch (e) { /* терраин не критичен */ }
-      if (!on) {
-        mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);
-        if (s.terrainCatcher) s.terrainCatcher.visible = false;
-        if (s.flatCatcher) s.flatCatcher.visible = true;
-        return;
-      }
-      const build = () => {
-        const centerE = m.queryTerrainElevation([lon, lat]) || 0;   // высота рельефа в центре (в метрах, с экзаджерацией)
-        mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], centerE);
-        const R = 70, N = 24, step = (2 * R) / N, W = N + 1;
-        const pos = [], idx = [];
-        for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
-          const east = -R + i * step, north = -R + j * step;
-          const [lng, la] = localToLngLat(east, north);
-          const e = m.queryTerrainElevation([lng, la]);
-          pos.push(east, (e == null ? centerE : e) - centerE, -north);   // сцена: x=восток, y=верх, z=-север
-        }
-        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
-          const a = j * W + i, b = a + 1, c = a + W, d = c + 1;
-          idx.push(a, b, c, b, d, c);
-        }
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-        geo.setIndex(idx); geo.computeVertexNormals();
-        if (s.terrainCatcher) { s.scene.remove(s.terrainCatcher); s.terrainCatcher.geometry.dispose(); }
-        const tc = new THREE.Mesh(geo, new THREE.ShadowMaterial({ opacity: 0.5 }));
-        tc.receiveShadow = true; s.scene.add(tc); s.terrainCatcher = tc;
-        if (s.flatCatcher) s.flatCatcher.visible = false;
-      };
-      build();                       // сразу (если тайлы уже есть)
-      m.once('idle', build);         // и после загрузки DEM-тайлов
+      } catch (e) { /* рельеф не критичен */ }
     }
 
     const customLayer = {
