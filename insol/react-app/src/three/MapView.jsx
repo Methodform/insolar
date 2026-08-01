@@ -215,17 +215,34 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // цвет домов карты OpenFreeMap liberty: hsl(35,8%,85%) при opacity 0.8 над фоном #f8f4f0 ≈ #e2dedb
     function mapBldColor() { return 0xe2dedb; }
 
+    // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
+    // запекаем в вершинные цвета → неосвещаемый материал, не зависит от солнца. Тот же принцип, что fill-extrusion MapLibre.
+    const _v3 = new THREE.Vector3(), _nm = new THREE.Matrix3();
+    function bakeShade(mesh, hex) {
+      const g = mesh.geometry;
+      if (!g.attributes.normal) g.computeVertexNormals();
+      const n = g.attributes.normal; mesh.updateMatrix(); _nm.getNormalMatrix(mesh.matrix);
+      const base = new THREE.Color(hex), cols = new Float32Array(n.count * 3);
+      for (let i = 0; i < n.count; i++) {
+        _v3.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix3(_nm).normalize();
+        const s = 0.86 + 0.14 * Math.max(0, _v3.y);            // стены ~0.86, верх — полный цвет
+        cols[i * 3] = base.r * s; cols[i * 3 + 1] = base.g * s; cols[i * 3 + 2] = base.b * s;
+      }
+      g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    }
+
     function buildFence(fh = fenceH) {
       const s = t3.current, g = s.fenceGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); }
       if (!(fh > 0)) return;
-      const mat = new THREE.MeshLambertMaterial({ color: mapBldColor() });   // мягкое затенение граней как у домов карты
+      const mat = new THREE.MeshBasicMaterial({ vertexColors: true });   // затенение граней как у карты (запечено по нормали)
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length];
         const ax = A[0], az = -A[1], bx = B[0], bz = -B[1], dx = bx - ax, dz = bz - az, len = Math.hypot(dx, dz); if (len < 0.1) continue;
         const pl = new THREE.Mesh(new THREE.BoxGeometry(len, fh, 0.12), mat);   // объёмная тонкая стенка
         pl.position.set((ax + bx) / 2, fh / 2, (az + bz) / 2); pl.rotation.y = Math.atan2(-dz, dx); pl.castShadow = true; pl.receiveShadow = true; g.add(pl);
+        bakeShade(pl, mapBldColor());
       }
     }
 
@@ -234,7 +251,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const s = t3.current, group = s.objGroup; if (!group) return;
       while (group.children.length) { const c = group.children.pop(); if (c.geometry) c.geometry.dispose(); }
       const C = mapBldColor();                        // цвет как у зданий карты
-      const roofMat = new THREE.MeshLambertMaterial({ color: C, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      const roofMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
       const plotLoc = ring && ring.length >= 3 ? ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]) : null;
@@ -258,11 +275,12 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         }
         const H = b.height || 3;
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
-        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshLambertMaterial({ color: outside ? 0x9aa0a8 : C, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.35 : 0 }));
+        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshBasicMaterial({ vertexColors: true }));
         walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
-        // двускатная крыша на том же материале/свете, что стены; высота конька 2 м
+        bakeShade(walls, outside ? 0x9aa0a8 : (hl ? 0xa9c6f5 : C));   // затенение граней как у карты; выделенное — голубоватое
+        // двускатная крыша на том же принципе затенения, что стены; высота конька 2 м
         const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-        if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) group.add(roof); }
+        if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : C); group.add(roof); } }
       });
       if (map.current) map.current.triggerRepaint();
     }
