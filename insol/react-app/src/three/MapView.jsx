@@ -234,7 +234,6 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const s = t3.current, group = s.objGroup; if (!group) return;
       while (group.children.length) { const c = group.children.pop(); if (c.geometry) c.geometry.dispose(); }
       const C = mapBldColor();                        // цвет как у зданий карты
-      const roofMat = new THREE.MeshLambertMaterial({ color: C, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
       const plotLoc = ring && ring.length >= 3 ? ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]) : null;
@@ -260,8 +259,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
         const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshLambertMaterial({ color: outside ? 0x9aa0a8 : C, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.35 : 0 }));
         walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
-        const rh = b.roofH || (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-        if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) group.add(roof); }
+        // как здания карты: выдавленный контур с плоским верхом, без скатной крыши
       });
       if (map.current) map.current.triggerRepaint();
     }
