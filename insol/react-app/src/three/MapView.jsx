@@ -236,7 +236,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       for (let i = 0; i < n.count; i++) {
         _v3.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix3(_nm).normalize();
         const up = Math.max(0, _v3.y), dir = Math.max(0, _v3.dot(L));
-        const s = 0.86 + 0.10 * up + 0.04 * dir;              // верх ярче (как крыши карты); стены ровные ~0.86–0.90 + лёгкая направленность
+        const s = 0.78 + 0.18 * up + 0.04 * dir;              // верх яркий (как крыши карты), стены темнее ~0.78–0.82 — по контрасту как у карты
         cols[i * 3] = base.r * s; cols[i * 3 + 1] = base.g * s; cols[i * 3 + 2] = base.b * s;
       }
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
