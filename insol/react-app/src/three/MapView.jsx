@@ -70,10 +70,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // яркость по высоте солнца: день → полно, сумерки → приглушённо, ночь → почти темно
     const dayK = alt >= 8 ? 1 : alt > -6 ? Math.max(0, (alt + 6) / 14) : 0;
     // солнце освещает грани и даёт видимые тени на земле и зданиях; заполняющий свет держит теневые места не чёрными
-    s.sun.intensity = alt > 0 ? (0.35 + 0.4 * Math.min(1, alt / 8)) : 0;   // 0.35..0.75
+    s.sun.intensity = alt > 0 ? (0.35 + 0.35 * Math.min(1, alt / 8)) : 0;   // 0.35..0.7 — видимые тени
     s.sun.castShadow = alt > 0;                        // ночью (солнце за горизонтом) — тени нет совсем
-    if (s.amb) s.amb.intensity = 0.4 + 0.15 * dayK;      // заполняющий: тень не чёрная, но контраст виден
-    if (s.hemi) s.hemi.intensity = 0.15 + 0.15 * dayK;
+    if (s.amb) s.amb.intensity = 0.5 + 0.1 * dayK;       // нейтральный заполняющий: стены светлые, тень не чёрная
+    if (s.hemi) s.hemi.intensity = 0.25 + 0.1 * dayK;
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
@@ -179,7 +179,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const scene = new THREE.Scene();
         const camera = new THREE.Camera();
         const amb = new THREE.AmbientLight(0xffffff, 0.4); scene.add(amb);
-        const hemi = new THREE.HemisphereLight(0xeef2f6, 0xd6d2cc, 0.5); scene.add(hemi);   // светлый нейтральный низ — грани не темнеют/не зеленят
+        const hemi = new THREE.HemisphereLight(0xf4f4f4, 0xcfcfcf, 0.5); scene.add(hemi);   // нейтральный (без тёплого/холодного оттенка)
         const sun = new THREE.DirectionalLight(0xfff1d6, 1.7);
         // видимое солнце-диск в небе (свечение), чтобы читалось время суток
         const sunSphere = new THREE.Mesh(new THREE.SphereGeometry(7, 20, 16), new THREE.MeshBasicMaterial({ color: 0xffe08a, toneMapped: false })); sunSphere.frustumCulled = false; scene.add(sunSphere);
@@ -216,7 +216,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     // забор по периметру участка (fh — текущая высота из панели)
     // «сырой» цвет зданий из стиля liberty: fill-extrusion-color = hsl(35,8%,85%) ≈ #dcd9d6 (opacity 0.8 применяем в затенении)
-    function mapBldColor() { return 0x9e9b99; }               // назад на ~5% светлее
+    function mapBldColor() { return 0xe6e3df; }               // светлая база (освещаемый материал затемняет её светом/тенью)
     const _bgCol = new THREE.Color(0xf8f4f0);                 // фон карты (background-color стиля) — для эмуляции прозрачности зданий
 
     // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
