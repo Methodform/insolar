@@ -70,6 +70,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // яркость по высоте солнца: день → полно, сумерки → приглушённо, ночь → почти темно
     const dayK = alt >= 8 ? 1 : alt > -6 ? Math.max(0, (alt + 6) / 14) : 0;
     s.sun.intensity = 1.9 * (alt > 0 ? (0.45 + 0.55 * Math.min(1, alt / 8)) : 0);
+    s.sun.castShadow = alt > 0;                        // ночью (солнце за горизонтом) — тени нет совсем
     if (s.amb) s.amb.intensity = 0.12 + 0.3 * dayK;
     if (s.hemi) s.hemi.intensity = 0.08 + 0.28 * dayK;
     if (map.current) map.current.triggerRepaint();
@@ -202,11 +203,25 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     };
 
     // забор по периметру участка (fh — текущая высота из панели)
+    // цвет зданий карты (MapLibre fill-extrusion) — чтобы забор и строения совпадали с домами карты
+    function mapBldColor() {
+      const s = t3.current;
+      if (s && s._bldC != null) return s._bldC;
+      let hex = 0xd9d3c8;                             // фолбэк — тёплый светло-серый как здания карты
+      try {
+        const lyr = (m.getStyle().layers || []).find(l => l.type === 'fill-extrusion');
+        const c = lyr && m.getPaintProperty(lyr.id, 'fill-extrusion-color');
+        if (typeof c === 'string') hex = new THREE.Color(c).getHex();
+      } catch (e) { /* фолбэк */ }
+      if (s) s._bldC = hex;
+      return hex;
+    }
+
     function buildFence(fh = fenceH) {
       const s = t3.current, g = s.fenceGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); }
       if (!(fh > 0)) return;
-      const mat = new THREE.MeshStandardMaterial({ color: 0xcdd1d6, roughness: .85 });
+      const mat = new THREE.MeshStandardMaterial({ color: mapBldColor(), roughness: .85 });
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length];
@@ -220,8 +235,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function rebuildObjects() {
       const s = t3.current, group = s.objGroup; if (!group) return;
       while (group.children.length) { const c = group.children.pop(); if (c.geometry) c.geometry.dispose(); }
-      const wall = { house: 0xeae7df, bath: 0xb08b57, gazebo: 0xcfc3a8, default: 0xd8d2c4 };
-      const roofMat = new THREE.MeshStandardMaterial({ color: 0x8f5a44, roughness: .8, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      const C = mapBldColor();                        // цвет как у зданий карты
+      const roofMat = new THREE.MeshStandardMaterial({ color: C, roughness: .8, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
       const plotLoc = ring && ring.length >= 3 ? ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]) : null;
@@ -245,7 +260,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         }
         const H = b.height || 3;
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
-        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: outside ? 0x9aa0a8 : (wall[kind] || wall.default), roughness: .85, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.4 : 0 }));
+        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: outside ? 0x9aa0a8 : C, roughness: .85, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.4 : 0 }));
         walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
         const rh = b.roofH || (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
         if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat); if (roof) group.add(roof); }
