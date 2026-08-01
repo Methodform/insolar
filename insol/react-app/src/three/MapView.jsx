@@ -213,8 +213,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     };
 
     // забор по периметру участка (fh — текущая высота из панели)
-    // цвет домов карты OpenFreeMap liberty: hsl(35,8%,85%) при opacity 0.8 над фоном #f8f4f0 ≈ #e2dedb
-    function mapBldColor() { return 0xe2dedb; }
+    // «сырой» цвет зданий из стиля liberty: fill-extrusion-color = hsl(35,8%,85%) ≈ #dcd9d6 (opacity 0.8 применяем в затенении)
+    function mapBldColor() { return 0xdcd9d6; }
+    const _bgCol = new THREE.Color(0xf8f4f0);                 // фон карты (background-color стиля) — для эмуляции прозрачности зданий
 
     // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
     // запекаем в вершинные цвета → неосвещаемый материал, не зависит от солнца. Тот же принцип, что fill-extrusion MapLibre.
@@ -233,11 +234,15 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const n = g.attributes.normal; mesh.updateMatrix(); _nm.getNormalMatrix(mesh.matrix);
       const L = (t3.current && t3.current.lightDir) || computeLightDir();
       const base = new THREE.Color(hex), cols = new Float32Array(n.count * 3);
+      const INT = 0.5, OP = 0.8;                              // как у MapLibre: light intensity 0.5, fill-extrusion opacity 0.8
       for (let i = 0; i < n.count; i++) {
         _v3.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix3(_nm).normalize();
-        const up = Math.max(0, _v3.y), dir = Math.max(0, _v3.dot(L));
-        const s = 0.78 + 0.18 * up + 0.04 * dir;              // верх яркий (как крыши карты), стены темнее ~0.78–0.82 — по контрасту как у карты
-        cols[i * 3] = base.r * s; cols[i * 3 + 1] = base.g * s; cols[i * 3 + 2] = base.b * s;
+        const dir = Math.max(0, _v3.dot(L));
+        const sh = (1 - INT) + INT * dir;                     // fill-extrusion: mix(1-intensity, 1, dot(normal, lightpos))
+        // цвет грани, затем «поверх фона карты» (opacity 0.8) — чтобы непрозрачный дом совпал с полупрозрачными домами карты
+        cols[i * 3] = base.r * sh * OP + _bgCol.r * (1 - OP);
+        cols[i * 3 + 1] = base.g * sh * OP + _bgCol.g * (1 - OP);
+        cols[i * 3 + 2] = base.b * sh * OP + _bgCol.b * (1 - OP);
       }
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
     }
