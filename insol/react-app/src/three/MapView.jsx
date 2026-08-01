@@ -142,8 +142,16 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       } catch (e) { /* рельеф не критичен — молча пропускаем */ }
 
       m.addSource('plot', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } } });
-      m.addLayer({ id: 'plot-fill', type: 'fill', source: 'plot', paint: { 'fill-color': '#f5a623', 'fill-opacity': 0.15 } });
-      m.addLayer({ id: 'plot-line', type: 'line', source: 'plot', paint: { 'line-color': '#f5a623', 'line-width': 3 } });
+      // заливка участка — цветом «леса/поля» с карты (landuse/landcover); обводка — зелёная
+      let vegCol = '#c3d9a8';                        // фолбэк: мягкий зелёный
+      try {
+        const vl = (m.getStyle().layers || []).find(l => l.type === 'fill' &&
+          /wood|forest|park|grass|landcover|scrub|meadow|garden|vegetation|farm|golf/i.test(l.id));
+        const c = vl && m.getPaintProperty(vl.id, 'fill-color');
+        if (typeof c === 'string') vegCol = c;
+      } catch (e) { /* фолбэк */ }
+      m.addLayer({ id: 'plot-fill', type: 'fill', source: 'plot', paint: { 'fill-color': vegCol, 'fill-opacity': 0.6 } });
+      m.addLayer({ id: 'plot-line', type: 'line', source: 'plot', paint: { 'line-color': '#2e9e4b', 'line-width': 3 } });
       m.fitBounds([[mnx, mny], [mxx, mxy]], { padding: 140, pitch: 55, bearing: -20, duration: 0 });
       m.addLayer(customLayer);
     });
