@@ -196,13 +196,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const windGroup = new THREE.Group(); scene.add(windGroup);
         const insolGroup = new THREE.Group(); scene.add(insolGroup);
         const setbackGroup = new THREE.Group(); scene.add(setbackGroup);
+        const dimsGroup = new THREE.Group(); scene.add(dimsGroup);
         const casterMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
         const catcher = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.ShadowMaterial({ opacity: 0.5 }));
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // мягкие тени без VSM light-bleeding
-        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildGizmo };
-        buildFence(fenceH); rebuildObjects(); buildSetback(); applySun();
+        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, dimsGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildDims, buildGizmo };
+        buildFence(fenceH); rebuildObjects(); buildSetback(); buildDims(); applySun();
       },
       render(gl, matrix) {
         const s = t3.current; if (!s.renderer) return;
@@ -251,6 +252,39 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // солнце освещает грани (объём как у 2GIS), падающие тени затемняют; базовая заливка ровная (vertexColors).
     function flatShadowMat(opts = {}) {
       return new THREE.MeshLambertMaterial(Object.assign({ vertexColors: true }, opts));
+    }
+
+    // текстовая подпись как спрайт (плашка с текстом), всегда лицом к камере
+    const fmtM = x => (Math.round(x * 10) / 10).toString().replace('.', ',') + ' м';
+    function makeLabel(text, scale = 2.6) {
+      const fs = 44, pad = 10, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+      ctx.font = `bold ${fs}px sans-serif`; const w = Math.ceil(ctx.measureText(text).width);
+      cv.width = w + pad * 2; cv.height = fs + pad * 2;
+      ctx.font = `bold ${fs}px sans-serif`;
+      ctx.fillStyle = 'rgba(255,255,255,0.82)'; const r = 12;
+      ctx.beginPath(); ctx.moveTo(r, 0); ctx.arcTo(cv.width, 0, cv.width, cv.height, r); ctx.arcTo(cv.width, cv.height, 0, cv.height, r); ctx.arcTo(0, cv.height, 0, 0, r); ctx.arcTo(0, 0, cv.width, 0, r); ctx.fill();
+      ctx.fillStyle = '#1f4d24'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(text, cv.width / 2, cv.height / 2 + 2);
+      const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, toneMapped: false }));
+      sp.scale.set(scale * cv.width / cv.height, scale, 1); sp.renderOrder = 6; return sp;
+    }
+    // выносные размеры участка по периметру (размерная линия + засечки + подпись длины ребра)
+    function buildDims() {
+      const s = t3.current, g = s.dimsGroup; if (!g) return;
+      while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } }
+      if (ring.length < 2) return;
+      const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
+      let cx = 0, cy = 0; loc.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= loc.length; cy /= loc.length;
+      const off = 2.5, dm = new THREE.LineBasicMaterial({ color: 0x2e7d32 });
+      const seg = (P, Q) => g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(P[0], 0.08, -P[1]), new THREE.Vector3(Q[0], 0.08, -Q[1])]), dm));
+      for (let i = 0; i < loc.length; i++) {
+        const A = loc[i], B = loc[(i + 1) % loc.length], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len < 0.5) continue;
+        let nx = -(B[1] - A[1]), ny = (B[0] - A[0]); const ln = Math.hypot(nx, ny) || 1; nx /= ln; ny /= ln;
+        const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
+        const A2 = [A[0] + nx * off, A[1] + ny * off], B2 = [B[0] + nx * off, B[1] + ny * off];
+        seg(A2, B2); seg(A, A2); seg(B, B2);                    // размерная линия + выносные засечки
+        const lab = makeLabel(fmtM(len), 2.4); lab.position.set((A2[0] + B2[0]) / 2 + nx * 1.4, 1.3, -((A2[1] + B2[1]) / 2 + ny * 1.4)); g.add(lab);
+      }
     }
 
     // смещение контура участка внутрь на d метров (offset рёбер + пересечение соседних) — «зона застройки»
@@ -362,6 +396,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
           if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : roofC); group.add(roof); } }
         }
+        // подпись габаритов над строением: ширина×длина · высота
+        { const fn = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
+          let u2 = [1, 0]; if (pts.length >= 4) { const dx = pts[1][0] - pts[0][0], dy = pts[1][1] - pts[0][1], L = Math.hypot(dx, dy) || 1; u2 = [dx / L, dy / L]; }
+          const v2 = [-u2[1], u2[0]]; let du = 0, dv = 0;
+          pts.forEach(p => { du = Math.max(du, Math.abs((p[0] - cx) * u2[0] + (p[1] - cy) * u2[1])); dv = Math.max(dv, Math.abs((p[0] - cx) * v2[0] + (p[1] - cy) * v2[1])); });
+          const rh2 = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
+          const lab = makeLabel(`${fn(du * 2)}×${fn(dv * 2)} · h${fn(H)} м`, 2.0);
+          lab.position.set(cx, H + (openKind ? 0 : rh2) + 2.2, -cy); group.add(lab); }
       });
       if (map.current) map.current.triggerRepaint();
     }

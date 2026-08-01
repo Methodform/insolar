@@ -748,12 +748,11 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '3'}>
-            <Text size={mobile ? '4' : '6'} weight="bold" style={{ fontVariantNumeric: 'tabular-nums', minWidth: mobile ? 56 : 92 }}>{clock}</Text>
-            <TextField.Root type="date" size="1" value={date} readOnly={!pro}
+            <Text weight="bold" style={{ fontVariantNumeric: 'tabular-nums', fontSize: mobile ? 22 : 28, lineHeight: 1, minWidth: mobile ? 66 : 104 }}>{clock}</Text>
+            <TextField.Root type="date" size="3" value={date} readOnly={!pro}
               onChange={e => setDate(e.target.value)}
               onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }}
-              style={{ width: mobile ? 132 : 150, cursor: pro ? 'auto' : 'pointer' }} />
-            <IconButton variant="soft" color="gray" onClick={setNow} title="Сейчас"><ResetIcon /></IconButton>
+              style={{ width: mobile ? 150 : 180, cursor: pro ? 'auto' : 'pointer' }} />
             <Box style={{ flex: 1 }}>
               <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
             </Box>
