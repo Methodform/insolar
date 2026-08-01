@@ -255,6 +255,18 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (map.current) map.current.triggerRepaint();
     }
 
+    // материал строений: плоский цвет грани (vertexColors) × затемнение по теневой маске — принцип 2GIS.
+    // одной поверхностью принимает падающую тень (без оверлея → без «квадратного пятна»), без двойного затенения от солнца.
+    function flatShadowMat(opts = {}) {
+      const mat = new THREE.MeshLambertMaterial(Object.assign({ vertexColors: true }, opts));
+      mat.onBeforeCompile = sh => {
+        sh.fragmentShader = sh.fragmentShader.replace('#include <opaque_fragment>',
+          'float _sm = getShadowMask();\n  outgoingLight = diffuseColor.rgb * mix(0.62, 1.0, _sm);\n#include <opaque_fragment>');
+      };
+      mat.customProgramCacheKey = () => 'flatShadow';
+      return mat;
+    }
+
     // смещение контура участка внутрь на d метров (offset рёбер + пересечение соседних) — «зона застройки»
     function segX(a, b) {
       const den = (a.ax - a.bx) * (b.ay - b.by) - (a.ay - a.by) * (b.ax - b.bx);
@@ -305,7 +317,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const s = t3.current, g = s.fenceGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); }
       if (!(fh > 0)) return;
-      const mat = new THREE.MeshBasicMaterial({ vertexColors: true });   // затенение граней как у карты (запечено по нормали)
+      const mat = flatShadowMat();   // затенение граней как у карты + приём падающей тени
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length];
@@ -323,7 +335,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const C = mapBldColor();                        // цвет как у зданий карты
       const _cc = new THREE.Color(C);
       const roofC = new THREE.Color(Math.min(1, _cc.r * 1.2), Math.min(1, _cc.g * 1.2), Math.min(1, _cc.b * 1.2)).getHex();   // крыша на 20% светлее стен
-      const roofMat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      const roofMat = flatShadowMat({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
       const plotLoc = ring && ring.length >= 3 ? ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]) : null;
@@ -351,13 +363,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const openKind = kind === 'gazebo' || kind === 'canopy' || kind === 'tent';   // беседка/навес/шатёр — открытые: столбы + плоская крыша
         if (openKind) {
           pts.forEach(p => {                                     // столбы по углам
-            const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, H, 0.14), new THREE.MeshBasicMaterial({ vertexColors: true }));
-            post.position.set(p[0], H / 2, -p[1]); post.castShadow = true; group.add(post); bakeShade(post, col);
+            const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, H, 0.14), flatShadowMat());
+            post.position.set(p[0], H / 2, -p[1]); post.castShadow = true; post.receiveShadow = true; group.add(post); bakeShade(post, col);
           });
-          const slab = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.18, bevelEnabled: false }), new THREE.MeshBasicMaterial({ vertexColors: true }));
+          const slab = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.18, bevelEnabled: false }), flatShadowMat());
           slab.rotation.x = -Math.PI / 2; slab.position.y = H; slab.castShadow = true; slab.receiveShadow = true; group.add(slab); bakeShade(slab, col);   // плоская крыша-плита сверху
         } else {
-          const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshBasicMaterial({ vertexColors: true }));
+          const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), flatShadowMat());
           walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
           bakeShade(walls, col);                                 // затенение граней как у карты
           // двускатная крыша на том же принципе затенения, что стены; высота конька 2 м
