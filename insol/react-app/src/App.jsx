@@ -407,6 +407,14 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Отмывка по открытому DEM ~30 м: общий склон, ориентировочно. Тени остаются корректными.</Text>
             </Box>
             <Box>
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ОТСТУПЫ ОТ ГРАНИЦ</Text>
+              <Flex direction="column" gap="1" mt="1">
+                <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#2b7bff', display: 'inline-block' }} /><Text size="1" color="gray">1 м — баня, хозпостройки, беседка, навес</Text></Flex>
+                <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#f5a623', display: 'inline-block' }} /><Text size="1" color="gray">3 м — жилой / садовый дом</Text></Flex>
+                <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">4 м — постройка для скота / птицы</Text></Flex>
+              </Flex>
+            </Box>
+            <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
               <Select.Root value={preset} onValueChange={setPreset}>
                 <Select.Trigger mt="1" style={{ width: '100%' }} />

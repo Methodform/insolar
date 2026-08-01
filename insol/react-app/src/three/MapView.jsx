@@ -215,7 +215,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     // забор по периметру участка (fh — текущая высота из панели)
     // «сырой» цвет зданий из стиля liberty: fill-extrusion-color = hsl(35,8%,85%) ≈ #dcd9d6 (opacity 0.8 применяем в затенении)
-    function mapBldColor() { return 0xbcb9b7; }               // ещё на 10% темнее — точнее в тон домов карты
+    function mapBldColor() { return 0x969492; }               // ещё на 20% темнее
     const _bgCol = new THREE.Color(0xf8f4f0);                 // фон карты (background-color стиля) — для эмуляции прозрачности зданий
 
     // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
@@ -275,17 +275,29 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       for (let i = 0; i < N; i++) { const p = segX(edges[(i - 1 + N) % N], edges[i]); out.push(p || [edges[i].ax, edges[i].ay]); }
       return out;
     }
-    function buildSetback(d = 3) {                     // 3 м — норматив отступа жилого дома от границы (СП 30-102-99)
+    function ringArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const j = (i + 1) % p.length; a += p[i][0] * p[j][1] - p[j][0] * p[i][1]; } return a / 2; }
+    // нормативные отступы от границы (СП 30-102-99 / ПЗЗ) — разные расстояния, разный цвет
+    const SETBACKS = [
+      { d: 1, color: 0x2b7bff },   // баня, хозпостройки, беседка, навес — 1 м (синий)
+      { d: 3, color: 0xf5a623 },   // жилой / садовый дом — 3 м (оранжевый)
+      { d: 4, color: 0xc0392b },   // постройка для скота / птицы — 4 м (красный)
+    ];
+    function buildSetback() {
       const s = t3.current, g = s.setbackGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
       if (ring.length < 3) return;
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
-      const ins = insetRing(loc, d);
-      if (ins.some(p => !isFinite(p[0]) || !isFinite(p[1]))) return;
-      const pts3 = ins.map(p => new THREE.Vector3(p[0], 0.06, -p[1])); pts3.push(pts3[0].clone());
-      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3),
-        new THREE.LineDashedMaterial({ color: 0xf5a623, dashSize: 0.7, gapSize: 0.45 }));
-      line.computeLineDistances(); g.add(line);
+      const A0 = ringArea(loc);
+      SETBACKS.forEach(sp => {
+        const ins = insetRing(loc, sp.d);
+        if (ins.some(p => !isFinite(p[0]) || !isFinite(p[1]))) return;
+        const A1 = ringArea(ins);
+        if (Math.sign(A1) !== Math.sign(A0) || Math.abs(A1) < 1) return;   // отступ больше половины участка → контур схлопнулся, пропускаем
+        const pts3 = ins.map(p => new THREE.Vector3(p[0], 0.06, -p[1])); pts3.push(pts3[0].clone());
+        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3),
+          new THREE.LineDashedMaterial({ color: sp.color, dashSize: 0.7, gapSize: 0.45 }));
+        line.computeLineDistances(); g.add(line);
+      });
     }
 
     function buildFence(fh = fenceH) {
@@ -331,13 +343,24 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           return;
         }
         const H = b.height || 3;
+        const col = outside ? 0x9aa0a8 : (hl ? 0xa9c6f5 : C);
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
-        const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshBasicMaterial({ vertexColors: true }));
-        walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
-        bakeShade(walls, outside ? 0x9aa0a8 : (hl ? 0xa9c6f5 : C));   // затенение граней как у карты; выделенное — голубоватое
-        // двускатная крыша на том же принципе затенения, что стены; высота конька 2 м
-        const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-        if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : C); group.add(roof); } }
+        const openKind = kind === 'gazebo' || kind === 'canopy' || kind === 'tent';   // беседка/навес/шатёр — открытые: столбы + плоская крыша
+        if (openKind) {
+          pts.forEach(p => {                                     // столбы по углам
+            const post = new THREE.Mesh(new THREE.BoxGeometry(0.14, H, 0.14), new THREE.MeshBasicMaterial({ vertexColors: true }));
+            post.position.set(p[0], H / 2, -p[1]); post.castShadow = true; group.add(post); bakeShade(post, col);
+          });
+          const slab = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.18, bevelEnabled: false }), new THREE.MeshBasicMaterial({ vertexColors: true }));
+          slab.rotation.x = -Math.PI / 2; slab.position.y = H; slab.castShadow = true; slab.receiveShadow = true; group.add(slab); bakeShade(slab, col);   // плоская крыша-плита сверху
+        } else {
+          const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshBasicMaterial({ vertexColors: true }));
+          walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
+          bakeShade(walls, col);                                 // затенение граней как у карты; выделенное — голубоватое
+          // двускатная крыша на том же принципе затенения, что стены; высота конька 2 м
+          const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
+          if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : C); group.add(roof); } }
+        }
       });
       if (map.current) map.current.triggerRepaint();
     }
