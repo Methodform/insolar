@@ -226,7 +226,6 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const az = (210 + bearing) * Math.PI / 180, el = 60 * Math.PI / 180, ch = Math.cos(el);
       return new THREE.Vector3(ch * Math.sin(az), Math.sin(el), -ch * Math.cos(az)).normalize();
     }
-    const SHADE_AMB = 0.78;                                   // ambient-пол; направленная добавка сверху (как fill-extrusion)
     function bakeShade(mesh, hex) {
       mesh.userData.shadeHex = hex;                           // запоминаем базовый цвет для пересвета при повороте
       const g = mesh.geometry;
@@ -236,7 +235,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const base = new THREE.Color(hex), cols = new Float32Array(n.count * 3);
       for (let i = 0; i < n.count; i++) {
         _v3.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix3(_nm).normalize();
-        const s = SHADE_AMB + (1 - SHADE_AMB) * Math.max(0, _v3.dot(L));   // ambient + направленная составляющая
+        const up = Math.max(0, _v3.y), dir = Math.max(0, _v3.dot(L));
+        const s = 0.86 + 0.10 * up + 0.04 * dir;              // верх ярче (как крыши карты); стены ровные ~0.86–0.90 + лёгкая направленность
         cols[i * 3] = base.r * s; cols[i * 3 + 1] = base.g * s; cols[i * 3 + 2] = base.b * s;
       }
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
