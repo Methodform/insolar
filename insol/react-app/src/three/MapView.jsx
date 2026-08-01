@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, terrain3d = false, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, relief = false, embed = false, onClose }) {
   const box = useRef(null);
   const map = useRef(null);
   const t3 = useRef({});
@@ -101,17 +101,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
   const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 
-  // 3D-terrain (объём рельефа под наклоном камеры) — вкл/выкл
+  // 3D-рельеф: поднимаем землю карты + строим ловец теней по форме DEM (тени падают на рельеф)
   useEffect(() => {
-    const m = map.current; if (!m) return;
-    const apply = () => {
-      try {
-        if (terrain3d && m.getSource('dem')) m.setTerrain({ source: 'dem', exaggeration: 1.3 });
-        else m.setTerrain(null);
-      } catch (e) { /* рельеф не критичен */ }
-    };
-    if (m.isStyleLoaded && m.isStyleLoaded()) apply(); else m.once('load', apply);
-  }, [terrain3d]);
+    const run = () => { const s = t3.current; if (s && s.applyTerrain) s.applyTerrain(relief); };
+    const m = map.current;
+    if (t3.current && t3.current.applyTerrain) run();
+    else if (m) m.once('idle', run);                // ждём готовности 3D-слоя
+  }, [relief]);
 
   useEffect(() => {
     if (ring.length < 3 || !isFinite(lat) || !isFinite(lon)) { setErr('Сначала постройте участок (≥ 3 точек «широта долгота»).'); return; }
@@ -123,7 +119,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     map.current = m;
 
     m.on('load', () => {
-      // источник рельефа: бесплатный открытый DEM AWS (terrarium, без ключа) — для 3D-terrain.
+      // источник рельефа: бесплатный открытый DEM AWS (terrarium, без ключа) — для 3D-terrain + отмывки.
       try {
         if (!m.getSource('dem')) m.addSource('dem', {
           type: 'raster-dem',
@@ -131,6 +127,17 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           encoding: 'terrarium', tileSize: 256, maxzoom: 15,
           attribution: '© Terrain: AWS Open Data / SRTM',
         });
+        const firstSym = (m.getStyle().layers || []).find(l => l.type === 'symbol');
+        if (!m.getLayer('hillshade')) m.addLayer({
+          id: 'hillshade', type: 'hillshade', source: 'dem',
+          layout: { visibility: 'none' },            // включается вместе с 3D-рельефом
+          paint: {
+            'hillshade-exaggeration': 0.45,
+            'hillshade-shadow-color': '#5b5546',
+            'hillshade-highlight-color': '#ffffff',
+            'hillshade-accent-color': '#6b6350',
+          },
+        }, firstSym && firstSym.id);                 // под подписями, чтобы лейблы читались
       } catch (e) { /* рельеф не критичен — молча пропускаем */ }
 
       m.addSource('plot', { type: 'geojson', data: { type: 'Feature', geometry: { type: 'Polygon', coordinates: [coords] } } });
@@ -142,9 +149,54 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     m.on('idle', rebuildNeighbors);
     m.on('error', e => setErr('Карта: ' + (e && e.error && e.error.message || '')));
 
-    const mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);
+    let mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);  // let: при 3D-рельефе поднимаем сцену на высоту центра
     const S = mc.meterInMercatorCoordinateUnits();
     const selIdx = { v: -1 };                       // индекс выделенного объекта
+    const TERR_EX = 1.3;                            // экзаджерация рельефа (карта и ловец теней синхронно)
+    const localToLngLat = (east, north) => [        // локальные метры [восток,север] → lng/lat
+      lon + east / (111320 * Math.cos(lat * Math.PI / 180)),
+      lat + north / 111320,
+    ];
+
+    // 3D-рельеф: поднять землю карты + построить «ловец теней» по форме DEM, чтобы тени падали на рельеф
+    function applyTerrain(on) {
+      const s = t3.current; if (!s.scene) return;
+      try {
+        m.setTerrain(on ? { source: 'dem', exaggeration: TERR_EX } : null);
+        if (m.getLayer('hillshade')) m.setLayoutProperty('hillshade', 'visibility', on ? 'visible' : 'none');
+      } catch (e) { /* терраин не критичен */ }
+      if (!on) {
+        mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);
+        if (s.terrainCatcher) s.terrainCatcher.visible = false;
+        if (s.flatCatcher) s.flatCatcher.visible = true;
+        return;
+      }
+      const build = () => {
+        const centerE = m.queryTerrainElevation([lon, lat]) || 0;   // высота рельефа в центре (в метрах, с экзаджерацией)
+        mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], centerE);
+        const R = 70, N = 24, step = (2 * R) / N, W = N + 1;
+        const pos = [], idx = [];
+        for (let j = 0; j <= N; j++) for (let i = 0; i <= N; i++) {
+          const east = -R + i * step, north = -R + j * step;
+          const [lng, la] = localToLngLat(east, north);
+          const e = m.queryTerrainElevation([lng, la]);
+          pos.push(east, (e == null ? centerE : e) - centerE, -north);   // сцена: x=восток, y=верх, z=-север
+        }
+        for (let j = 0; j < N; j++) for (let i = 0; i < N; i++) {
+          const a = j * W + i, b = a + 1, c = a + W, d = c + 1;
+          idx.push(a, b, c, b, d, c);
+        }
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        geo.setIndex(idx); geo.computeVertexNormals();
+        if (s.terrainCatcher) { s.scene.remove(s.terrainCatcher); s.terrainCatcher.geometry.dispose(); }
+        const tc = new THREE.Mesh(geo, new THREE.ShadowMaterial({ opacity: 0.5 }));
+        tc.receiveShadow = true; s.scene.add(tc); s.terrainCatcher = tc;
+        if (s.flatCatcher) s.flatCatcher.visible = false;
+      };
+      build();                       // сразу (если тайлы уже есть)
+      m.once('idle', build);         // и после загрузки DEM-тайлов
+    }
 
     const customLayer = {
       id: 'plot3d', type: 'custom', renderingMode: '3d',
@@ -173,7 +225,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // мягкие тени без VSM light-bleeding
-        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
+        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
         buildFence(fenceH); rebuildObjects(); applySun();
       },
       render(gl, matrix) {

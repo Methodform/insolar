@@ -110,7 +110,7 @@ export default function App() {
   const [anStats, setAnStats] = useState(null);
   const [showPlot, setShowPlot] = useState(true);
   const [showWin, setShowWin] = useState(true);
-  const [terrain3d, setTerrain3d] = useState(false); // 3D-рельеф (объём под наклоном камеры)
+  const [relief, setRelief] = useState(false);      // рельеф = отмывка (hillshade), тени остаются корректны
   const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767px)').matches);
@@ -293,7 +293,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
-          terrain3d={terrain3d} embed />
+          relief={relief} embed />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
@@ -402,9 +402,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Box>
               <Flex align="center" justify="between">
                 <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>3D-РЕЛЬЕФ</Text>
-                <Switch checked={terrain3d} onCheckedChange={setTerrain3d} />
+                <Switch checked={relief} onCheckedChange={setRelief} />
               </Flex>
-              <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Открытый DEM ~30 м: общий склон, ориентировочно (не для стройки).</Text>
+              <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Объём рельефа по открытому DEM ~30 м, тени падают на рельеф. Ориентировочно, не для стройки.</Text>
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
