@@ -69,11 +69,11 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       s.sunSphere.material.color.setHex(alt < 6 ? 0xff9a52 : 0xffe08a); }   // тёплый у горизонта
     // яркость по высоте солнца: день → полно, сумерки → приглушённо, ночь → почти темно
     const dayK = alt >= 8 ? 1 : alt > -6 ? Math.max(0, (alt + 6) / 14) : 0;
-    // солнце ослаблено: даёт лишь мягкую разницу граней (как у домов карты); силу тени задаёт ShadowMaterial, не яркость
-    s.sun.intensity = alt > 0 ? (0.35 + 0.2 * Math.min(1, alt / 8)) : 0;
+    // высокий заполняющий свет → грани в цвете домов карты; солнце и полусфера дают лишь чуть заметную разницу верх/бок
+    s.sun.intensity = alt > 0 ? (0.1 + 0.15 * Math.min(1, alt / 8)) : 0;
     s.sun.castShadow = alt > 0;                        // ночью (солнце за горизонтом) — тени нет совсем
-    if (s.amb) s.amb.intensity = 0.45 + 0.2 * dayK;      // ровный заполняющий свет → грани светлые, как у домов карты
-    if (s.hemi) s.hemi.intensity = 0.4 + 0.2 * dayK;
+    if (s.amb) s.amb.intensity = 0.35 + 0.5 * dayK;      // день ~0.85 → грани светлые как у карты, ночь темнее
+    if (s.hemi) s.hemi.intensity = 0.06 + 0.18 * dayK;
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
@@ -234,6 +234,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const s = t3.current, group = s.objGroup; if (!group) return;
       while (group.children.length) { const c = group.children.pop(); if (c.geometry) c.geometry.dispose(); }
       const C = mapBldColor();                        // цвет как у зданий карты
+      const roofMat = new THREE.MeshLambertMaterial({ color: C, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
       const plotLoc = ring && ring.length >= 3 ? ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]) : null;
@@ -259,7 +260,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
         const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshLambertMaterial({ color: outside ? 0x9aa0a8 : C, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.35 : 0 }));
         walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
-        // как здания карты: выдавленный контур с плоским верхом, без скатной крыши
+        // двускатная крыша на том же материале/свете, что стены; высота конька 2 м
+        const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
+        if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) group.add(roof); }
       });
       if (map.current) map.current.triggerRepaint();
     }
