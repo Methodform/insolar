@@ -157,6 +157,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       m.addLayer(customLayer);
     });
     m.on('idle', rebuildNeighbors);
+    m.on('rotate', reshadeAll);                        // грани строений пересвечиваются при повороте, как у домов карты
     m.on('error', e => setErr('Карта: ' + (e && e.error && e.error.message || '')));
 
     let mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);  // let: при 3D-рельефе поднимаем сцену на высоту центра
@@ -218,17 +219,33 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
     // запекаем в вершинные цвета → неосвещаемый материал, не зависит от солнца. Тот же принцип, что fill-extrusion MapLibre.
     const _v3 = new THREE.Vector3(), _nm = new THREE.Matrix3();
+    // направление света как у MapLibre по умолчанию: экранно-привязанное (viewport), азимут 210°, ~60° над горизонтом.
+    // при повороте карты азимут смещается на bearing → грани пересвечиваются, как у домов карты.
+    function computeLightDir() {
+      const bearing = map.current ? map.current.getBearing() : 0;
+      const az = (210 + bearing) * Math.PI / 180, el = 60 * Math.PI / 180, ch = Math.cos(el);
+      return new THREE.Vector3(ch * Math.sin(az), Math.sin(el), -ch * Math.cos(az)).normalize();
+    }
+    const SHADE_AMB = 0.78;                                   // ambient-пол; направленная добавка сверху (как fill-extrusion)
     function bakeShade(mesh, hex) {
+      mesh.userData.shadeHex = hex;                           // запоминаем базовый цвет для пересвета при повороте
       const g = mesh.geometry;
       if (!g.attributes.normal) g.computeVertexNormals();
       const n = g.attributes.normal; mesh.updateMatrix(); _nm.getNormalMatrix(mesh.matrix);
+      const L = (t3.current && t3.current.lightDir) || computeLightDir();
       const base = new THREE.Color(hex), cols = new Float32Array(n.count * 3);
       for (let i = 0; i < n.count; i++) {
         _v3.set(n.getX(i), n.getY(i), n.getZ(i)).applyMatrix3(_nm).normalize();
-        const s = 0.86 + 0.14 * Math.max(0, _v3.y);            // стены ~0.86, верх — полный цвет
+        const s = SHADE_AMB + (1 - SHADE_AMB) * Math.max(0, _v3.dot(L));   // ambient + направленная составляющая
         cols[i * 3] = base.r * s; cols[i * 3 + 1] = base.g * s; cols[i * 3 + 2] = base.b * s;
       }
       g.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    }
+    function reshadeAll() {                                   // пересвет граней строений/забора при повороте карты
+      const s = t3.current; if (!s || !s.objGroup) return;
+      s.lightDir = computeLightDir();
+      [s.objGroup, s.fenceGroup].forEach(gr => gr && gr.traverse(o => { if (o.isMesh && o.userData.shadeHex != null) bakeShade(o, o.userData.shadeHex); }));
+      if (map.current) map.current.triggerRepaint();
     }
 
     function buildFence(fh = fenceH) {
