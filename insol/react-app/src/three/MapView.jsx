@@ -211,8 +211,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     };
 
     // забор по периметру участка (fh — текущая высота из панели)
-    // нейтральный светло-серый как у зданий карты (без тёплого/бежевого оттенка)
-    function mapBldColor() { return 0xdadcdc; }
+    // цвет домов карты OpenFreeMap liberty: hsl(35,8%,85%) при opacity 0.8 над фоном #f8f4f0 ≈ #e2dedb
+    function mapBldColor() { return 0xe2dedb; }
 
     function buildFence(fh = fenceH) {
       const s = t3.current, g = s.fenceGroup; if (!g) return;
@@ -260,13 +260,16 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const walls = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: H, bevelEnabled: false }), new THREE.MeshLambertMaterial({ color: outside ? 0x9aa0a8 : C, emissive: hl ? 0x2f6bd4 : 0x000000, emissiveIntensity: hl ? 0.4 : 0 }));
         walls.rotation.x = -Math.PI / 2; walls.castShadow = true; walls.receiveShadow = true; group.add(walls);
         const rh = b.roofH || (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-        if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat); if (roof) group.add(roof); }
+        if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) group.add(roof); }
       });
       if (map.current) map.current.triggerRepaint();
     }
-    function gableRoof(pts, base, rh, mat) {
+    function gableRoof(pts, base, rh, mat, b) {
       const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], d = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-      const alongA = (d(pts[0], pts[1]) + d(pts[2], pts[3])) >= (d(pts[1], pts[2]) + d(pts[3], pts[0]));
+      // ориентация конька фиксируется на здании один раз (по длинной стороне), чтобы не «переключалась» при смене размеров
+      let alongA;
+      if (b && b.roofAlong != null) alongA = b.roofAlong;
+      else { alongA = (d(pts[0], pts[1]) + d(pts[2], pts[3])) >= (d(pts[1], pts[2]) + d(pts[3], pts[0])); if (b) b.roofAlong = alongA; }
       let R1, R2, slopes, gables;
       if (alongA) { R1 = mid(pts[1], pts[2]); R2 = mid(pts[3], pts[0]); slopes = [[pts[0], pts[1], R1, R2], [pts[2], pts[3], R2, R1]]; gables = [[pts[1], pts[2], R1], [pts[3], pts[0], R2]]; }
       else { R1 = mid(pts[0], pts[1]); R2 = mid(pts[2], pts[3]); slopes = [[pts[1], pts[2], R2, R1], [pts[3], pts[0], R1, R2]]; gables = [[pts[0], pts[1], R1], [pts[2], pts[3], R2]]; }
