@@ -158,6 +158,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     });
     m.on('idle', rebuildNeighbors);
     m.on('rotate', reshadeAll);                        // грани строений пересвечиваются при повороте, как у домов карты
+    m.on('zoom', () => { const s = t3.current; if (s && s.buildGizmo && selIdx.v >= 0) s.buildGizmo(); });   // гизмо — постоянный экранный размер
     m.on('error', e => setErr('Карта: ' + (e && e.error && e.error.message || '')));
 
     let mc = maplibregl.MercatorCoordinate.fromLngLat([lon, lat], 0);  // let: при 3D-рельефе поднимаем сцену на высоту центра
@@ -527,10 +528,12 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       return [(v.x / v.w * 0.5 + 0.5) * cv.clientWidth, (1 - (v.y / v.w * 0.5 + 0.5)) * cv.clientHeight];
     }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
-    function arrow(dir, len, color) {
+    // масштаб гизмо от зума карты (постоянный экранный размер элементов); 1 при zoom 18.5
+    function gizScale() { const z = map.current ? map.current.getZoom() : 18.5; return Math.max(0.4, Math.min(3, Math.pow(2, 18.5 - z))); }
+    function arrow(dir, len, color, sc = 1) {
       const g = new THREE.Group();
-      const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.18, len, 10), gmat(color)); sh.position.y = len / 2; sh.renderOrder = 999;
-      const tp = new THREE.Mesh(new THREE.ConeGeometry(0.5, 1.1, 14), gmat(color)); tp.position.y = len + 0.55; tp.renderOrder = 999;
+      const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * sc, 0.18 * sc, len, 10), gmat(color)); sh.position.y = len / 2; sh.renderOrder = 999;
+      const tp = new THREE.Mesh(new THREE.ConeGeometry(0.5 * sc, 1.1 * sc, 14), gmat(color)); tp.position.y = len + 0.55 * sc; tp.renderOrder = 999;
       g.add(sh, tp); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()); return g;
     }
     function buildGizmo() {
@@ -542,23 +545,25 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const v = [-u[1], u[0]];
       let hu = 1, hv = 1; pts.forEach(p => { hu = Math.max(hu, Math.abs((p[0] - c[0]) * u[0] + (p[1] - c[1]) * u[1])); hv = Math.max(hv, Math.abs((p[0] - c[0]) * v[0] + (p[1] - c[1]) * v[1])); });
       const group = new THREE.Group(); const Y = 0.4;
+      const gz = gizScale();                                    // масштаб элементов по зуму (постоянный экранный размер)
+      const cs = 1.3 * gz;                                      // размер кубов масштаба
       const lp3 = (e2, n2, y = Y) => [e2, y, -n2];               // [восток,север] → локальные 3D
       // кольцо поворота
-      const Rr = ext + 1.7;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.16, 8, 52), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
+      const Rr = ext + 1.7 * gz;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.16 * gz, 8, 52), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
       // стрелки перемещения (красная вдоль длины, синяя поперёк)
-      const aL = ext + 2;
-      const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, 0xff2222); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
-      const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, 0x2b7bff); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
+      const aL = ext + 2 * gz;
+      const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, 0xff2222, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
+      const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, 0x2b7bff, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
       // кубы масштаба
-      const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
-      const slPos = lp3(c[0] + u[0] * (hu + 1.3), c[1] + u[1] * (hu + 1.3)), swPos = lp3(c[0] + v[0] * (hv + 1.3), c[1] + v[1] * (hv + 1.3));
+      const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
+      const slPos = lp3(c[0] + u[0] * (hu + cs), c[1] + u[1] * (hu + cs)), swPos = lp3(c[0] + v[0] * (hv + cs), c[1] + v[1] * (hv + cs));
       cube(0xffffff, slPos); cube(0x00e6d0, swPos);
       // вертикальная ручка высоты (над зданием)
       const topY = (b.height || 3) + (b.roofH || 0) + 1;
-      const har = arrow(new THREE.Vector3(0, 1, 0), 2.4, 0x9b6bff); har.position.set(c[0], topY, -c[1]); group.add(har);
-      const tyPos = [c[0], topY + 3, -c[1]];
-      const tyCube = new THREE.Mesh(new THREE.BoxGeometry(1.3, 1.3, 1.3), gmat(0x9b6bff)); tyCube.position.set(tyPos[0], tyPos[1], tyPos[2]); tyCube.renderOrder = 999; group.add(tyCube);
+      const har = arrow(new THREE.Vector3(0, 1, 0), 2.4 * gz, 0x9b6bff, gz); har.position.set(c[0], topY, -c[1]); group.add(har);
+      const tyPos = [c[0], topY + 3 * gz, -c[1]];
+      const tyCube = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(0x9b6bff)); tyCube.position.set(tyPos[0], tyPos[1], tyPos[2]); tyCube.renderOrder = 999; group.add(tyCube);
       s.scene.add(group);
       // точки для попадания по экрану
       const ringPts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) ringPts.push(lp3(c[0] + Rr * Math.cos(a), c[1] + Rr * Math.sin(a)));
