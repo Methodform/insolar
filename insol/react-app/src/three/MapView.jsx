@@ -194,13 +194,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const neigh = new THREE.Group(); scene.add(neigh);
         const windGroup = new THREE.Group(); scene.add(windGroup);
         const insolGroup = new THREE.Group(); scene.add(insolGroup);
+        const setbackGroup = new THREE.Group(); scene.add(setbackGroup);
         const casterMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
         const catcher = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.ShadowMaterial({ opacity: 0.5 }));
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // мягкие тени без VSM light-bleeding
-        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildGizmo };
-        buildFence(fenceH); rebuildObjects(); applySun();
+        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildGizmo };
+        buildFence(fenceH); rebuildObjects(); buildSetback(); applySun();
       },
       render(gl, matrix) {
         const s = t3.current; if (!s.renderer) return;
@@ -251,6 +252,40 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       s.lightDir = computeLightDir();
       [s.objGroup, s.fenceGroup].forEach(gr => gr && gr.traverse(o => { if (o.isMesh && o.userData.shadeHex != null) bakeShade(o, o.userData.shadeHex); }));
       if (map.current) map.current.triggerRepaint();
+    }
+
+    // смещение контура участка внутрь на d метров (offset рёбер + пересечение соседних) — «зона застройки»
+    function segX(a, b) {
+      const den = (a.ax - a.bx) * (b.ay - b.by) - (a.ay - a.by) * (b.ax - b.bx);
+      if (Math.abs(den) < 1e-9) return null;
+      const t = ((a.ax - b.ax) * (b.ay - b.by) - (a.ay - b.ay) * (b.ax - b.bx)) / den;
+      return [a.ax + t * (a.bx - a.ax), a.ay + t * (a.by - a.ay)];
+    }
+    function insetRing(pts, d) {
+      const N = pts.length; let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= N; cy /= N;
+      const edges = [];
+      for (let i = 0; i < N; i++) {
+        const A = pts[i], B = pts[(i + 1) % N];
+        let nx = -(B[1] - A[1]), ny = (B[0] - A[0]); const len = Math.hypot(nx, ny) || 1; nx /= len; ny /= len;
+        const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
+        if ((cx - mx) * nx + (cy - my) * ny < 0) { nx = -nx; ny = -ny; }   // нормаль внутрь
+        edges.push({ ax: A[0] + nx * d, ay: A[1] + ny * d, bx: B[0] + nx * d, by: B[1] + ny * d });
+      }
+      const out = [];
+      for (let i = 0; i < N; i++) { const p = segX(edges[(i - 1 + N) % N], edges[i]); out.push(p || [edges[i].ax, edges[i].ay]); }
+      return out;
+    }
+    function buildSetback(d = 3) {                     // 3 м — норматив отступа жилого дома от границы (СП 30-102-99)
+      const s = t3.current, g = s.setbackGroup; if (!g) return;
+      while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
+      if (ring.length < 3) return;
+      const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
+      const ins = insetRing(loc, d);
+      if (ins.some(p => !isFinite(p[0]) || !isFinite(p[1]))) return;
+      const pts3 = ins.map(p => new THREE.Vector3(p[0], 0.06, -p[1])); pts3.push(pts3[0].clone());
+      const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3),
+        new THREE.LineDashedMaterial({ color: 0xf5a623, dashSize: 0.7, gapSize: 0.45 }));
+      line.computeLineDistances(); g.add(line);
     }
 
     function buildFence(fh = fenceH) {
