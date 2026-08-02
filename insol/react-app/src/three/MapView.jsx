@@ -262,32 +262,35 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true, toneMapped: false }));
       sp.scale.set(scale * cv.width / cv.height, scale, 1); sp.renderOrder = 20; return sp;
     }
-    // плоская подпись (лежит в плоскости земли), чёрные цифры regular — для выносных размеров участка; поверх всего
+    // плоская подпись (лежит в плоскости земли), тёмно-серые цифры regular — для размеров участка; скрывается за зданиями/забором
     function makeFlatLabel(text, size, dx, dy) {
       const fs = 48, pad = 6, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
       ctx.font = `${fs}px sans-serif`; const w = Math.ceil(ctx.measureText(text).width);
       cv.width = w + pad * 2; cv.height = fs + pad * 2;
-      ctx.font = `${fs}px sans-serif`; ctx.fillStyle = '#000'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.font = `${fs}px sans-serif`; ctx.fillStyle = '#3a3a3a'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
       ctx.fillText(text, cv.width / 2, cv.height / 2);
       const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter;
       const geo = new THREE.PlaneGeometry(size * cv.width / cv.height, size); geo.rotateX(-Math.PI / 2);   // кладём в плоскость земли
-      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
-      mesh.rotation.y = Math.atan2(dy, dx); mesh.renderOrder = 20; return mesh;                              // разворот вдоль ребра, поверх зданий
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false }));   // depthTest вкл → за зданиями не видно
+      mesh.rotation.y = Math.atan2(dy, dx); mesh.renderOrder = 4; return mesh;
     }
-    // выносные размеры участка по периметру → в SVG-оверлей (линии + числа), всегда поверх зданий
+    // выносные размеры участка по периметру: 3D-линии + плоские подписи, тёмно-серые, скрываются за зданиями/забором
     function buildDims() {
-      const s = t3.current; s.plotLabels = []; s.plotLines = [];
+      const s = t3.current, g = s.dimsGroup; if (!g) return;
+      while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } }
       if (ring.length < 2) return;
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let cx = 0, cy = 0; loc.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= loc.length; cy /= loc.length;
-      const off = 2.5, P3 = (p, y = 0.08) => [p[0], y, -p[1]];
+      const off = 2.5, dm = new THREE.LineBasicMaterial({ color: 0x4d4d4d });   // тёмно-серый; depthTest вкл → за зданиями не видно
+      const seg = (P, Q) => g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(P[0], 0.08, -P[1]), new THREE.Vector3(Q[0], 0.08, -Q[1])]), dm));
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len < 0.5) continue;
         let nx = -(B[1] - A[1]), ny = (B[0] - A[0]); const ln = Math.hypot(nx, ny) || 1; nx /= ln; ny /= ln;
         const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
         const A2 = [A[0] + nx * off, A[1] + ny * off], B2 = [B[0] + nx * off, B[1] + ny * off];
-        s.plotLines.push([P3(A2), P3(B2)], [P3(A), P3(A2)], [P3(B), P3(B2)]);   // размерная линия + выносные засечки
-        s.plotLabels.push({ pos: [(A2[0] + B2[0]) / 2 + nx * 1.2, 0.2, -((A2[1] + B2[1]) / 2 + ny * 1.2)], text: fmtM(len) });
+        seg(A2, B2); seg(A, A2); seg(B, B2);
+        const lab = makeFlatLabel(fmtM(len), 2.2, (B[0] - A[0]) / len, (B[1] - A[1]) / len);
+        lab.position.set((A2[0] + B2[0]) / 2 + nx * 1.2, 0.09, -((A2[1] + B2[1]) / 2 + ny * 1.2)); g.add(lab);
       }
     }
 
@@ -361,6 +364,15 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       }
     }
 
+    // детерминированный ГПСЧ по сиду (чтобы форма дерева не «прыгала» при перерисовке)
+    function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+    // низкополигональный «блоб» листвы со случайной огранкой (flat shading)
+    function lpBlob(rng, r, sy, mat) {
+      const geo = new THREE.IcosahedronGeometry(r, 1).toNonIndexed(), p = geo.attributes.position;
+      for (let i = 0; i < p.count; i++) { const jx = 1 + (rng() - 0.5) * 0.42, jy = (0.85 + rng() * 0.5) * sy, jz = 1 + (rng() - 0.5) * 0.42; p.setXYZ(i, p.getX(i) * jx, p.getY(i) * jy, p.getZ(i) * jz); }
+      geo.computeVertexNormals(); const m = new THREE.Mesh(geo, mat); m.castShadow = true; m.receiveShadow = true; return m;
+    }
+
     // объекты пользователя (перестраиваются при перетаскивании)
     function rebuildObjects() {
       const s = t3.current, group = s.objGroup; if (!group) return;
@@ -386,9 +398,18 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         if (kind === 'tree' || kind === 'bush') {
           let rad = 0.7; pts.forEach(p => rad = Math.max(rad, Math.hypot(p[0] - cx, p[1] - cy)));
           const H = b.height || (kind === 'tree' ? 5 : 1.2);
-          if (kind === 'tree') { const tr = new THREE.Mesh(new THREE.CylinderGeometry(.12, .18, H * .3, 8), trunkM); tr.position.set(cx, H * .15, -cy); tr.castShadow = true; group.add(tr);
-            const cone = new THREE.Mesh(new THREE.ConeGeometry(Math.max(1, rad), H * .85, 12), foliage); cone.position.set(cx, H * .55, -cy); cone.castShadow = true; group.add(cone); }
-          else { const sp = new THREE.Mesh(new THREE.SphereGeometry(Math.max(.6, rad), 12, 10), foliage); sp.scale.y = .7; sp.position.set(cx, rad * .6, -cy); sp.castShadow = true; group.add(sp); }
+          if (b.treeSeed == null) b.treeSeed = (Math.random() * 1e9) | 0;   // стабильная форма на объект
+          const rng = mulberry(b.treeSeed);
+          const g0 = 0.8 + rng() * 0.35;                                    // вариация оттенка зелени
+          const fol = new THREE.MeshLambertMaterial({ color: new THREE.Color(0.62 * g0, 0.74 * g0, 0.42 * g0).getHex(), flatShading: true });
+          if (kind === 'tree') {
+            const th = H * 0.32, tr = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, th, 6), trunkM); tr.position.set(cx, th / 2, -cy); tr.castShadow = true; group.add(tr);
+            const cr = Math.max(1, Math.min(rad * 1.25, H * 0.42)), nb = 1 + (rng() < 0.5 ? 1 : 0);
+            for (let k = 0; k < nb; k++) { const b1 = lpBlob(rng, cr * (1 - k * 0.3), 1.15, fol); b1.position.set(cx + (rng() - 0.5) * cr * 0.4, th + cr * (0.9 + k * 0.9), -cy + (rng() - 0.5) * cr * 0.4); group.add(b1); }
+          } else {
+            const nb = 1 + (rng() < 0.6 ? 1 : 0);
+            for (let k = 0; k < nb; k++) { const r = Math.max(0.5, rad) * (0.75 + rng() * 0.45); const b1 = lpBlob(rng, r, 0.8, fol); b1.position.set(cx + (rng() - 0.5) * r * 0.7, r * 0.7, -cy + (rng() - 0.5) * r * 0.7); group.add(b1); }
+          }
           return;
         }
         const H = b.height || 3;
@@ -416,7 +437,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           const v2 = [-u2[1], u2[0]]; let du = 0, dv = 0;
           pts.forEach(p => { du = Math.max(du, Math.abs((p[0] - cx) * u2[0] + (p[1] - cy) * u2[1])); dv = Math.max(dv, Math.abs((p[0] - cx) * v2[0] + (p[1] - cy) * v2[1])); });
           const rh2 = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-          s.objLabels.push({ pos: [cx, H + (openKind ? 0 : rh2) + 2.2, -cy], text: `${fn(du * 2)}×${fn(dv * 2)} · h${fn(H)} м` }); }
+          s.objLabels.push({ pos: [cx, H + (openKind ? 0 : rh2) + 2.2, -cy], text: `${fn(du * 2)}×${fn(dv * 2)} м` }); }   // без высоты
       });
       if (map.current) map.current.triggerRepaint();
     }
@@ -578,8 +599,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function updateLabels() {
       const svg = labRef.current; if (!svg) return;
       const s = t3.current; let out = '';
-      (s.plotLines || []).forEach(seg => { const a = toScreen(seg[0]), b = toScreen(seg[1]); if (a && b) out += `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="#000" stroke-width="1.5"/>`; });
-      (s.plotLabels || []).concat(s.objLabels || []).forEach(L => { const p = toScreen(L.pos); if (p) out += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14" fill="#000" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${esc(L.text)}</text>`; });
+      (s.objLabels || []).forEach(L => { const p = toScreen(L.pos); if (p) out += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14" fill="#3a3a3a" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${esc(L.text)}</text>`; });
       svg.innerHTML = out;
     }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
