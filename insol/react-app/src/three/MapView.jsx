@@ -274,23 +274,20 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
       mesh.rotation.y = Math.atan2(dy, dx); mesh.renderOrder = 20; return mesh;                              // разворот вдоль ребра, поверх зданий
     }
-    // выносные размеры участка по периметру (размерная линия + засечки + подпись длины ребра)
+    // выносные размеры участка по периметру → в SVG-оверлей (линии + числа), всегда поверх зданий
     function buildDims() {
-      const s = t3.current, g = s.dimsGroup; if (!g) return;
-      while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } }
-      s.plotLabels = [];
+      const s = t3.current; s.plotLabels = []; s.plotLines = [];
       if (ring.length < 2) return;
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let cx = 0, cy = 0; loc.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= loc.length; cy /= loc.length;
-      const off = 2.5, dm = new THREE.LineBasicMaterial({ color: 0x000000, depthTest: false });   // выносные линии — чёрные, поверх зданий
-      const seg = (P, Q) => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(P[0], 0.08, -P[1]), new THREE.Vector3(Q[0], 0.08, -Q[1])]), dm); l.renderOrder = 19; g.add(l); };
+      const off = 2.5, P3 = (p, y = 0.08) => [p[0], y, -p[1]];
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len < 0.5) continue;
         let nx = -(B[1] - A[1]), ny = (B[0] - A[0]); const ln = Math.hypot(nx, ny) || 1; nx /= ln; ny /= ln;
         const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
         const A2 = [A[0] + nx * off, A[1] + ny * off], B2 = [B[0] + nx * off, B[1] + ny * off];
-        seg(A2, B2); seg(A, A2); seg(B, B2);                    // размерная линия + выносные засечки
-        s.plotLabels.push({ pos: [(A2[0] + B2[0]) / 2 + nx * 1.2, 0.2, -((A2[1] + B2[1]) / 2 + ny * 1.2)], text: fmtM(len) });   // число — в HTML-оверлей
+        s.plotLines.push([P3(A2), P3(B2)], [P3(A), P3(A2)], [P3(B), P3(B2)]);   // размерная линия + выносные засечки
+        s.plotLabels.push({ pos: [(A2[0] + B2[0]) / 2 + nx * 1.2, 0.2, -((A2[1] + B2[1]) / 2 + ny * 1.2)], text: fmtM(len) });
       }
     }
 
@@ -576,13 +573,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const cv = m.getCanvas();
       return [(v.x / v.w * 0.5 + 0.5) * cv.clientWidth, (1 - (v.y / v.w * 0.5 + 0.5)) * cv.clientHeight];
     }
-    // HTML-оверлей цифр размеров: проецируем 3D-точку в экран, всегда поверх и лицом к камере
+    // SVG-оверлей размеров: выносные линии + цифры, спроецированные из 3D. Всегда поверх карты и зданий, любой ракурс.
+    const esc = t => String(t).replace(/</g, '&lt;');
     function updateLabels() {
-      const host = labRef.current; if (!host) return;
-      const s = t3.current, labs = (s.plotLabels || []).concat(s.objLabels || []);
-      while (host.children.length < labs.length) { const d = document.createElement('div'); d.style.cssText = 'position:absolute;transform:translate(-50%,-50%);font:14px sans-serif;color:#000;white-space:nowrap;text-shadow:0 0 2px #fff,0 0 3px #fff,0 0 3px #fff'; host.appendChild(d); }
-      while (host.children.length > labs.length) host.removeChild(host.lastChild);
-      for (let i = 0; i < labs.length; i++) { const el = host.children[i], sc = toScreen(labs[i].pos); if (!sc) { el.style.display = 'none'; continue; } el.style.display = ''; if (el.textContent !== labs[i].text) el.textContent = labs[i].text; el.style.left = sc[0] + 'px'; el.style.top = sc[1] + 'px'; }
+      const svg = labRef.current; if (!svg) return;
+      const s = t3.current; let out = '';
+      (s.plotLines || []).forEach(seg => { const a = toScreen(seg[0]), b = toScreen(seg[1]); if (a && b) out += `<line x1="${a[0].toFixed(1)}" y1="${a[1].toFixed(1)}" x2="${b[0].toFixed(1)}" y2="${b[1].toFixed(1)}" stroke="#000" stroke-width="1.5"/>`; });
+      (s.plotLabels || []).concat(s.objLabels || []).forEach(L => { const p = toScreen(L.pos); if (p) out += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14" fill="#000" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${esc(L.text)}</text>`; });
+      svg.innerHTML = out;
     }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
     // масштаб гизмо от зума карты (постоянный экранный размер элементов); 1 при zoom 18.5
@@ -720,7 +718,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   if (embed) return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div ref={box} style={{ position: 'absolute', inset: 0 }} />
-      <div ref={labRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3, overflow: 'hidden' }} />
+      <svg ref={labRef} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 3 }} />
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: skyVeil(sunAlt), transition: 'background .35s', zIndex: 1 }} />
       {sunAlt <= 0 && <div style={{ position: 'absolute', left: '50%', top: 14, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2, color: '#dfe6f2', background: 'rgba(10,20,46,.55)', border: '1px solid #2a3550', borderRadius: 999, padding: '4px 12px', fontSize: 12 }}>🌙 Ночь · солнце ниже горизонта</div>}
       {err && <div style={{ position: 'fixed', top: 60, right: 12, zIndex: 40, padding: '6px 10px', background: 'rgba(22,27,24,.94)', color: '#ff8a80', borderRadius: 10, fontSize: 12 }}>{err}</div>}
