@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, windSpd = 3, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, windSpd = 3, setbackOn = true, embed = false, onClose }) {
   const box = useRef(null);
   const labRef = useRef(null);   // HTML-оверлей для цифр размеров (всегда поверх и лицом к камере)
   const map = useRef(null);
@@ -87,6 +87,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   useEffect(() => { if (embed) { if (date) setDstr(date); if (minutes != null) setMins(minutes); } }, [embed, date, minutes]);  // холст: солнце от таймбара панели
   useEffect(() => { applySun(); }, [dstr, mins]);
   useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH, windSpd); }, [windShow, windDegLocal, fenceH, windSpd]);
+  useEffect(() => { const s = t3.current; s._setbackOn = setbackOn; if (s.buildSetback) s.buildSetback(); if (map.current) map.current.triggerRepaint(); }, [setbackOn]);   // отступы вкл/выкл
   useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH, insolWalls); }, [insolShow, dstr, mins, plotMarkers, reqH, insolWalls]);
   // синхронизация с панелью приложения: новые объекты и высота забора → пересобрать на карте
   useEffect(() => {
@@ -345,7 +346,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function buildSetback() {
       const s = t3.current, g = s.setbackGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
-      if (ring.length < 3) return;
+      if (s._setbackOn === false || ring.length < 3) return;   // отступы скрыты
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       const A0 = ringArea(loc);
       SETBACKS.forEach(sp => {
@@ -680,6 +681,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     const plotLocRing = () => ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
     // держим строение внутри своей линии отступа: перенос упирается в неё, поворот/масштаб за границу — откат
     function clampSetback(idx, o, mode) {
+      if (t3.current._setbackOn === false) return;             // отступы выключены — без ограничения
       const bb = live.current[idx], d = setbackFor(bb.kind || 'house');
       if (!(d > 0) || ring.length < 3) return;
       const poly = insetRing(plotLocRing(), d);

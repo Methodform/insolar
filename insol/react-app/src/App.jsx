@@ -53,6 +53,7 @@ export default function App() {
   const timer = useRef(null);
   const [buildings, setBuildings] = useState([]);
   const [selBld, setSelBld] = useState(-1);           // индекс выделенного объекта (для подсветки в списке)
+  const [showSetback, setShowSetback] = useState(true);   // показ линий отступов + ограничение застройки
   const [leftOpen, setLeftOpen] = useState(true);     // показ левой/правой панели (можно скрыть на узких экранах)
   const [rightOpen, setRightOpen] = useState(true);
   const histRef = useRef([]);                         // история для отмены (Ctrl/Cmd+Z)
@@ -311,7 +312,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={pushAndSet} onSelect={setSelBld} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow} windSpd={windSpd}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
-          embed />
+          setbackOn={showSetback} embed />
 
         {/* кнопки скрытия боковых панелей: на панели, а после скрытия — заметная кнопка у края (surface: рамка+фон) */}
         {!mobile && <>
@@ -429,12 +430,15 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
             </Box>
             <Box>
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ОТСТУПЫ ОТ ГРАНИЦ</Text>
-              <Flex direction="column" gap="1" mt="1">
+              <Flex align="center" justify="between">
+                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ОТСТУПЫ ОТ ГРАНИЦ</Text>
+                <Switch checked={showSetback} onCheckedChange={setShowSetback} />
+              </Flex>
+              {showSetback && <Flex direction="column" gap="1" mt="1">
                 <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#2b7bff', display: 'inline-block' }} /><Text size="1" color="gray">1 м — баня, хозпостройки, беседка, навес</Text></Flex>
                 <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#f5a623', display: 'inline-block' }} /><Text size="1" color="gray">3 м — жилой / садовый дом</Text></Flex>
                 <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">4 м — постройка для скота / птицы</Text></Flex>
-              </Flex>
+              </Flex>}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
@@ -477,35 +481,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 })}
                 {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
               </Flex>
-            </Box>
-            <Box>
-              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ВЕТЕР</Text>
-              <Box mt="2">
-                <Flex align="center" justify="between" asChild>
-                  <Text as="label" size="2" weight="medium" style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: pro ? 'pointer' : 'default' }}>
-                    <Flex align="center" gap="2">🌬 Поток ветра</Flex>
-                    <Switch checked={pro && windFlow} onCheckedChange={setWindOn} />
-                  </Text>
-                </Flex>
-                {pro && windFlow && <Box mt="2">
-                  <Select.Root value={windSel} onValueChange={pickWind}>
-                    <Select.Trigger variant="soft" style={{ width: '100%' }} />
-                    <Select.Content>
-                      <Select.Item value="now">Сейчас</Select.Item>
-                      {months.map((m, i) => <Select.Item key={i} value={'m' + i}>{m}</Select.Item>)}
-                    </Select.Content>
-                  </Select.Root>
-                  <Text size="1" color="gray" mt="2" style={{ display: 'block' }}>
-                    {windSel === 'now'
-                      ? (windNow ? `Ветер сейчас: с ${compassFrom(windNow.dirDeg)}${windNow.speed != null ? `, ${windNow.speed.toFixed(1)} м/с` : ''}` : 'Загружаю текущий ветер…')
-                      : `Преобладающий ветер за месяц: с ${Math.round(windDeg)}°`}
-                  </Text>
-                  <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Скорость ветра: {windSpd.toFixed(1)} м/с {windSpd < 1 ? '· штиль' : ''}</Text>
-                  <Slider value={[windSpd]} min={0} max={12} step={0.5} onValueChange={([v]) => setWindSpd(v)} />
-                  <Flex align="center" gap="2" mt="2"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#4d8be6', display: 'inline-block' }} /><Text size="1" color="gray">Затишье — беседку и зону отдыха сюда</Text></Flex>
-                  <Flex align="center" gap="2" mt="1"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#e6663d', display: 'inline-block' }} /><Text size="1" color="gray">Продувание — грядки/теплицу защитить</Text></Flex>
-                </Box>}
-              </Box>
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОЕКТ</Text>
