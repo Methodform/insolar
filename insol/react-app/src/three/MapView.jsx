@@ -256,29 +256,30 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     // текстовая подпись как спрайт (плашка с текстом), всегда лицом к камере
     const fmtM = x => (Math.round(x * 10) / 10).toString().replace('.', ',') + ' м';
+    // билборд-подпись (габариты строений): всегда лицом к камере и поверх всего (видно со всех сторон и сквозь здания)
     function makeLabel(text, scale = 2.6) {
       const fs = 44, pad = 10, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
-      ctx.font = `bold ${fs}px sans-serif`; const w = Math.ceil(ctx.measureText(text).width);
+      ctx.font = `${fs}px sans-serif`; const w = Math.ceil(ctx.measureText(text).width);
       cv.width = w + pad * 2; cv.height = fs + pad * 2;
-      ctx.font = `bold ${fs}px sans-serif`;
+      ctx.font = `${fs}px sans-serif`;
       ctx.fillStyle = 'rgba(255,255,255,0.82)'; const r = 12;
       ctx.beginPath(); ctx.moveTo(r, 0); ctx.arcTo(cv.width, 0, cv.width, cv.height, r); ctx.arcTo(cv.width, cv.height, 0, cv.height, r); ctx.arcTo(0, cv.height, 0, 0, r); ctx.arcTo(0, 0, cv.width, 0, r); ctx.fill();
-      ctx.fillStyle = '#1f4d24'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(text, cv.width / 2, cv.height / 2 + 2);
+      ctx.fillStyle = '#222'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center'; ctx.fillText(text, cv.width / 2, cv.height / 2 + 2);
       const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter;
-      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, toneMapped: false }));
-      sp.scale.set(scale * cv.width / cv.height, scale, 1); sp.renderOrder = 6; return sp;
+      const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, depthWrite: false, transparent: true, toneMapped: false }));
+      sp.scale.set(scale * cv.width / cv.height, scale, 1); sp.renderOrder = 20; return sp;
     }
-    // плоская подпись (лежит в плоскости земли), чёрные цифры — для выносных размеров участка
+    // плоская подпись (лежит в плоскости земли), чёрные цифры regular — для выносных размеров участка; поверх всего
     function makeFlatLabel(text, size, dx, dy) {
       const fs = 48, pad = 6, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
-      ctx.font = `bold ${fs}px sans-serif`; const w = Math.ceil(ctx.measureText(text).width);
+      ctx.font = `${fs}px sans-serif`; const w = Math.ceil(ctx.measureText(text).width);
       cv.width = w + pad * 2; cv.height = fs + pad * 2;
-      ctx.font = `bold ${fs}px sans-serif`; ctx.fillStyle = '#000'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.font = `${fs}px sans-serif`; ctx.fillStyle = '#000'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
       ctx.fillText(text, cv.width / 2, cv.height / 2);
       const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter;
       const geo = new THREE.PlaneGeometry(size * cv.width / cv.height, size); geo.rotateX(-Math.PI / 2);   // кладём в плоскость земли
-      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, toneMapped: false }));
-      mesh.rotation.y = Math.atan2(dy, dx); mesh.renderOrder = 6; return mesh;                              // разворот вдоль ребра
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, depthWrite: false, toneMapped: false }));
+      mesh.rotation.y = Math.atan2(dy, dx); mesh.renderOrder = 20; return mesh;                              // разворот вдоль ребра, поверх зданий
     }
     // выносные размеры участка по периметру (размерная линия + засечки + подпись длины ребра)
     function buildDims() {
@@ -287,8 +288,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (ring.length < 2) return;
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let cx = 0, cy = 0; loc.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= loc.length; cy /= loc.length;
-      const off = 2.5, dm = new THREE.LineBasicMaterial({ color: 0x000000 });   // выносные линии — чёрные
-      const seg = (P, Q) => g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(P[0], 0.08, -P[1]), new THREE.Vector3(Q[0], 0.08, -Q[1])]), dm));
+      const off = 2.5, dm = new THREE.LineBasicMaterial({ color: 0x000000, depthTest: false });   // выносные линии — чёрные, поверх зданий
+      const seg = (P, Q) => { const l = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(P[0], 0.08, -P[1]), new THREE.Vector3(Q[0], 0.08, -Q[1])]), dm); l.renderOrder = 19; g.add(l); };
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len < 0.5) continue;
         let nx = -(B[1] - A[1]), ny = (B[0] - A[0]); const ln = Math.hypot(nx, ny) || 1; nx /= ln; ny /= ln;
@@ -341,8 +342,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         if (Math.sign(A1) !== Math.sign(A0) || Math.abs(A1) < 1) return;   // отступ больше половины участка → контур схлопнулся, пропускаем
         const pts3 = ins.map(p => new THREE.Vector3(p[0], 0.06, -p[1])); pts3.push(pts3[0].clone());
         const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3),
-          new THREE.LineDashedMaterial({ color: sp.color, dashSize: 0.7, gapSize: 0.45 }));
-        line.computeLineDistances(); g.add(line);
+          new THREE.LineBasicMaterial({ color: sp.color, linewidth: 2 }));   // непрерывная линия 2px
+        g.add(line);
       });
     }
 
