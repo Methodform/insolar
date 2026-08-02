@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { sunPosition, compassAz, localToUTC } from '../engine/astronomy.js';
 import { buildStreamlines, windSpeedField, windColor, COMET_K, updateComet } from '../engine/windviz.js';
 import { fetchWindRose, fetchWindNow, prevailingDir } from '../engine/wind.js';
+import { placeCopyPts } from '../engine/place.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
@@ -114,18 +115,24 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     const m = new maplibregl.Map({ container: box.current, style: OFM_STYLE, center: [lon, lat], zoom: 18.5, pitch: 55, bearing: -20, attributionControl: true, preserveDrawingBuffer: true });
     map.current = m;
-    // захват скриншота холста для PDF-отчёта: размеры участка на скриншот не попадают (во вьюпорте остаются)
-    window.__spShot = () => {
-      try {
-        const s = t3.current, dg = s.dimsGroup, vis = dg ? dg.visible : true;
-        if (dg) dg.visible = false;
-        if (s.renderer && s.scene && s.camera) s.renderer.render(s.scene, s.camera);
-        const url = m.getCanvas().toDataURL('image/jpeg', 0.92);
+    // захват скриншота холста для PDF-отчёта. Рендерим полный кадр карты (тайлы + 3D) средствами MapLibre,
+    // а не только Three-сцену (иначе фон чёрный). Размеры участка на скриншот не попадают. Возвращает Promise<dataURL>.
+    window.__spShot = () => new Promise(resolve => {
+      const s = t3.current, dg = s.dimsGroup, vis = dg ? dg.visible : true;
+      let done = false;
+      if (dg) dg.visible = false;
+      const grab = () => {
+        if (done) return; done = true;
+        let url = null;
+        try { url = m.getCanvas().toDataURL('image/jpeg', 0.92); } catch (e) {}
         if (dg) dg.visible = vis;
         m.triggerRepaint();
-        return url;
-      } catch (e) { return null; }
-    };
+        resolve(url);
+      };
+      m.once('render', () => requestAnimationFrame(grab));   // ждём полный кадр карты со скрытыми размерами
+      m.triggerRepaint();
+      setTimeout(grab, 700);   // страховка, если событие render не пришло
+    });
 
     m.on('load', () => {
       // источник рельефа: бесплатный открытый DEM AWS (terrarium, без ключа) — для 3D-terrain + отмывки.
@@ -761,10 +768,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     // копирование выделенного объекта (общий буфер приложения)
     function pasteBuilding(src) {
-      if (!src) return;
-      let mnx = 1e9, mxx = -1e9; (src.pts || []).forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); });
-      const off = (mxx - mnx) + 2;                       // сдвиг вбок на ширину + 2 м → в пустую область, без наложения
-      const nb = { ...src, pts: src.pts.map(p => [p[0] + off, p[1]]) }; delete nb.treeSeed;
+      if (!src || !src.pts) return;
+      const poly = ring.length >= 3 ? plotLocRing() : null;
+      const others = live.current.map(b => b.pts);
+      const nb = { ...src, pts: placeCopyPts(src.pts, others, poly) }; delete nb.treeSeed;   // в пустую область без пересечений
       live.current = live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
       live.current.push(nb); selIdx.v = live.current.length - 1;
       rebuildObjects(); buildGizmo(); commit(); if (onSelect) onSelect(selIdx.v);

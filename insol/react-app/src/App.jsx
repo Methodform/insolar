@@ -11,6 +11,7 @@ import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow, meanDir } from './engine/wind.js';
+import { placeCopyPts } from './engine/place.js';
 import { loginWithYandex } from './yandexAuth.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
@@ -176,15 +177,17 @@ export default function App() {
     } catch (e) { alert('Не удалось открыть файл проекта'); } };
     rd.readAsText(file);
   }
-  function openReport() {
+  async function openReport() {
     if (!poly) { alert('Сначала постройте участок'); return; }
+    const w = window.open('', '_blank'); if (!w) { alert('Разрешите всплывающие окна'); return; }
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Отчёт</title><body style="font-family:sans-serif;padding:48px;color:#555;font-size:16px">Готовлю отчёт и снимок участка…</body>');
     const d = reportData(poly, buildings, lat, lon, tz, y);
     const esc = s => (s || '—').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
     const rows = d.rows.map(r => `<tr><td>${r.i}</td><td>${r.e}; ${r.n}</td><td>${r.sun.toFixed(1)}</td><td>${r.cont.toFixed(1)}</td><td class="${r.ok ? 'ok' : 'no'}">${r.ok ? 'соответствует' : 'не соответствует'}</td></tr>`).join('');
     const verdict = d.okc === d.n ? `Все ${d.n} точек инсоляции обеспечены нормируемой инсоляцией (≥ ${d.z.hours} ч). Требования выполняются.` : `Норму (≥ ${d.z.hours} ч) обеспечивают ${d.okc} из ${d.n} точек (${Math.round(d.okc / d.n * 100)} %).`;
     const today = new Date().toLocaleDateString('ru-RU');
     // доп. материалы отчёта: скриншот участка, список зданий, отступы, диаграммы
-    const shot = (typeof window !== 'undefined' && window.__spShot) ? window.__spShot() : null;
+    const shot = (typeof window !== 'undefined' && window.__spShot) ? await window.__spShot() : null;
     const bRows = buildings.map(b => { const p = b.pts || []; const w = p.length >= 2 ? Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) : 0; const dd = p.length >= 3 ? Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) : 0; const veg = b.kind === 'tree' || b.kind === 'bush'; return `<tr><td>${esc(b.name)}</td><td>${veg ? '—' : w.toFixed(1) + '×' + dd.toFixed(1)}</td><td>${veg ? '—' : (b.height + (b.roofH ? '+' + b.roofH : ''))}</td></tr>`; }).join('');
     const sunEl = document.getElementById('sunpath-cap'), roseEl = document.getElementById('windrose-cap');
     const sunSvg = sunEl ? sunEl.innerHTML : '', roseSvg = roseEl ? roseEl.innerHTML : '';
@@ -194,7 +197,8 @@ export default function App() {
     const sunSection = sunSvg ? `<h2>Диаграмма пути солнца</h2><div style="max-width:440px;margin:auto">${sunSvg}</div>` : '';
     const roseSection = roseSvg ? `<h2>Роза ветров</h2><div style="max-width:380px;margin:auto">${roseSvg}</div>` : `<h2>Роза ветров</h2><p style="color:#777">Откройте раздел «Роза ветров» в приложении перед формированием отчёта, чтобы диаграмма попала в отчёт.</p>`;
     const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Отчёт об инсоляции</title><style>
-@page{size:A4;margin:18mm 16mm}body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:12pt;line-height:1.45}
+@page{size:A4 portrait;margin:18mm 16mm}body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:12pt;line-height:1.45}
+img{max-width:100%;max-height:120mm;object-fit:contain}h2{page-break-after:avoid}table,img{page-break-inside:avoid}
 h1{font-size:15pt;text-align:center;margin:0 0 4pt}h2{font-size:12.5pt;border-bottom:1px solid #999;padding-bottom:3pt;margin:16pt 0 6pt}
 .sub{text-align:center;color:#444;font-size:10.5pt;margin-bottom:14pt}
 table{width:100%;border-collapse:collapse;margin:6pt 0;font-size:11pt}th,td{border:1px solid #888;padding:4pt 6pt;text-align:left}th{background:#eee}
@@ -228,7 +232,7 @@ ${roseSection}
 <h2>Заключение</h2><div class="verdict">${verdict}</div>
 <div class="note">Расчёт носит модельный характер и не заменяет заключение аккредитованной организации и экспертизу проектной документации.</div>
 <scr${''}ipt>window.onload=()=>setTimeout(()=>window.print(),400)<\/scr${''}ipt></body></html>`;
-    const w = window.open('', '_blank'); if (!w) { alert('Разрешите всплывающие окна'); return; } w.document.write(html); w.document.close();
+    w.document.open(); w.document.write(html); w.document.close();
   }
 
   const lat = built ? built.lat0 : 55.75, lon = built ? built.lon0 : 37.62;
@@ -260,7 +264,7 @@ ${roseSection}
     pushAndSet(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
   const removeBuilding = i => pushAndSet(bs => bs.filter((_, k) => k !== i));
-  const copyBuilding = i => pushAndSet(bs => { const s = bs[i]; if (!s) return bs; let mnx = 1e9, mxx = -1e9; (s.pts || []).forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); }); const off = (mxx - mnx) + 2; const nb = { ...s, pts: (s.pts || []).map(p => [p[0] + off, p[1]]) }; delete nb.treeSeed; return [...bs, nb]; });   // копия вбок на ширину+2 → в пустую область
+  const copyBuilding = i => pushAndSet(bs => { const s = bs[i]; if (!s) return bs; const others = bs.filter((_, k) => k !== i).map(b => b.pts); const nb = { ...s, pts: placeCopyPts(s.pts, others, poly) }; delete nb.treeSeed; return [...bs, nb]; });   // копия в пустую область без пересечений
 
   const [y, mo, da] = date.split('-').map(Number);
   const utcMs = localToUTC(y, mo - 1, da, Math.floor(minutes / 60), minutes % 60, tz);
@@ -488,24 +492,40 @@ ${roseSection}
               <Flex gap="2" mt="2">
                 <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Добавить объект</Button>
               </Flex>
-              <Flex direction="column" gap="1" mt="2">
-                {buildings.map((b, i) => {
+              {(() => {
+                const isGreen = k => k === 'tree' || k === 'bush' || k === 'bed';
+                const row = (b, i) => {
                   const p = b.pts || [];
                   const w = p.length >= 2 ? Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) : 0;
                   const d = p.length >= 3 ? Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) : 0;
-                  const isVeg = b.kind === 'tree' || b.kind === 'bush';
+                  const noDims = b.kind === 'tree' || b.kind === 'bush';
                   return (
                     <Flex key={i} justify="between" align="center" py="1" px="1" style={{ borderBottom: '1px solid var(--gray-a4)', borderRadius: 6, background: i === selBld ? 'var(--grass-a4)' : 'transparent' }}>
-                      <Text size="2" onClick={() => setSelBld(i)} style={{ cursor: 'pointer', flex: 1 }} title="Выбрать на участке">{b.name}{isVeg ? '' : ` · ${w.toFixed(1)}×${d.toFixed(1)} м`} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
+                      <Text size="2" onClick={() => setSelBld(i)} style={{ cursor: 'pointer', flex: 1 }} title="Выбрать на участке">{b.name}{noDims ? '' : ` · ${w.toFixed(1)}×${d.toFixed(1)} м`} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
                       <Flex gap="1">
                         <IconButton size="1" variant="ghost" color="gray" title="Копировать" onClick={() => copyBuilding(i)}><CopyIcon /></IconButton>
                         <IconButton size="1" variant="ghost" color="red" title="Удалить" onClick={() => removeBuilding(i)}><TrashIcon /></IconButton>
                       </Flex>
                     </Flex>
                   );
-                })}
-                {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
-              </Flex>
+                };
+                const idx = buildings.map((b, i) => i);
+                const structs = idx.filter(i => !isGreen(buildings[i].kind));
+                const greens = idx.filter(i => isGreen(buildings[i].kind));
+                return (
+                  <Flex direction="column" gap="1" mt="2">
+                    {structs.length > 0 && <>
+                      <Text size="1" color="gray" style={{ letterSpacing: '.06em' }}>Постройки</Text>
+                      {structs.map(i => row(buildings[i], i))}
+                    </>}
+                    {greens.length > 0 && <>
+                      <Text size="1" color="gray" mt={structs.length ? '2' : '0'} style={{ letterSpacing: '.06em' }}>Растения и грядки</Text>
+                      {greens.map(i => row(buildings[i], i))}
+                    </>}
+                    {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
+                  </Flex>
+                );
+              })()}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПРОЕКТ</Text>
