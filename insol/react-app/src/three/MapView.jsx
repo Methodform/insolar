@@ -97,7 +97,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     live.current = (buildings || []).map(b => ({ ...b, pts: (b.pts || []).map(p => p.slice()) }));
     s.rebuildObjects(); if (s.buildGizmo) s.buildGizmo();
     if (s._w && s._w.show) s.rebuildWind(s._w.show, s._w.wDeg, s._w.fh, s._w.spd);
-    if (s._i && s._i.show) s.rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req);
+    if (s._i && s._i.show) s.rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req, s._i.walls);
   }, [buildings]);
   useEffect(() => {
     const s = t3.current; if (!s.buildFence) return;
@@ -117,21 +117,30 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     map.current = m;
     // захват скриншота холста для PDF-отчёта. Рендерим полный кадр карты (тайлы + 3D) средствами MapLibre,
     // а не только Three-сцену (иначе фон чёрный). Размеры участка на скриншот не попадают. Возвращает Promise<dataURL>.
-    window.__spShot = () => new Promise(resolve => {
+    window.__spShot = (opts = {}) => new Promise(resolve => {
       const s = t3.current, dg = s.dimsGroup, vis = dg ? dg.visible : true;
       let done = false;
+      const cam = { center: m.getCenter(), zoom: m.getZoom(), bearing: m.getBearing(), pitch: m.getPitch() };   // сохранить камеру
+      const bearing = opts.bearing != null ? opts.bearing : cam.bearing;
+      const pitch = opts.pitch != null ? opts.pitch : cam.pitch;
+      // вписать участок в кадр максимально крупно под заданным ракурсом
+      if (ring && ring.length >= 3) {
+        let mnLo = 180, mxLo = -180, mnLa = 90, mxLa = -90;
+        ring.forEach(([lo, la]) => { mnLo = Math.min(mnLo, lo); mxLo = Math.max(mxLo, lo); mnLa = Math.min(mnLa, la); mxLa = Math.max(mxLa, la); });
+        try { m.fitBounds([[mnLo, mnLa], [mxLo, mxLa]], { padding: 30, bearing, pitch, animate: false, duration: 0 }); } catch (e) {}
+      }
       if (dg) dg.visible = false;
       const grab = () => {
         if (done) return; done = true;
         let url = null;
-        try { url = m.getCanvas().toDataURL('image/jpeg', 0.92); } catch (e) {}
+        try { url = m.getCanvas().toDataURL('image/jpeg', 0.9); } catch (e) {}
         if (dg) dg.visible = vis;
-        m.triggerRepaint();
+        m.jumpTo(cam); m.triggerRepaint();   // вернуть камеру как была
         resolve(url);
       };
-      m.once('render', () => requestAnimationFrame(grab));   // ждём полный кадр карты со скрытыми размерами
+      m.once('idle', grab);        // ждём загрузку тайлов на новом зуме + полный кадр
       m.triggerRepaint();
-      setTimeout(grab, 700);   // страховка, если событие render не пришло
+      setTimeout(grab, 1500);      // страховка, если idle не пришёл
     });
 
     m.on('load', () => {

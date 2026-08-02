@@ -4,7 +4,7 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon,
-  DoubleArrowLeftIcon, DoubleArrowRightIcon } from '@radix-ui/react-icons';
+  DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
@@ -12,6 +12,7 @@ import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow, meanDir } from './engine/wind.js';
 import { placeCopyPts } from './engine/place.js';
+import { windRoseSvg } from './engine/windRoseSvg.js';
 import { loginWithYandex } from './yandexAuth.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
@@ -54,6 +55,8 @@ export default function App() {
   const timer = useRef(null);
   const [buildings, setBuildings] = useState([]);
   const [selBld, setSelBld] = useState(-1);           // индекс выделенного объекта (для подсветки в списке)
+  const [structsOpen, setStructsOpen] = useState(true);   // сворачивание групп списка объектов
+  const [greensOpen, setGreensOpen] = useState(true);
   const [showSetback, setShowSetback] = useState(true);   // показ линий отступов + ограничение застройки
   const [leftOpen, setLeftOpen] = useState(true);     // показ левой/правой панели (можно скрыть на узких экранах)
   const [rightOpen, setRightOpen] = useState(true);
@@ -180,22 +183,29 @@ export default function App() {
   async function openReport() {
     if (!poly) { alert('Сначала постройте участок'); return; }
     const w = window.open('', '_blank'); if (!w) { alert('Разрешите всплывающие окна'); return; }
-    w.document.write('<!doctype html><meta charset="utf-8"><title>Отчёт</title><body style="font-family:sans-serif;padding:48px;color:#555;font-size:16px">Готовлю отчёт и снимок участка…</body>');
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Отчёт</title><body style="font-family:sans-serif;padding:48px;color:#555;font-size:16px">Готовлю отчёт и снимки участка со всех сторон…</body>');
     const d = reportData(poly, buildings, lat, lon, tz, y);
     const esc = s => (s || '—').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
     const rows = d.rows.map(r => `<tr><td>${r.i}</td><td>${r.e}; ${r.n}</td><td>${r.sun.toFixed(1)}</td><td>${r.cont.toFixed(1)}</td><td class="${r.ok ? 'ok' : 'no'}">${r.ok ? 'соответствует' : 'не соответствует'}</td></tr>`).join('');
     const verdict = d.okc === d.n ? `Все ${d.n} точек инсоляции обеспечены нормируемой инсоляцией (≥ ${d.z.hours} ч). Требования выполняются.` : `Норму (≥ ${d.z.hours} ч) обеспечивают ${d.okc} из ${d.n} точек (${Math.round(d.okc / d.n * 100)} %).`;
     const today = new Date().toLocaleDateString('ru-RU');
-    // доп. материалы отчёта: скриншот участка, список зданий, отступы, диаграммы
-    const shot = (typeof window !== 'undefined' && window.__spShot) ? await window.__spShot() : null;
+    // доп. материалы отчёта: 4 снимка участка (с 4 углов), список зданий, отступы, диаграммы
+    const shots = [];
+    if (typeof window !== 'undefined' && window.__spShot) {
+      for (const bng of [45, 135, 225, 315]) { const u = await window.__spShot({ bearing: bng, pitch: 55 }); if (u) shots.push(u); }
+    }
     const bRows = buildings.map(b => { const p = b.pts || []; const w = p.length >= 2 ? Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) : 0; const dd = p.length >= 3 ? Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) : 0; const veg = b.kind === 'tree' || b.kind === 'bush'; return `<tr><td>${esc(b.name)}</td><td>${veg ? '—' : w.toFixed(1) + '×' + dd.toFixed(1)}</td><td>${veg ? '—' : (b.height + (b.roofH ? '+' + b.roofH : ''))}</td></tr>`; }).join('');
-    const sunEl = document.getElementById('sunpath-cap'), roseEl = document.getElementById('windrose-cap');
-    const sunSvg = sunEl ? sunEl.innerHTML : '', roseSvg = roseEl ? roseEl.innerHTML : '';
-    const planSection = shot ? `<h2>План участка (3D)</h2><img src="${shot}" style="width:100%;border:1px solid #999;border-radius:4px"/>` : '';
+    const sunEl = document.getElementById('sunpath-cap');
+    const sunSvg = sunEl ? sunEl.innerHTML : '';
+    // роза ветров формируется по запросу отчёта — независимо от того, открывали ли диалог
+    let roseSvg = '';
+    try { const rose = await fetchWindRose(lat, lon); roseSvg = windRoseSvg(rose); } catch (e) { roseSvg = ''; }
+    const corLbl = ['северо-восток', 'юго-восток', 'юго-запад', 'северо-запад'];
+    const planSection = shots.length ? `<h2>План участка (вид с 4 сторон)</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${shots.map((u, i) => `<div style="page-break-inside:avoid"><img src="${u}" style="width:100%;height:auto;max-height:82mm;border:1px solid #999;border-radius:4px"/><div style="font-size:9pt;color:#555;text-align:center;margin-top:2pt">Ракурс ${i + 1}${corLbl[i] ? ' · ' + corLbl[i] : ''}</div></div>`).join('')}</div>` : '';
     const bldSection = buildings.length ? `<h2>Здания и объекты на участке</h2><table><tr><th>Объект</th><th>Ширина×Длина, м</th><th>Высота (+конёк), м</th></tr>${bRows}</table>` : '';
     const setbackSection = `<h2>Отступы от границ участка</h2><table><tr><th>Объект</th><th>Мин. отступ</th></tr><tr><td>Жилой / садовый дом</td><td>3 м</td></tr><tr><td>Гараж (окна к соседу)</td><td>2 м</td></tr><tr><td>Баня, хозпостройки (сарай, беседка, теплица, навес)</td><td>1 м</td></tr><tr><td>Постройка для скота / птицы</td><td>4 м</td></tr><tr><td>Деревья высокие / среднерослые / кустарник</td><td>3 / 2 / 1 м</td></tr></table><div class="note">СП 30-102-99 / ПЗЗ. От красной линии улицы — 5 м, от проездов — 3 м.</div>`;
     const sunSection = sunSvg ? `<h2>Диаграмма пути солнца</h2><div style="max-width:440px;margin:auto">${sunSvg}</div>` : '';
-    const roseSection = roseSvg ? `<h2>Роза ветров</h2><div style="max-width:380px;margin:auto">${roseSvg}</div>` : `<h2>Роза ветров</h2><p style="color:#777">Откройте раздел «Роза ветров» в приложении перед формированием отчёта, чтобы диаграмма попала в отчёт.</p>`;
+    const roseSection = roseSvg ? `<h2>Роза ветров</h2><div style="max-width:360px;margin:auto">${roseSvg}</div>` : `<h2>Роза ветров</h2><p style="color:#777">Не удалось загрузить климат-данные ветра (проверьте интернет-соединение).</p>`;
     const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Отчёт об инсоляции</title><style>
 @page{size:A4 portrait;margin:18mm 16mm}body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:12pt;line-height:1.45}
 img{max-width:100%;max-height:120mm;object-fit:contain}h2{page-break-after:avoid}table,img{page-break-inside:avoid}
@@ -512,16 +522,22 @@ ${roseSection}
                 const idx = buildings.map((b, i) => i);
                 const structs = idx.filter(i => !isGreen(buildings[i].kind));
                 const greens = idx.filter(i => isGreen(buildings[i].kind));
+                const head = (label, count, open, toggle) => (
+                  <Flex align="center" gap="1" onClick={toggle} style={{ cursor: 'pointer', userSelect: 'none' }}>
+                    {open ? <ChevronDownIcon /> : <ChevronRightIcon />}
+                    <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.06em' }}>{label} · {count}</Text>
+                  </Flex>
+                );
                 return (
                   <Flex direction="column" gap="1" mt="2">
                     {structs.length > 0 && <>
-                      <Text size="1" color="gray" style={{ letterSpacing: '.06em' }}>Постройки</Text>
-                      {structs.map(i => row(buildings[i], i))}
+                      {head('Постройки', structs.length, structsOpen, () => setStructsOpen(o => !o))}
+                      {structsOpen && structs.map(i => row(buildings[i], i))}
                     </>}
-                    {greens.length > 0 && <>
-                      <Text size="1" color="gray" mt={structs.length ? '2' : '0'} style={{ letterSpacing: '.06em' }}>Растения и грядки</Text>
-                      {greens.map(i => row(buildings[i], i))}
-                    </>}
+                    {greens.length > 0 && <Box mt={structs.length ? '2' : '0'}>
+                      {head('Растения и грядки', greens.length, greensOpen, () => setGreensOpen(o => !o))}
+                      {greensOpen && <Flex direction="column" gap="1">{greens.map(i => row(buildings[i], i))}</Flex>}
+                    </Box>}
                     {buildings.length === 0 && <Text size="1" color="gray">Пока пусто — добавьте дом или баню.</Text>}
                   </Flex>
                 );
