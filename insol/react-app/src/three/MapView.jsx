@@ -71,10 +71,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // яркость по высоте солнца: день → полно, сумерки → приглушённо, ночь → почти темно
     const dayK = alt >= 8 ? 1 : alt > -6 ? Math.max(0, (alt + 6) / 14) : 0;
     // солнце освещает грани и даёт видимые тени на земле и зданиях; заполняющий свет держит теневые места не чёрными
-    s.sun.intensity = alt > 0 ? (0.35 + 0.35 * Math.min(1, alt / 8)) : 0;   // 0.35..0.7 — видимые тени
+    s.sun.intensity = alt > 0 ? (0.3 + 0.15 * Math.min(1, alt / 8)) : 0;   // мягкое солнце, видимые тени
     s.sun.castShadow = alt > 0;                        // ночью (солнце за горизонтом) — тени нет совсем
-    if (s.amb) s.amb.intensity = 0.6 + 0.1 * dayK;       // заполняющий поднят (~+15% яркости строений); тень не чёрная
-    if (s.hemi) s.hemi.intensity = 0.3 + 0.12 * dayK;
+    if (s.amb) s.amb.intensity = 0.6 + 0.12 * dayK;      // светлые здания
+    if (s.hemi) s.hemi.intensity = 0.28 + 0.1 * dayK;
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
@@ -210,7 +210,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     // забор по периметру участка (fh — текущая высота из панели)
     // «сырой» цвет зданий из стиля liberty: fill-extrusion-color = hsl(35,8%,85%) ≈ #dcd9d6 (opacity 0.8 применяем в затенении)
-    function mapBldColor() { return 0xc9c6c1; }               // база стен (с запасом яркости под крышу +30%)
+    function mapBldColor() { return 0xe8e5e0; }               // светлая база стен
     const _bgCol = new THREE.Color(0xf8f4f0);                 // фон карты (background-color стиля) — для эмуляции прозрачности зданий
 
     // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
@@ -492,8 +492,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const e = fld.mne + (i + 0.5) / N * (fld.mxe - fld.mne), n = fld.mnn + (j + 0.5) / N * (fld.mxn - fld.mnn), sp = fld.vals[j * N + i];
         let r = 0, gc = 0, bl = 0, al = 0;
         if (pointInPoly([e, n], baseLocal)) {
-          if (sp < 0.6) { r = 30; gc = 110; bl = 240; al = 0.72 * smooth(0.6, 0.32, sp); }         // затишье (насыщенный синий)
-          else if (sp > 1.25) { r = 240; gc = 74; bl = 34; al = 0.72 * smooth(1.25, 1.75, sp); }    // продувание (насыщенный оранжевый)
+          const ms = sp * spd;                                   // абсолютная местная скорость, м/с
+          if (ms < 1) { r = 30; gc = 110; bl = 240; al = 0.72 * smooth(1.0, 0.35, ms); }             // затишье < 1 м/с (сильнее у нуля)
+          else if (sp > 1.25 && ms > 1.5) { r = 240; gc = 74; bl = 34; al = 0.72 * smooth(1.25, 1.85, sp); }   // продувание — ускорение при заметном ветре
         }
         const o = ((N - 1 - j) * N + i) * 4;
         img.data[o] = r; img.data[o + 1] = gc; img.data[o + 2] = bl; img.data[o + 3] = Math.round(al * 255);
