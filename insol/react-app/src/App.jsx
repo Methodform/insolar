@@ -51,6 +51,20 @@ export default function App() {
   const [playing, setPlaying] = useState(false);
   const timer = useRef(null);
   const [buildings, setBuildings] = useState([]);
+  const [selBld, setSelBld] = useState(-1);           // индекс выделенного объекта (для подсветки в списке)
+  const histRef = useRef([]);                         // история для отмены (Ctrl/Cmd+Z)
+  const pushAndSet = updater => setBuildings(prev => { histRef.current.push(JSON.stringify(prev)); if (histRef.current.length > 60) histRef.current.shift(); return typeof updater === 'function' ? updater(prev) : updater; });
+  const undoBuildings = () => setBuildings(prev => { const h = histRef.current; if (!h.length) return prev; try { return JSON.parse(h.pop()); } catch (e) { return prev; } });
+  useEffect(() => {                                   // Ctrl/Cmd+Z — отмена последнего действия с объектами
+    const onKey = e => {
+      const t = e.target, tag = t && t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+      const k = (e.key || '').toLowerCase();
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (k === 'z' || k === 'я')) { undoBuildings(); e.preventDefault(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
   const [preset, setPreset] = useState('house|Дом 12×8|12,8,3');
   const [pro, setPro] = useState(() => { try { return (localStorage.getItem('insolar_plan') || 'free') !== 'free'; } catch (e) { return false; } });
   const [paywall, setPaywall] = useState(false);
@@ -223,10 +237,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([ex, ey]) => [cx + ux * ex + vx * ey, cy + uy * ex + vy * ey]);
     const roofByKind = { house: 2, bath: 2, gazebo: 1.6, canopy: 0.3, tree: 0, bush: 0 };  // дом: этаж 3 м + конёк 2 м
     const roofH = roofByKind[kind] !== undefined ? roofByKind[kind] : 1.5;
-    setBuildings(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
+    pushAndSet(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
-  const removeBuilding = i => setBuildings(bs => bs.filter((_, k) => k !== i));
-  const copyBuilding = i => setBuildings(bs => { const s = bs[i]; if (!s) return bs; const nb = { ...s, pts: (s.pts || []).map(p => [p[0] + 2, p[1] + 2]) }; delete nb.treeSeed; return [...bs, nb]; });
+  const removeBuilding = i => pushAndSet(bs => bs.filter((_, k) => k !== i));
+  const copyBuilding = i => pushAndSet(bs => { const s = bs[i]; if (!s) return bs; const nb = { ...s, pts: (s.pts || []).map(p => [p[0] + 2, p[1] + 2]) }; delete nb.treeSeed; return [...bs, nb]; });
 
   const [y, mo, da] = date.split('-').map(Number);
   const utcMs = localToUTC(y, mo - 1, da, Math.floor(minutes / 60), minutes % 60, tz);
@@ -290,7 +304,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {/* основной холст — карта 2ГИС/OSM с нашим 3D (бывшая «Карта»); старый Viewport оставлен в коде для отката */}
-        <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
+        <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={pushAndSet} onSelect={setSelBld} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
           embed />
@@ -435,7 +449,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   const d = p.length >= 3 ? Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) : 0;
                   const isVeg = b.kind === 'tree' || b.kind === 'bush';
                   return (
-                    <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
+                    <Flex key={i} justify="between" align="center" py="1" px="1" style={{ borderBottom: '1px solid var(--gray-a4)', borderRadius: 6, background: i === selBld ? 'var(--grass-a4)' : 'transparent' }}>
                       <Text size="2">{b.name}{isVeg ? '' : ` · ${w.toFixed(1)}×${d.toFixed(1)} м`} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
                       <Flex gap="1">
                         <IconButton size="1" variant="ghost" color="gray" title="Копировать" onClick={() => copyBuilding(i)}><CopyIcon /></IconButton>
@@ -735,11 +749,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '3'}>
-            <Text weight="bold" style={{ fontVariantNumeric: 'tabular-nums', fontSize: mobile ? 22 : 28, lineHeight: 1, minWidth: mobile ? 66 : 104 }}>{clock}</Text>
-            <TextField.Root type="date" size="3" value={date} readOnly={!pro}
-              onChange={e => setDate(e.target.value)}
+            <TextField.Root type="datetime-local" size="3"
+              value={`${date}T${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`}
+              readOnly={!pro}
+              onChange={e => { const v = e.target.value; if (!v) return; const [d, t] = v.split('T'); setDate(d); if (t) { const [hh, mm] = t.split(':').map(Number); setPlaying(false); setMinutes((hh || 0) * 60 + (mm || 0)); } }}
               onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }}
-              style={{ width: mobile ? 150 : 180, cursor: pro ? 'auto' : 'pointer' }} />
+              style={{ width: mobile ? 210 : 240, cursor: pro ? 'auto' : 'pointer' }} />
             <Box style={{ flex: 1 }}>
               <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
             </Box>

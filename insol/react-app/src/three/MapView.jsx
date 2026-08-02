@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, embed = false, onClose }) {
   const box = useRef(null);
   const labRef = useRef(null);   // HTML-оверлей для цифр размеров (всегда поверх и лицом к камере)
   const map = useRef(null);
@@ -650,7 +650,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         { mode: 'rot', pts: ringPts },
       ] };
     }
-    function select(idx) { selIdx.v = idx; rebuildObjects(); buildGizmo(); }
+    function select(idx) { selIdx.v = idx; rebuildObjects(); buildGizmo(); if (onSelect) onSelect(idx); }
 
     function pickHandle(px, py) {
       if (!giz) return null; let best = null, bd = 18;
@@ -711,7 +711,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const nb = { ...src, pts: src.pts.map(p => [p[0] + 2, p[1] + 2]) }; delete nb.treeSeed;   // копия со сдвигом; дерево — новая форма
       live.current = live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
       live.current.push(nb); selIdx.v = live.current.length - 1;
-      rebuildObjects(); buildGizmo(); commit();
+      rebuildObjects(); buildGizmo(); commit(); if (onSelect) onSelect(selIdx.v);
     }
     // удаление / копирование / вставка выделенного объекта
     const onKey = e => {
@@ -722,7 +722,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (cmd && (k === 'v' || k === 'м')) { if (window.__spClip) { pasteBuilding(window.__spClip); e.preventDefault(); } return; }
       if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       if (selIdx.v < 0) return;
-      const idx = selIdx.v; selIdx.v = -1; buildGizmo();
+      const idx = selIdx.v; selIdx.v = -1; buildGizmo(); if (onSelect) onSelect(-1);
       const arr = live.current.filter((_, kk) => kk !== idx).map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
       onBuildings && onBuildings(arr);
       e.preventDefault();

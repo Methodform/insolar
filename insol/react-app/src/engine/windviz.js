@@ -55,13 +55,16 @@ export function buildStreamlines(dirDeg, base, buildings, plotHalf, fenceH, neig
       vx += dux * fx + duy * px; vz += dux * fz + duy * pz; }
     const sf = fenceShelter(x, z, y, polyS, fenceH, fx, fz); return [vx * sf, vz * sf]; };
   const R = plotHalf + 14, N = 200, ds = (2 * R) / N, spread = plotHalf + 1;
-  const L = Math.max(2, Math.min(4, Math.round(maxH / 3))), M = 13, lines = [];
+  const hiTop = Math.max(maxH, fenceH + 1);
+  const L = Math.max(3, Math.min(6, Math.round(hiTop / 2))), M = 13, lines = [];
   for (let l = 0; l < L; l++) {
-    const y = 1.4 + (maxH - 1.4) * (L === 1 ? 0 : l / (L - 1));
+    const y = 0.9 + (hiTop - 0.9) * (L === 1 ? 0 : l / (L - 1));
     for (let mi = 0; mi < M; mi++) {
       const t = (mi / (M - 1)) * 2 - 1; let x = -fx * R + px * t * spread, z = -fz * R + pz * t * spread;
       const pos = [], spd = [];
       for (let s = 0; s < N; s++) {
+        // низкий поток (ниже высоты забора) упирается в забор — в затишье за ним не проходит
+        if (y < fenceH && fenceShelter(x, z, y, polyS, fenceH, fx, fz) < 0.55) break;
         for (const o of obs) { if (y > o.top) continue; const dx = x - o.x, dz = z - o.z, d = Math.hypot(dx, dz) || 1e-6; if (d < o.a) { x = o.x + dx / d * o.a; z = o.z + dz / d * o.a; } }
         const [vx, vz] = vel(x, z, y); const sp = Math.hypot(vx, vz) || 1e-6;
         if (inside(x, z)) { pos.push(x, y, z); spd.push(sp); }
