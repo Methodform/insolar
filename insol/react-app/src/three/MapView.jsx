@@ -246,6 +246,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function flatShadowMat(opts = {}) {
       return new THREE.MeshLambertMaterial(Object.assign({ vertexColors: true }, opts));
     }
+    // текстура «профнастила» — продольные рёбра вдоль ската (повторяется по UV)
+    const roofTex = (() => {
+      const cv = document.createElement('canvas'); cv.width = 16; cv.height = 4; const g = cv.getContext('2d');
+      const grd = g.createLinearGradient(0, 0, 16, 0);
+      grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.44, '#dcdcdc'); grd.addColorStop(0.5, '#8f8f8f'); grd.addColorStop(0.56, '#dcdcdc'); grd.addColorStop(1, '#ffffff');
+      g.fillStyle = grd; g.fillRect(0, 0, 16, 4);
+      const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.anisotropy = 4; return t;
+    })();
 
     // текстовая подпись как спрайт (плашка с текстом), всегда лицом к камере
     const fmtM = x => (Math.round(x * 10) / 10).toString().replace('.', ',') + ' м';
@@ -381,7 +389,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const C = mapBldColor();                        // цвет как у зданий карты
       const _cc = new THREE.Color(C);
       const roofC = new THREE.Color(Math.min(1, _cc.r * 1.2), Math.min(1, _cc.g * 1.2), Math.min(1, _cc.b * 1.2)).getHex();   // крыша на 20% светлее стен
-      const roofMat = flatShadowMat({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      const roofMat = flatShadowMat({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }); roofMat.map = roofTex;   // рельеф крыши
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
       const plotLoc = ring && ring.length >= 3 ? ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]) : null;
@@ -450,11 +458,18 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       let R1, R2, slopes, gables;
       if (alongA) { R1 = mid(pts[1], pts[2]); R2 = mid(pts[3], pts[0]); slopes = [[pts[0], pts[1], R1, R2], [pts[2], pts[3], R2, R1]]; gables = [[pts[1], pts[2], R1], [pts[3], pts[0], R2]]; }
       else { R1 = mid(pts[0], pts[1]); R2 = mid(pts[2], pts[3]); slopes = [[pts[1], pts[2], R2, R1], [pts[3], pts[0], R1, R2]]; gables = [[pts[0], pts[1], R1], [pts[2], pts[3], R2]]; }
-      const top = base + rh, pos = [], isR = p => p === R1 || p === R2;
-      const V = p => pos.push(p[0], isR(p) ? top : base, -p[1]);
-      const tri = (a, b, c) => { V(a); V(b); V(c); };
-      slopes.forEach(q => { tri(q[0], q[1], q[2]); tri(q[0], q[2], q[3]); }); gables.forEach(g => tri(g[0], g[1], g[2]));
-      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+      const top = base + rh, pos = [], uv = [], isR = p => p === R1 || p === R2, RIB = 0.32;
+      const V = (p, u, v) => { pos.push(p[0], isR(p) ? top : base, -p[1]); uv.push(u, v); };
+      slopes.forEach(q => {                                   // q0,q1 — карниз; q2,q3 — конёк. UV: рёбра поперёк ширины, вдоль ската
+        const W = d(q[0], q[1]) / RIB;
+        V(q[0], 0, 0); V(q[1], W, 0); V(q[2], W, 1);
+        V(q[0], 0, 0); V(q[2], W, 1); V(q[3], 0, 1);
+      });
+      gables.forEach(g => { V(g[0], 0, 0); V(g[1], 0, 0); V(g[2], 0, 0); });   // фронтоны без рёбер
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+      geo.computeVertexNormals();
       const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; return mesh;
     }
 
