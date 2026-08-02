@@ -501,7 +501,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           geo.setIndex(idx);
           const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
           const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 4; g.add(mesh);
-          s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.9 });
+          s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.45 });
         }
       });
       s._windDbg = `wDeg=${Math.round(wDeg)} lines=${lines.length} comets=${s.comets.length} pts=${baseLocal.length} ph=${Math.round(ph)}`;
@@ -685,11 +685,12 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     };
     const onUp = () => {
       if (!drag) return;
-      if (drag.mode === 'rot') {                              // прилипание поворота к шагу 90°
+      if (drag.mode === 'rot') {                              // прилипание к 90° только если поворот в пределах 5° от кратного (т.е. > 85°)
         const c = drag.c, o = drag.orig, cur = live.current[drag.idx].pts;
         const a = Math.atan2(cur[0][1] - c[1], cur[0][0] - c[0]) - Math.atan2(o[0][1] - c[1], o[0][0] - c[0]);
-        const snap = Math.round(a / (Math.PI / 2)) * (Math.PI / 2);
-        live.current[drag.idx].pts = rotatePts(o, c, snap); rebuildObjects();
+        const step = Math.PI / 2, snap = Math.round(a / step) * step;
+        const use = Math.abs(a - snap) < 5 * Math.PI / 180 ? snap : a;   // ближе 5° к 90° → прилипаем, иначе свободный угол
+        live.current[drag.idx].pts = rotatePts(o, c, use); rebuildObjects();
       }
       drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); buildGizmo();
       const s = t3.current;                                   // объекты сдвинулись → пересчёт ветра/инсоляции
@@ -704,14 +705,25 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     const onTouchMove = e => { if (!drag || multi(e)) return; onMove(e); };
     m.on('touchstart', onTouchStart); m.on('touchmove', onTouchMove); m.on('touchend', onUp); m.on('touchcancel', onUp);
 
-    // удаление выделенного объекта по Delete/Backspace
+    // копирование выделенного объекта (общий буфер приложения)
+    function pasteBuilding(src) {
+      if (!src) return;
+      const nb = { ...src, pts: src.pts.map(p => [p[0] + 2, p[1] + 2]) }; delete nb.treeSeed;   // копия со сдвигом; дерево — новая форма
+      live.current = live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
+      live.current.push(nb); selIdx.v = live.current.length - 1;
+      rebuildObjects(); buildGizmo(); commit();
+    }
+    // удаление / копирование / вставка выделенного объекта
     const onKey = e => {
-      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       const t = e.target, tag = t && t.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (t && t.isContentEditable)) return;
+      const cmd = e.ctrlKey || e.metaKey, k = (e.key || '').toLowerCase();
+      if (cmd && (k === 'c' || k === 'с')) { if (selIdx.v >= 0) { window.__spClip = JSON.parse(JSON.stringify(live.current[selIdx.v])); e.preventDefault(); } return; }
+      if (cmd && (k === 'v' || k === 'м')) { if (window.__spClip) { pasteBuilding(window.__spClip); e.preventDefault(); } return; }
+      if (e.key !== 'Delete' && e.key !== 'Backspace') return;
       if (selIdx.v < 0) return;
       const idx = selIdx.v; selIdx.v = -1; buildGizmo();
-      const arr = live.current.filter((_, k) => k !== idx).map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
+      const arr = live.current.filter((_, kk) => kk !== idx).map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
       onBuildings && onBuildings(arr);
       e.preventDefault();
     };

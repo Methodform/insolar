@@ -145,7 +145,11 @@ export function updateComet(c) {
     const z = path[i0 * 3 + 2] + (path[i1 * 3 + 2] - path[i0 * 3 + 2]) * f;
     let dxx = path[i1 * 3] - path[i0 * 3], dzz = path[i1 * 3 + 2] - path[i0 * 3 + 2];
     let pxx = -dzz, pzz = dxx; const pl = Math.hypot(pxx, pzz) || 1; pxx /= pl; pzz /= pl;
-    const w = c.width * (0.25 + 0.75 * (1 - i / (K - 1)));
+    // стрелка на конце: i=0 — остриё, i=1 — «крылья», дальше — сужающийся хвост
+    let w;
+    if (i === 0) w = c.width * 0.06;
+    else if (i === 1) w = c.width * 1.6;
+    else w = c.width * (0.18 + 0.55 * (1 - i / (K - 1)));
     const a = Math.pow(1 - i / (K - 1), 1.3);
     const o = i * 6;
     pos[o] = x + pxx * w; pos[o + 1] = y; pos[o + 2] = z + pzz * w;

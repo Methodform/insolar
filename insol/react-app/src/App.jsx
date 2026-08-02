@@ -3,7 +3,7 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
   Slider, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
-  FileTextIcon, DownloadIcon, UploadIcon, ResetIcon } from '@radix-ui/react-icons';
+  FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
@@ -226,6 +226,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     setBuildings(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
   const removeBuilding = i => setBuildings(bs => bs.filter((_, k) => k !== i));
+  const copyBuilding = i => setBuildings(bs => { const s = bs[i]; if (!s) return bs; const nb = { ...s, pts: (s.pts || []).map(p => [p[0] + 2, p[1] + 2]) }; delete nb.treeSeed; return [...bs, nb]; });
 
   const [y, mo, da] = date.split('-').map(Number);
   const utcMs = localToUTC(y, mo - 1, da, Math.floor(minutes / 60), minutes % 60, tz);
@@ -436,7 +437,10 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   return (
                     <Flex key={i} justify="between" align="center" py="1" style={{ borderBottom: '1px solid var(--gray-a4)' }}>
                       <Text size="2">{b.name}{isVeg ? '' : ` · ${w.toFixed(1)}×${d.toFixed(1)} м`} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
-                      <IconButton size="1" variant="ghost" color="red" onClick={() => removeBuilding(i)}><TrashIcon /></IconButton>
+                      <Flex gap="1">
+                        <IconButton size="1" variant="ghost" color="gray" title="Копировать" onClick={() => copyBuilding(i)}><CopyIcon /></IconButton>
+                        <IconButton size="1" variant="ghost" color="red" title="Удалить" onClick={() => removeBuilding(i)}><TrashIcon /></IconButton>
+                      </Flex>
                     </Flex>
                   );
                 })}
