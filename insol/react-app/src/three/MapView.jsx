@@ -125,9 +125,15 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const pitch = opts.pitch != null ? opts.pitch : cam.pitch;
       // вписать участок в кадр максимально крупно под заданным ракурсом
       if (ring && ring.length >= 3) {
-        let mnLo = 180, mxLo = -180, mnLa = 90, mxLa = -90;
-        ring.forEach(([lo, la]) => { mnLo = Math.min(mnLo, lo); mxLo = Math.max(mxLo, lo); mnLa = Math.min(mnLa, la); mxLa = Math.max(mxLa, la); });
-        try { m.fitBounds([[mnLo, mnLa], [mxLo, mxLa]], { padding: 30, bearing, pitch, animate: false, duration: 0 }); } catch (e) {}
+        let mnLo = 180, mxLo = -180, mnLa = 90, mxLa = -90, cLo = 0, cLa = 0;
+        ring.forEach(([lo, la]) => { mnLo = Math.min(mnLo, lo); mxLo = Math.max(mxLo, lo); mnLa = Math.min(mnLa, la); mxLa = Math.max(mxLa, la); cLo += lo; cLa += la; });
+        cLo /= ring.length; cLa /= ring.length;
+        const boost = opts.zoomBoost != null ? opts.zoomBoost : 0.9;   // приблизить сильнее, чем строгий fit (участок во весь кадр)
+        try {
+          m.fitBounds([[mnLo, mnLa], [mxLo, mxLa]], { padding: 6, bearing, pitch, animate: false, duration: 0 });
+          const mz = m.getMaxZoom ? m.getMaxZoom() : 22;
+          m.jumpTo({ center: [cLo, cLa], zoom: Math.min(mz, m.getZoom() + boost), bearing, pitch });   // центр — по участку, чуть ближе
+        } catch (e) {}
       }
       if (dg) dg.visible = false;
       const grab = () => {
