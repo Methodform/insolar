@@ -1,6 +1,6 @@
 // Роза ветров как строка SVG — для PDF-отчёта (не зависит от того, открывали ли диалог розы).
 // Логика построения повторяет компонент WindRose.jsx (сезон «Год»).
-import { WIND_DIRS, prevailingDir } from './wind.js';
+import { WIND_DIRS, prevailingDir, SEASON_LABELS } from './wind.js';
 
 const SC = [[0, '#4a90d9'], [3, '#6fb98c'], [6, '#f2c14e'], [9, '#e8843d'], [13, '#d0453b']];
 function speedColor(v) {
@@ -42,4 +42,42 @@ export function windRoseSvg(data, season = 'year') {
     `За год: штиль (&lt;1 м/с) ≈ ${data.seasons.year.calmDays} дн, слабый ветер (&lt;2 м/с) ≈ ${data.seasons.year.lowDays} дн. ` +
     `Климат-данные Open-Meteo за ${data.period}.</div>`;
   return svg + cap;
+}
+
+// компактная роза (для сеток по сезонам/месяцам): один сектор «С» подписан
+function miniRose(s, R) {
+  const W = 100, cx = 50, cy = 50;
+  const pt = (deg, rad) => [cx + Math.sin(deg * Math.PI / 180) * rad, cy - Math.cos(deg * Math.PI / 180) * rad];
+  const mf = s.maxFreq || 0.001;
+  const rings = [0.5, 1].map(k => `<circle cx="${cx}" cy="${cy}" r="${(R * k).toFixed(1)}" fill="none" stroke="#ccc" stroke-width="0.6" stroke-dasharray="2 2"/>`).join('');
+  const petals = s.freq.map((f, i) => {
+    const a = i * 45, r = Math.max(2, R * (f / mf));
+    const [x1, y1] = pt(a - 21, r), [x2, y2] = pt(a + 21, r);
+    return `<path d="M ${cx} ${cy} L ${x1.toFixed(1)} ${y1.toFixed(1)} A ${r.toFixed(1)} ${r.toFixed(1)} 0 0 1 ${x2.toFixed(1)} ${y2.toFixed(1)} Z" fill="${speedColor(s.meanSpd[i])}" fill-opacity="0.85" stroke="#fff" stroke-width="0.4"/>`;
+  }).join('');
+  const [nx, ny] = pt(0, R + 6);
+  const nLbl = `<text x="${nx.toFixed(1)}" y="${(ny + 2).toFixed(1)}" font-size="8" font-weight="700" text-anchor="middle" fill="#d0453b">С</text>`;
+  return `<svg viewBox="0 0 ${W} ${W}" xmlns="http://www.w3.org/2000/svg" style="width:100%;max-width:96px;height:auto">${rings}${petals}${nLbl}<circle cx="${cx}" cy="${cy}" r="2" fill="#999"/></svg>`;
+}
+function tile(s, title, R) {
+  const p = prevailingDir(s);
+  return `<div style="text-align:center;page-break-inside:avoid">` +
+    `<div style="font-size:9pt;font-weight:bold;color:#333">${title}</div>${miniRose(s, R)}` +
+    `<div style="font-size:8pt;color:#666;line-height:1.2">${p.dir} · ${Math.round(p.freq * 100)}% · ${s.avgSpd.toFixed(1)} м/с</div></div>`;
+}
+
+const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+
+// Полный блок розы ветров для отчёта: год + по сезонам + по месяцам.
+export function windRoseReport(data) {
+  const year = `<div style="max-width:340px;margin:auto">${windRoseSvg(data, 'year')}</div>`;
+  const seasons = ['winter', 'spring', 'summer', 'autumn']
+    .map(k => tile(data.seasons[k], SEASON_LABELS[k], 36)).join('');
+  const seasonGrid = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4pt">${seasons}</div>`;
+  const months = (data.months || []).map((m, i) => tile(m, MONTHS[i], 30)).join('');
+  const monthGrid = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4pt">${months}</div>`;
+  return `${year}` +
+    `<h3 style="font-size:11pt;margin:12pt 0 2pt;color:#222">Роза ветров по сезонам</h3>${seasonGrid}` +
+    `<h3 style="font-size:11pt;margin:14pt 0 2pt;color:#222">Роза ветров по месяцам</h3>${monthGrid}` +
+    `<div style="font-size:8.5pt;color:#888;margin-top:6pt">Под каждой розой: господствующее направление · его доля · средняя скорость. Цвет луча — средняя скорость (синий тихо → красный сильно).</div>`;
 }

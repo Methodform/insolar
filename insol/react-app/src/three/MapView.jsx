@@ -90,7 +90,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH, windSpd); }, [windShow, windDegLocal, fenceH, windSpd]);
   useEffect(() => { const s = t3.current; s._setbackOn = setbackOn; if (s.buildSetback) s.buildSetback(); if (map.current) map.current.triggerRepaint(); }, [setbackOn]);   // отступы вкл/выкл
   useEffect(() => { const s = t3.current; if (s.selectExt && selectBld != null) s.selectExt(selectBld); }, [selectBld]);   // выбор объекта из списка левой панели
-  useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH, insolWalls); }, [insolShow, dstr, mins, plotMarkers, reqH, insolWalls]);
+  useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH, insolWalls); }, [insolShow, dstr, plotMarkers, reqH, insolWalls]);   // от времени суток (mins) инсоляция точек не зависит — не пересчитываем на каждый тик
   // синхронизация с панелью приложения: новые объекты и высота забора → пересобрать на карте
   useEffect(() => {
     const s = t3.current; if (!s.rebuildObjects) return;
@@ -235,7 +235,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           .multiply(new THREE.Matrix4().makeScale(S, -S, S)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
         s.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
         if (s.comets && s.comets.length) s.comets.forEach(updateComet);   // анимация «комет» ветра
-        s.renderer.resetState(); s.renderer.render(s.scene, s.camera); updateLabels(); m.triggerRepaint();
+        s.renderer.resetState(); s.renderer.render(s.scene, s.camera); updateLabels();
+        if (s.comets && s.comets.length) m.triggerRepaint();   // непрерывный кадр только пока идёт анимация ветра; иначе рисуем по запросу
       }
     };
 
@@ -267,6 +268,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     }
     function reshadeAll() {                                   // пересвет граней строений/забора при повороте карты
       const s = t3.current; if (!s || !s.objGroup) return;
+      const bearing = map.current ? map.current.getBearing() : 0;
+      if (s._shadeBearing != null && Math.abs(bearing - s._shadeBearing) < 1) return;   // не пересвечиваем на микро-повороты
+      s._shadeBearing = bearing;
       s.lightDir = computeLightDir();
       [s.objGroup, s.fenceGroup].forEach(gr => gr && gr.traverse(o => { if (o.isMesh && o.userData.shadeHex != null) bakeShade(o, o.userData.shadeHex); }));
       if (map.current) map.current.triggerRepaint();

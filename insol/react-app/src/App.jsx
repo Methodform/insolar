@@ -5,14 +5,14 @@ import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHor
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon,
   DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
-import Viewport, { thermalColor } from './three/Viewport.jsx';
+import { thermalColor } from './engine/thermal.js';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow, meanDir } from './engine/wind.js';
 import { placeCopyPts } from './engine/place.js';
-import { windRoseSvg } from './engine/windRoseSvg.js';
+import { windRoseReport } from './engine/windRoseSvg.js';
 import { loginWithYandex } from './yandexAuth.js';
 import { sunPosition, getTimes, compassAz, localToUTC, fmtLocal, fmtHours, parsePoly,
   insolationAt, normHours, shadowLen, azToCardinal, reportData, windowsReport } from './engine/astronomy.js';
@@ -199,13 +199,13 @@ export default function App() {
     const sunSvg = sunEl ? sunEl.innerHTML : '';
     // роза ветров формируется по запросу отчёта — независимо от того, открывали ли диалог
     let roseSvg = '';
-    try { const rose = await fetchWindRose(lat, lon); roseSvg = windRoseSvg(rose); } catch (e) { roseSvg = ''; }
+    try { const rose = await fetchWindRose(lat, lon); roseSvg = windRoseReport(rose); } catch (e) { roseSvg = ''; }
     const corLbl = ['северо-восток', 'юго-восток', 'юго-запад', 'северо-запад'];
     const planSection = shots.length ? `<h2>План участка (вид с 4 сторон)</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${shots.map((u, i) => `<div style="page-break-inside:avoid"><img src="${u}" style="width:100%;height:auto;max-height:82mm;border:1px solid #999;border-radius:4px"/><div style="font-size:9pt;color:#555;text-align:center;margin-top:2pt">Ракурс ${i + 1}${corLbl[i] ? ' · ' + corLbl[i] : ''}</div></div>`).join('')}</div>` : '';
     const bldSection = buildings.length ? `<h2>Здания и объекты на участке</h2><table><tr><th>Объект</th><th>Ширина×Длина, м</th><th>Высота (+конёк), м</th></tr>${bRows}</table>` : '';
     const setbackSection = `<h2>Отступы от границ участка</h2><table><tr><th>Объект</th><th>Мин. отступ</th></tr><tr><td>Жилой / садовый дом</td><td>3 м</td></tr><tr><td>Гараж (окна к соседу)</td><td>2 м</td></tr><tr><td>Баня, хозпостройки (сарай, беседка, теплица, навес)</td><td>1 м</td></tr><tr><td>Постройка для скота / птицы</td><td>4 м</td></tr><tr><td>Деревья высокие / среднерослые / кустарник</td><td>3 / 2 / 1 м</td></tr></table><div class="note">СП 30-102-99 / ПЗЗ. От красной линии улицы — 5 м, от проездов — 3 м.</div>`;
     const sunSection = sunSvg ? `<h2>Диаграмма пути солнца</h2><div style="max-width:440px;margin:auto">${sunSvg}</div>` : '';
-    const roseSection = roseSvg ? `<h2>Роза ветров</h2><div style="max-width:360px;margin:auto">${roseSvg}</div>` : `<h2>Роза ветров</h2><p style="color:#777">Не удалось загрузить климат-данные ветра (проверьте интернет-соединение).</p>`;
+    const roseSection = roseSvg ? `<h2>Роза ветров (год, сезоны, месяцы)</h2>${roseSvg}` : `<h2>Роза ветров</h2><p style="color:#777">Не удалось загрузить климат-данные ветра (проверьте интернет-соединение).</p>`;
     const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Отчёт об инсоляции</title><style>
 @page{size:A4 portrait;margin:18mm 16mm}body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:12pt;line-height:1.45}
 img{max-width:100%;max-height:120mm;object-fit:contain}h2{page-break-after:avoid}table,img{page-break-inside:avoid}
