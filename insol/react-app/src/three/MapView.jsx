@@ -210,7 +210,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     // забор по периметру участка (fh — текущая высота из панели)
     // «сырой» цвет зданий из стиля liberty: fill-extrusion-color = hsl(35,8%,85%) ≈ #dcd9d6 (opacity 0.8 применяем в затенении)
-    function mapBldColor() { return 0xe6e3df; }               // светлая база (освещаемый материал затемняет её светом/тенью)
+    function mapBldColor() { return 0xfdfaf5; }               // светлая база (+10%) — освещаемый материал затемняет её светом/тенью
     const _bgCol = new THREE.Color(0xf8f4f0);                 // фон карты (background-color стиля) — для эмуляции прозрачности зданий
 
     // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
