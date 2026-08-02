@@ -268,6 +268,18 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, depthTest: false, transparent: true, toneMapped: false }));
       sp.scale.set(scale * cv.width / cv.height, scale, 1); sp.renderOrder = 6; return sp;
     }
+    // плоская подпись (лежит в плоскости земли), чёрные цифры — для выносных размеров участка
+    function makeFlatLabel(text, size, dx, dy) {
+      const fs = 48, pad = 6, cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+      ctx.font = `bold ${fs}px sans-serif`; const w = Math.ceil(ctx.measureText(text).width);
+      cv.width = w + pad * 2; cv.height = fs + pad * 2;
+      ctx.font = `bold ${fs}px sans-serif`; ctx.fillStyle = '#000'; ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.fillText(text, cv.width / 2, cv.height / 2);
+      const tex = new THREE.CanvasTexture(cv); tex.minFilter = THREE.LinearFilter;
+      const geo = new THREE.PlaneGeometry(size * cv.width / cv.height, size); geo.rotateX(-Math.PI / 2);   // кладём в плоскость земли
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthTest: false, toneMapped: false }));
+      mesh.rotation.y = Math.atan2(dy, dx); mesh.renderOrder = 6; return mesh;                              // разворот вдоль ребра
+    }
     // выносные размеры участка по периметру (размерная линия + засечки + подпись длины ребра)
     function buildDims() {
       const s = t3.current, g = s.dimsGroup; if (!g) return;
@@ -275,7 +287,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (ring.length < 2) return;
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let cx = 0, cy = 0; loc.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= loc.length; cy /= loc.length;
-      const off = 2.5, dm = new THREE.LineBasicMaterial({ color: 0x2e7d32 });
+      const off = 2.5, dm = new THREE.LineBasicMaterial({ color: 0x000000 });   // выносные линии — чёрные
       const seg = (P, Q) => g.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(P[0], 0.08, -P[1]), new THREE.Vector3(Q[0], 0.08, -Q[1])]), dm));
       for (let i = 0; i < loc.length; i++) {
         const A = loc[i], B = loc[(i + 1) % loc.length], len = Math.hypot(B[0] - A[0], B[1] - A[1]); if (len < 0.5) continue;
@@ -283,7 +295,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
         const A2 = [A[0] + nx * off, A[1] + ny * off], B2 = [B[0] + nx * off, B[1] + ny * off];
         seg(A2, B2); seg(A, A2); seg(B, B2);                    // размерная линия + выносные засечки
-        const lab = makeLabel(fmtM(len), 2.4); lab.position.set((A2[0] + B2[0]) / 2 + nx * 1.4, 1.3, -((A2[1] + B2[1]) / 2 + ny * 1.4)); g.add(lab);
+        const lab = makeFlatLabel(fmtM(len), 2.2, (B[0] - A[0]) / len, (B[1] - A[1]) / len);   // чёрные цифры в плоскости земли, вдоль ребра
+        lab.position.set((A2[0] + B2[0]) / 2 + nx * 1.1, 0.09, -((A2[1] + B2[1]) / 2 + ny * 1.1)); g.add(lab);
       }
     }
 
