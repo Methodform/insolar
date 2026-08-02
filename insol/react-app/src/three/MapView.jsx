@@ -454,7 +454,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
           if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : roofC); group.add(roof); } }
         }
-        // габариты объектов не подписываем в 3D — они в списке зданий левой панели
+        // подпись габаритов над строением: ширина×длина → HTML-оверлей (виден в живом виде; на скриншот не попадает)
+        { const fn = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
+          let u2 = [1, 0]; if (pts.length >= 4) { const dx = pts[1][0] - pts[0][0], dy = pts[1][1] - pts[0][1], L = Math.hypot(dx, dy) || 1; u2 = [dx / L, dy / L]; }
+          const v2 = [-u2[1], u2[0]]; let du = 0, dv = 0;
+          pts.forEach(p => { du = Math.max(du, Math.abs((p[0] - cx) * u2[0] + (p[1] - cy) * u2[1])); dv = Math.max(dv, Math.abs((p[0] - cx) * v2[0] + (p[1] - cy) * v2[1])); });
+          const rh2 = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
+          s.objLabels.push({ pos: [cx, H + (openKind ? 0 : rh2) + 2.2, -cy], text: `${fn(du * 2)}×${fn(dv * 2)} м` }); }
       });
       if (map.current) map.current.triggerRepaint();
     }

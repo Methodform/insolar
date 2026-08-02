@@ -324,7 +324,7 @@ ${roseSection}
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {/* основной холст — карта 2ГИС/OSM с нашим 3D (бывшая «Карта»); старый Viewport оставлен в коде для отката */}
-        <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={pushAndSet} onSelect={setSelBld} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
+        <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={pushAndSet} onSelect={setSelBld} selectBld={selBld} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow} windSpd={windSpd}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
           setbackOn={showSetback} embed />
