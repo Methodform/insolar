@@ -27,7 +27,7 @@ export async function fetchWindRose(lat, lon, years = 2) {
   if (!h || !h.time || !h.wind_direction_10m) throw new Error('нет данных ветра');
   const times = h.time, dir = h.wind_direction_10m, spd = h.wind_speed_10m || [];
 
-  const mk = () => ({ count: new Array(8).fill(0), spdSum: new Array(8).fill(0), total: 0, calm: 0, spdAll: 0 });
+  const mk = () => ({ count: new Array(8).fill(0), spdSum: new Array(8).fill(0), total: 0, calm: 0, low: 0, spdAll: 0 });
   const acc = { winter: mk(), spring: mk(), summer: mk(), autumn: mk(), year: mk() };
   const macc = Array.from({ length: 12 }, mk);               // помесячно (0=январь … 11=декабрь)
 
@@ -41,6 +41,7 @@ export async function fetchWindRose(lat, lon, years = 2) {
       if (ws != null && !isNaN(ws)) {
         a.spdAll += ws;
         if (ws < 1) a.calm++;                    // штиль < 1 м/с
+        if (ws < 2) a.low++;                     // слабый ветер < 2 м/с
         a.count[sec]++; a.spdSum[sec] += ws;
       } else a.count[sec]++;
     }
@@ -53,7 +54,10 @@ export async function fetchWindRose(lat, lon, years = 2) {
       freq, meanSpd,
       maxFreq: Math.max(0.001, ...freq),
       calm: a.total ? a.calm / a.total : 0,
+      low: a.total ? a.low / a.total : 0,
       avgSpd: a.total ? a.spdAll / a.total : 0,
+      calmDays: a.total ? Math.round(a.calm / a.total * 365) : 0,   // штиль <1 м/с, дней/год
+      lowDays: a.total ? Math.round(a.low / a.total * 365) : 0,     // слабый <2 м/с, дней/год
     };
   };
   return {

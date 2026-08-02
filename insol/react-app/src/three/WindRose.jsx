@@ -81,6 +81,7 @@ export default function WindRose({ lat, lon }) {
 
       <div style={{ fontSize: 13, color: 'var(--gray-11)', marginTop: 6, lineHeight: 1.5 }}>
         <div><b>Господствующий ветер:</b> {prev.dir} ({fmtPct(prev.freq)}% времени). Средняя скорость {s.avgSpd.toFixed(1)} м/с, штиль {fmtPct(s.calm)}%.</div>
+        <div style={{ marginTop: 4 }}><b>За год:</b> штиль (&lt;1 м/с) ≈ {data.seasons.year.calmDays} дн, слабый ветер (&lt;2 м/с) ≈ {data.seasons.year.lowDays} дн.</div>
         <div style={{ color: 'var(--gray-10)', marginTop: 4 }}>
           Длинный луч — откуда чаще дует: прикройте с этой стороны дом и зону отдыха. Короткий — затишье:
           удобно для террасы, беседки, грядок. Цвет — средняя скорость (синий тихо → красный сильно).
