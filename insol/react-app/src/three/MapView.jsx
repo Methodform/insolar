@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, windSpd = 3, embed = false, onClose }) {
   const box = useRef(null);
   const labRef = useRef(null);   // HTML-оверлей для цифр размеров (всегда поверх и лицом к камере)
   const map = useRef(null);
@@ -86,14 +86,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   }, [lat, lon]);
   useEffect(() => { if (embed) { if (date) setDstr(date); if (minutes != null) setMins(minutes); } }, [embed, date, minutes]);  // холст: солнце от таймбара панели
   useEffect(() => { applySun(); }, [dstr, mins]);
-  useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH); }, [windShow, windDegLocal, fenceH]);
+  useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH, windSpd); }, [windShow, windDegLocal, fenceH, windSpd]);
   useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH, insolWalls); }, [insolShow, dstr, mins, plotMarkers, reqH, insolWalls]);
   // синхронизация с панелью приложения: новые объекты и высота забора → пересобрать на карте
   useEffect(() => {
     const s = t3.current; if (!s.rebuildObjects) return;
     live.current = (buildings || []).map(b => ({ ...b, pts: (b.pts || []).map(p => p.slice()) }));
     s.rebuildObjects(); if (s.buildGizmo) s.buildGizmo();
-    if (s._w && s._w.show) s.rebuildWind(s._w.show, s._w.wDeg, s._w.fh);
+    if (s._w && s._w.show) s.rebuildWind(s._w.show, s._w.wDeg, s._w.fh, s._w.spd);
     if (s._i && s._i.show) s.rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req);
   }, [buildings]);
   useEffect(() => {
@@ -210,7 +210,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
     // забор по периметру участка (fh — текущая высота из панели)
     // «сырой» цвет зданий из стиля liberty: fill-extrusion-color = hsl(35,8%,85%) ≈ #dcd9d6 (opacity 0.8 применяем в затенении)
-    function mapBldColor() { return 0xfdfaf5; }               // светлая база (+10%) — освещаемый материал затемняет её светом/тенью
+    function mapBldColor() { return 0xc9c6c1; }               // база стен (с запасом яркости под крышу +30%)
     const _bgCol = new THREE.Color(0xf8f4f0);                 // фон карты (background-color стиля) — для эмуляции прозрачности зданий
 
     // затенение граней «как у карты»: фиксировано по ориентации нормали (верх — полный цвет, стены чуть темнее),
@@ -250,7 +250,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     const roofTex = (() => {
       const cv = document.createElement('canvas'); cv.width = 16; cv.height = 4; const g = cv.getContext('2d');
       const grd = g.createLinearGradient(0, 0, 16, 0);
-      grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.44, '#dcdcdc'); grd.addColorStop(0.5, '#8f8f8f'); grd.addColorStop(0.56, '#dcdcdc'); grd.addColorStop(1, '#ffffff');
+      grd.addColorStop(0, '#ffffff'); grd.addColorStop(0.44, '#ececec'); grd.addColorStop(0.5, '#c0c0c0'); grd.addColorStop(0.56, '#ececec'); grd.addColorStop(1, '#ffffff');
       g.fillStyle = grd; g.fillRect(0, 0, 16, 4);
       const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.magFilter = THREE.LinearFilter; t.anisotropy = 4; return t;
     })();
@@ -388,7 +388,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       s.objLabels = [];
       const C = mapBldColor();                        // цвет как у зданий карты
       const _cc = new THREE.Color(C);
-      const roofC = new THREE.Color(Math.min(1, _cc.r * 1.2), Math.min(1, _cc.g * 1.2), Math.min(1, _cc.b * 1.2)).getHex();   // крыша на 20% светлее стен
+      const roofC = new THREE.Color(Math.min(1, _cc.r * 1.3), Math.min(1, _cc.g * 1.3), Math.min(1, _cc.b * 1.3)).getHex();   // крыша на 30% светлее стен
       const roofMat = flatShadowMat({ side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }); roofMat.map = roofTex;   // рельеф крыши
       const foliage = new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 1 });
       const trunkM = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, roughness: 1 });
@@ -421,7 +421,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           return;
         }
         const H = b.height || 3;
-        const col = outside ? 0x9aa0a8 : (hl ? 0xa9c6f5 : C);
+        const col = outside ? 0x9aa0a8 : (hl ? 0xa9c6f5 : (kind === 'bed' ? 0x6b4a2b : C));   // грядка — цвет земли
         const shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
         const openKind = kind === 'gazebo' || kind === 'canopy' || kind === 'tent';   // беседка/навес/шатёр — открытые: столбы + плоская крыша
         if (openKind) {
@@ -474,8 +474,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     }
 
     // поток ветра (линии тока + зоны затишья/продувания) с учётом забора и соседей
-    function rebuildWind(show, wDeg, fh) {
-      const s = t3.current; s._w = { show, wDeg, fh }; const g = s.windGroup; if (!g) return;
+    function rebuildWind(show, wDeg, fh, spd = 3) {
+      const s = t3.current; s._w = { show, wDeg, fh, spd }; const g = s.windGroup; if (!g) return;
+      const mag = Math.max(0, Math.min(1, spd / 6));           // 0..1 от скорости (0 — штиль, 6+ м/с — полная)
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
       s.comets = [];                                          // сброс до пересборки (меши уже удалены выше)
       if (!show) { m.triggerRepaint(); return; }
@@ -516,7 +517,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           geo.setIndex(idx);
           const mat = new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
           const mesh = new THREE.Mesh(geo, mat); mesh.frustumCulled = false; mesh.renderOrder = 4; g.add(mesh);
-          s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9, spacing: 2.75, width: 0.45 });
+          s.comets.push({ mesh, path: ln.pos, spd: ln.spd, n, phase: (ci * (n / 2) + Math.random() * 4) % (n - 1), speed: 0.9 * (0.2 + 0.8 * mag), spacing: 2.75, width: 0.45, mag });
         }
       });
       s._windDbg = `wDeg=${Math.round(wDeg)} lines=${lines.length} comets=${s.comets.length} pts=${baseLocal.length} ph=${Math.round(ph)}`;
@@ -673,6 +674,23 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       return best;
     }
 
+    // нормативный отступ по типу строения (дом 3 м, баня/беседка/навес 1 м, озеленение — без ограничения)
+    const setbackFor = kind => kind === 'house' ? 3 : (kind === 'bath' || kind === 'gazebo' || kind === 'canopy') ? 1 : 0;
+    const plotLocRing = () => ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
+    // держим строение внутри своей линии отступа: перенос упирается в неё, поворот/масштаб за границу — откат
+    function clampSetback(idx, o, mode) {
+      const bb = live.current[idx], d = setbackFor(bb.kind || 'house');
+      if (!(d > 0) || ring.length < 3) return;
+      const poly = insetRing(plotLocRing(), d);
+      if (bb.pts.every(p => pointInPoly(p, poly))) return;
+      if (mode === 'move' || mode === 'tx' || mode === 'tz') {
+        const dx = bb.pts[0][0] - o[0][0], dy = bb.pts[0][1] - o[0][1];
+        const ok = t => o.every(p => pointInPoly([p[0] + dx * t, p[1] + dy * t], poly));
+        let lo = 0, hi = 1; if (!ok(1)) { for (let i = 0; i < 22; i++) { const mm = (lo + hi) / 2; ok(mm) ? lo = mm : hi = mm; } } else lo = 1;
+        bb.pts = o.map(p => [p[0] + dx * lo, p[1] + dy * lo]);
+      } else { bb.pts = o.map(p => p.slice()); }
+    }
+
     let drag = null;
     const onDown = e => {
       if (drag) return;                                       // уже тащим (страховка от синтетических событий)
@@ -696,6 +714,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const pS = (drag.start[0] - drag.c[0]) * ax[0] + (drag.start[1] - drag.c[1]) * ax[1], pN = (lp[0] - drag.c[0]) * ax[0] + (lp[1] - drag.c[1]) * ax[1];
         const f = Math.max(0.2, Math.min(6, pN / (Math.abs(pS) < 0.5 ? (pS < 0 ? -0.5 : 0.5) : pS))); live.current[drag.idx].pts = o.map(p => scaleAxis(p, drag.c, ax, f)); }
       else if (drag.mode === 'ty') { const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, m.getZoom()); const dh = (drag.startY - e.point.y) * mpp; live.current[drag.idx].height = Math.max(2, Math.round((drag.origH + dh) * 2) / 2); }
+      if (drag.mode !== 'ty') clampSetback(drag.idx, o, drag.mode);   // не выпускаем за линию отступа
       rebuildObjects(); buildGizmo();
     };
     const onUp = () => {
@@ -705,7 +724,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const a = Math.atan2(cur[0][1] - c[1], cur[0][0] - c[0]) - Math.atan2(o[0][1] - c[1], o[0][0] - c[0]);
         const step = Math.PI / 2, snap = Math.round(a / step) * step;
         const use = Math.abs(a - snap) < 5 * Math.PI / 180 ? snap : a;   // ближе 5° к 90° → прилипаем, иначе свободный угол
-        live.current[drag.idx].pts = rotatePts(o, c, use); rebuildObjects();
+        live.current[drag.idx].pts = rotatePts(o, c, use); clampSetback(drag.idx, o, 'rot'); rebuildObjects();
       }
       drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); buildGizmo();
       const s = t3.current;                                   // объекты сдвинулись → пересчёт ветра/инсоляции

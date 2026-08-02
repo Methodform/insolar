@@ -3,7 +3,7 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
   Slider, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
-  FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon } from '@radix-ui/react-icons';
+  FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
@@ -85,6 +85,7 @@ export default function App() {
   const removeProject = (id) => saveProjects(projects.filter(x => x.id !== id));
   const [windOpen, setWindOpen] = useState(false);
   const [windFlow, setWindFlow] = useState(false);
+  const [windSpd, setWindSpd] = useState(3);          // скорость ветра для визуализации, м/с
   const [windDeg, setWindDeg] = useState(315);
   const [windMode, setWindMode] = useState('climate');   // 'climate' | 'now'
   const [windNow, setWindNow] = useState(null);           // { dirDeg, speed, time }
@@ -235,7 +236,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     const k = buildings.length; cx += ux * k * 2; cy += uy * k * 2;
     const hw = w / 2, hd = d / 2;
     const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([ex, ey]) => [cx + ux * ex + vx * ey, cy + uy * ex + vy * ey]);
-    const roofByKind = { house: 2, bath: 2, gazebo: 1.6, canopy: 0.3, tree: 0, bush: 0 };  // дом: этаж 3 м + конёк 2 м
+    const roofByKind = { house: 2, bath: 2, gazebo: 1.6, canopy: 0.3, tree: 0, bush: 0, bed: 0 };  // дом: этаж 3 м + конёк 2 м
     const roofH = roofByKind[kind] !== undefined ? roofByKind[kind] : 1.5;
     pushAndSet(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
@@ -305,7 +306,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
       <Box style={{ position: 'fixed', inset: 0, overflow: 'hidden' }}>
         {/* основной холст — карта 2ГИС/OSM с нашим 3D (бывшая «Карта»); старый Viewport оставлен в коде для отката */}
         <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={pushAndSet} onSelect={setSelBld} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
-          date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow}
+          date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow} windSpd={windSpd}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
           embed />
 
@@ -434,6 +435,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   </Select.Group>
                   <Select.Group>
                     <Select.Label>Озеленение</Select.Label>
+                    <Select.Item value="bed|Грядка 1×3|1,3,0.25">Грядка 1×3 м</Select.Item>
                     <Select.Item value="bush|Куст|1.2,1.2,1.2">Куст</Select.Item>
                     <Select.Item value="tree|Дерево|1.8,1.8,6">Дерево</Select.Item>
                   </Select.Group>
@@ -483,6 +485,8 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                       ? (windNow ? `Ветер сейчас: с ${compassFrom(windNow.dirDeg)}${windNow.speed != null ? `, ${windNow.speed.toFixed(1)} м/с` : ''}` : 'Загружаю текущий ветер…')
                       : `Преобладающий ветер за месяц: с ${Math.round(windDeg)}°`}
                   </Text>
+                  <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Скорость ветра: {windSpd.toFixed(1)} м/с {windSpd < 1 ? '· штиль' : ''}</Text>
+                  <Slider value={[windSpd]} min={0} max={12} step={0.5} onValueChange={([v]) => setWindSpd(v)} />
                   <Flex align="center" gap="2" mt="2"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#4d8be6', display: 'inline-block' }} /><Text size="1" color="gray">Затишье — беседку и зону отдыха сюда</Text></Flex>
                   <Flex align="center" gap="2" mt="1"><span style={{ width: 10, height: 10, borderRadius: 3, background: '#e6663d', display: 'inline-block' }} /><Text size="1" color="gray">Продувание — грядки/теплицу защитить</Text></Flex>
                 </Box>}
@@ -749,12 +753,14 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '3'}>
-            <TextField.Root type="datetime-local" size="3"
+            <TextField.Root type="datetime-local" size="2"
               value={`${date}T${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`}
               readOnly={!pro}
               onChange={e => { const v = e.target.value; if (!v) return; const [d, t] = v.split('T'); setDate(d); if (t) { const [hh, mm] = t.split(':').map(Number); setPlaying(false); setMinutes((hh || 0) * 60 + (mm || 0)); } }}
               onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }}
-              style={{ width: mobile ? 210 : 240, cursor: pro ? 'auto' : 'pointer' }} />
+              style={{ width: 'fit-content', cursor: pro ? 'auto' : 'pointer' }}>
+              <TextField.Slot><CalendarIcon /></TextField.Slot>
+            </TextField.Root>
             <Box style={{ flex: 1 }}>
               <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
             </Box>

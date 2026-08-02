@@ -153,7 +153,7 @@ export function updateComet(c) {
     if (i === 0) w = c.width * 0.06;
     else if (i === 1) w = c.width * 1.6;
     else w = c.width * (0.18 + 0.55 * (1 - i / (K - 1)));
-    const a = Math.pow(1 - i / (K - 1), 1.3);
+    const a = Math.pow(1 - i / (K - 1), 1.3) * (c.mag == null ? 1 : (0.25 + 0.75 * c.mag));   // тусклее при слабом ветре
     const o = i * 6;
     pos[o] = x + pxx * w; pos[o + 1] = y; pos[o + 2] = z + pzz * w;
     pos[o + 3] = x - pxx * w; pos[o + 4] = y; pos[o + 5] = z - pzz * w;
