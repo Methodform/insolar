@@ -3,7 +3,8 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
   Slider, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
-  FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon } from '@radix-ui/react-icons';
+  FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon,
+  DoubleArrowLeftIcon, DoubleArrowRightIcon } from '@radix-ui/react-icons';
 import Viewport, { thermalColor } from './three/Viewport.jsx';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
@@ -52,6 +53,8 @@ export default function App() {
   const timer = useRef(null);
   const [buildings, setBuildings] = useState([]);
   const [selBld, setSelBld] = useState(-1);           // индекс выделенного объекта (для подсветки в списке)
+  const [leftOpen, setLeftOpen] = useState(true);     // показ левой/правой панели (можно скрыть на узких экранах)
+  const [rightOpen, setRightOpen] = useState(true);
   const histRef = useRef([]);                         // история для отмены (Ctrl/Cmd+Z)
   const pushAndSet = updater => setBuildings(prev => { histRef.current.push(JSON.stringify(prev)); if (histRef.current.length > 60) histRef.current.shift(); return typeof updater === 'function' ? updater(prev) : updater; });
   const undoBuildings = () => setBuildings(prev => { const h = histRef.current; if (!h.length) return prev; try { return JSON.parse(h.pop()); } catch (e) { return prev; } });
@@ -291,15 +294,15 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
   const sheetPos = { position: 'fixed', top: 52, left: 0, right: 0, bottom: 56, zIndex: 20, background: 'var(--color-panel-solid)', borderRadius: 0, boxShadow: 'none' };
   const leftCardStyle = mobile
     ? { ...sheetPos, overflowY: 'auto', display: panel === 'plot' ? 'block' : 'none' }
-    : { position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)' };
+    : { position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)', display: leftOpen ? 'block' : 'none' };
   const rightCardStyle = mobile
     ? { ...sheetPos, display: panel === 'sun' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }
-    : { position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, background: 'var(--color-panel-solid)', display: 'flex', flexDirection: 'column', overflow: 'hidden' };
+    : { position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, background: 'var(--color-panel-solid)', display: rightOpen ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' };
   const recCardStyle = { ...sheetPos, overflowY: 'auto', display: panel === 'rec' ? 'block' : 'none' };
   const profCardStyle = { ...sheetPos, overflowY: 'auto', display: panel === 'profile' ? 'block' : 'none' };
   const timebarStyle = mobile
     ? { position: 'fixed', left: 8, right: 8, bottom: 62, zIndex: 20, background: 'var(--color-panel-solid)', display: panel ? 'none' : 'block' }
-    : { position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' };
+    : { position: 'absolute', left: leftOpen ? 360 : 12, right: rightOpen ? 340 : 12, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' };
 
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
@@ -309,6 +312,18 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow} windSpd={windSpd}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
           embed />
+
+        {/* кнопки скрытия боковых панелей (десктоп/узкие экраны) */}
+        {!mobile && <>
+          <IconButton variant="soft" color="gray" onClick={() => setLeftOpen(v => !v)} title={leftOpen ? 'Скрыть левую панель' : 'Показать левую панель'}
+            style={{ position: 'absolute', top: 70, left: leftOpen ? 344 : 12, zIndex: 21, transition: 'left .2s' }}>
+            {leftOpen ? <DoubleArrowLeftIcon /> : <DoubleArrowRightIcon />}
+          </IconButton>
+          <IconButton variant="soft" color="gray" onClick={() => setRightOpen(v => !v)} title={rightOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
+            style={{ position: 'absolute', top: 70, right: rightOpen ? 324 : 12, zIndex: 21, transition: 'right .2s' }}>
+            {rightOpen ? <DoubleArrowRightIcon /> : <DoubleArrowLeftIcon />}
+          </IconButton>
+        </>}
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
