@@ -456,6 +456,16 @@ ${roseSection}
               </Flex>}
             </Box>
             <Box>
+              <Flex align="center" justify="between">
+                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ТОЧКИ ИНСОЛЯЦИИ</Text>
+                <Switch checked={showPlot || showWin} onCheckedChange={v => { setShowPlot(v); setShowWin(v); }} />
+              </Flex>
+              {(showPlot || showWin) && <Flex gap="3" align="center" mt="1">
+                <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
+                <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
+              </Flex>}
+            </Box>
+            <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
               <Select.Root value={preset} onValueChange={setPreset}>
                 <Select.Trigger mt="1" style={{ width: '100%' }} />
@@ -531,18 +541,6 @@ ${roseSection}
             <Stat k={`Норма ≥ ${reqH} ч`} v={<Badge color={insol.cont >= reqH ? 'grass' : 'red'}>{insol.cont >= reqH ? 'выполнена' : 'не выполнена'}</Badge>} />
 
             <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ТОЧКИ ИНСОЛЯЦИИ</Text>
-            <Flex gap="4" align="center">
-              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <input type="checkbox" checked={showPlot} onChange={e => setShowPlot(e.target.checked)} /> на участке
-              </Text>
-              <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-                <input type="checkbox" checked={showWin} onChange={e => setShowWin(e.target.checked)} /> на стенах
-              </Text>
-            </Flex>
-            <Flex gap="3" align="center">
-              <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
-              <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
-            </Flex>
             <Stat k="Соответствуют норме" v={`${plotReport.okc} из ${plotReport.n}`} color={plotReport.okc === plotReport.n ? 'var(--grass-11)' : 'var(--amber-11)'} />
 
             {(buildings.length > 0) && <>

@@ -301,6 +301,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function buildDims() {
       const s = t3.current, g = s.dimsGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } }
+      s.dimLabels = [];
       if (ring.length < 2) return;
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let cx = 0, cy = 0; loc.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= loc.length; cy /= loc.length;
@@ -312,8 +313,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
         const A2 = [A[0] + nx * off, A[1] + ny * off], B2 = [B[0] + nx * off, B[1] + ny * off];
         seg(A2, B2); seg(A, A2); seg(B, B2);
-        const lab = makeFlatLabel(fmtM(len), 2.2, (B[0] - A[0]) / len, (B[1] - A[1]) / len);
-        lab.position.set((A2[0] + B2[0]) / 2 + nx * 1.2, 0.09, -((A2[1] + B2[1]) / 2 + ny * 1.2)); g.add(lab);
+        // подпись размера участка — тем же HTML-оверлеем, что и габариты объектов (одинаковый шрифт, цвет, обводка)
+        s.dimLabels.push({ pos: [(A2[0] + B2[0]) / 2 + nx * 1.2, 0.3, -((A2[1] + B2[1]) / 2 + ny * 1.2)], text: fmtM(len) });
       }
     }
 
@@ -631,7 +632,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function updateLabels() {
       const svg = labRef.current; if (!svg) return;
       const s = t3.current; let out = '';
-      (s.objLabels || []).forEach(L => { const p = toScreen(L.pos); if (p) out += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14" fill="#3a3a3a" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${esc(L.text)}</text>`; });
+      const lab = L => { const p = toScreen(L.pos); if (p) out += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14" fill="#3a3a3a" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${esc(L.text)}</text>`; };
+      (s.dimLabels || []).forEach(lab);    // размеры участка — тот же стиль
+      (s.objLabels || []).forEach(lab);    // габариты объектов
       svg.innerHTML = out;
     }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
