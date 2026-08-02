@@ -28,7 +28,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, windSpd = 3, setbackOn = true, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, selectBld = null, windSpd = 3, setbackOn = true, embed = false, onClose }) {
   const box = useRef(null);
   const labRef = useRef(null);   // HTML-оверлей для цифр размеров (всегда поверх и лицом к камере)
   const map = useRef(null);
@@ -88,6 +88,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   useEffect(() => { applySun(); }, [dstr, mins]);
   useEffect(() => { const s = t3.current; if (s.rebuildWind) s.rebuildWind(windShow, windDegLocal, fenceH, windSpd); }, [windShow, windDegLocal, fenceH, windSpd]);
   useEffect(() => { const s = t3.current; s._setbackOn = setbackOn; if (s.buildSetback) s.buildSetback(); if (map.current) map.current.triggerRepaint(); }, [setbackOn]);   // отступы вкл/выкл
+  useEffect(() => { const s = t3.current; if (s.selectExt && selectBld != null) s.selectExt(selectBld); }, [selectBld]);   // выбор объекта из списка левой панели
   useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH, insolWalls); }, [insolShow, dstr, mins, plotMarkers, reqH, insolWalls]);
   // синхронизация с панелью приложения: новые объекты и высота забора → пересобрать на карте
   useEffect(() => {
@@ -111,8 +112,20 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     let mnx = 1e9, mxx = -1e9, mny = 1e9, mxy = -1e9;
     ring.forEach(([x, y]) => { mnx = Math.min(mnx, x); mxx = Math.max(mxx, x); mny = Math.min(mny, y); mxy = Math.max(mxy, y); });
 
-    const m = new maplibregl.Map({ container: box.current, style: OFM_STYLE, center: [lon, lat], zoom: 18.5, pitch: 55, bearing: -20, attributionControl: true });
+    const m = new maplibregl.Map({ container: box.current, style: OFM_STYLE, center: [lon, lat], zoom: 18.5, pitch: 55, bearing: -20, attributionControl: true, preserveDrawingBuffer: true });
     map.current = m;
+    // захват скриншота холста для PDF-отчёта: размеры участка на скриншот не попадают (во вьюпорте остаются)
+    window.__spShot = () => {
+      try {
+        const s = t3.current, dg = s.dimsGroup, vis = dg ? dg.visible : true;
+        if (dg) dg.visible = false;
+        if (s.renderer && s.scene && s.camera) s.renderer.render(s.scene, s.camera);
+        const url = m.getCanvas().toDataURL('image/jpeg', 0.92);
+        if (dg) dg.visible = vis;
+        m.triggerRepaint();
+        return url;
+      } catch (e) { return null; }
+    };
 
     m.on('load', () => {
       // источник рельефа: бесплатный открытый DEM AWS (terrarium, без ключа) — для 3D-terrain + отмывки.
@@ -196,7 +209,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // мягкие тени без VSM light-bleeding
-        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, dimsGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildDims, buildGizmo };
+        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, dimsGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildDims, buildGizmo,
+          selectExt: idx => { if (idx !== selIdx.v && idx >= -1 && idx < live.current.length) select(idx); } };
         buildFence(fenceH); rebuildObjects(); buildSetback(); buildDims(); applySun();
       },
       render(gl, matrix) {
@@ -440,13 +454,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
           if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : roofC); group.add(roof); } }
         }
-        // подпись габаритов над строением: ширина×длина · высота → HTML-оверлей (виден с любого ракурса, поверх всего)
-        { const fn = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
-          let u2 = [1, 0]; if (pts.length >= 4) { const dx = pts[1][0] - pts[0][0], dy = pts[1][1] - pts[0][1], L = Math.hypot(dx, dy) || 1; u2 = [dx / L, dy / L]; }
-          const v2 = [-u2[1], u2[0]]; let du = 0, dv = 0;
-          pts.forEach(p => { du = Math.max(du, Math.abs((p[0] - cx) * u2[0] + (p[1] - cy) * u2[1])); dv = Math.max(dv, Math.abs((p[0] - cx) * v2[0] + (p[1] - cy) * v2[1])); });
-          const rh2 = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-          s.objLabels.push({ pos: [cx, H + (openKind ? 0 : rh2) + 2.2, -cy], text: `${fn(du * 2)}×${fn(dv * 2)} м` }); }   // без высоты
+        // габариты объектов не подписываем в 3D — они в списке зданий левой панели
       });
       if (map.current) map.current.triggerRepaint();
     }
@@ -745,7 +753,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // копирование выделенного объекта (общий буфер приложения)
     function pasteBuilding(src) {
       if (!src) return;
-      const nb = { ...src, pts: src.pts.map(p => [p[0] + 2, p[1] + 2]) }; delete nb.treeSeed;   // копия со сдвигом; дерево — новая форма
+      let mnx = 1e9, mxx = -1e9; (src.pts || []).forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); });
+      const off = (mxx - mnx) + 2;                       // сдвиг вбок на ширину + 2 м → в пустую область, без наложения
+      const nb = { ...src, pts: src.pts.map(p => [p[0] + off, p[1]]) }; delete nb.treeSeed;
       live.current = live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) }));
       live.current.push(nb); selIdx.v = live.current.length - 1;
       rebuildObjects(); buildGizmo(); commit(); if (onSelect) onSelect(selIdx.v);

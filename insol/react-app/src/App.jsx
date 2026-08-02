@@ -181,8 +181,18 @@ export default function App() {
     const d = reportData(poly, buildings, lat, lon, tz, y);
     const esc = s => (s || '—').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
     const rows = d.rows.map(r => `<tr><td>${r.i}</td><td>${r.e}; ${r.n}</td><td>${r.sun.toFixed(1)}</td><td>${r.cont.toFixed(1)}</td><td class="${r.ok ? 'ok' : 'no'}">${r.ok ? 'соответствует' : 'не соответствует'}</td></tr>`).join('');
-    const verdict = d.okc === d.n ? `Все ${d.n} контрольных точек обеспечены нормируемой инсоляцией (≥ ${d.z.hours} ч). Требования выполняются.` : `Норму (≥ ${d.z.hours} ч) обеспечивают ${d.okc} из ${d.n} точек (${Math.round(d.okc / d.n * 100)} %).`;
+    const verdict = d.okc === d.n ? `Все ${d.n} точек инсоляции обеспечены нормируемой инсоляцией (≥ ${d.z.hours} ч). Требования выполняются.` : `Норму (≥ ${d.z.hours} ч) обеспечивают ${d.okc} из ${d.n} точек (${Math.round(d.okc / d.n * 100)} %).`;
     const today = new Date().toLocaleDateString('ru-RU');
+    // доп. материалы отчёта: скриншот участка, список зданий, отступы, диаграммы
+    const shot = (typeof window !== 'undefined' && window.__spShot) ? window.__spShot() : null;
+    const bRows = buildings.map(b => { const p = b.pts || []; const w = p.length >= 2 ? Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) : 0; const dd = p.length >= 3 ? Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) : 0; const veg = b.kind === 'tree' || b.kind === 'bush'; return `<tr><td>${esc(b.name)}</td><td>${veg ? '—' : w.toFixed(1) + '×' + dd.toFixed(1)}</td><td>${veg ? '—' : (b.height + (b.roofH ? '+' + b.roofH : ''))}</td></tr>`; }).join('');
+    const sunEl = document.getElementById('sunpath-cap'), roseEl = document.getElementById('windrose-cap');
+    const sunSvg = sunEl ? sunEl.innerHTML : '', roseSvg = roseEl ? roseEl.innerHTML : '';
+    const planSection = shot ? `<h2>План участка (3D)</h2><img src="${shot}" style="width:100%;border:1px solid #999;border-radius:4px"/>` : '';
+    const bldSection = buildings.length ? `<h2>Здания и объекты на участке</h2><table><tr><th>Объект</th><th>Ширина×Длина, м</th><th>Высота (+конёк), м</th></tr>${bRows}</table>` : '';
+    const setbackSection = `<h2>Отступы от границ участка</h2><table><tr><th>Объект</th><th>Мин. отступ</th></tr><tr><td>Жилой / садовый дом</td><td>3 м</td></tr><tr><td>Гараж (окна к соседу)</td><td>2 м</td></tr><tr><td>Баня, хозпостройки (сарай, беседка, теплица, навес)</td><td>1 м</td></tr><tr><td>Постройка для скота / птицы</td><td>4 м</td></tr><tr><td>Деревья высокие / среднерослые / кустарник</td><td>3 / 2 / 1 м</td></tr></table><div class="note">СП 30-102-99 / ПЗЗ. От красной линии улицы — 5 м, от проездов — 3 м.</div>`;
+    const sunSection = sunSvg ? `<h2>Диаграмма пути солнца</h2><div style="max-width:440px;margin:auto">${sunSvg}</div>` : '';
+    const roseSection = roseSvg ? `<h2>Роза ветров</h2><div style="max-width:380px;margin:auto">${roseSvg}</div>` : `<h2>Роза ветров</h2><p style="color:#777">Откройте раздел «Роза ветров» в приложении перед формированием отчёта, чтобы диаграмма попала в отчёт.</p>`;
     const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Отчёт об инсоляции</title><style>
 @page{size:A4;margin:18mm 16mm}body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:12pt;line-height:1.45}
 h1{font-size:15pt;text-align:center;margin:0 0 4pt}h2{font-size:12.5pt;border-bottom:1px solid #999;padding-bottom:3pt;margin:16pt 0 6pt}
@@ -194,8 +204,9 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 .note{font-size:9pt;color:#777;margin-top:16pt}button{padding:8px 14px;border-radius:6px;border:1px solid #1e5c3d;background:#1e5c3d;color:#fff;cursor:pointer}
 @media print{.noprint{display:none}}.noprint{position:fixed;top:8px;right:8px}</style></head><body>
 <div class="noprint"><button onclick="window.print()">🖨 Печать / PDF</button></div>
-<h1>ОТЧЁТ О РАСЧЁТЕ ПРОДОЛЖИТЕЛЬНОСТИ ИНСОЛЯЦИИ</h1>
-<div class="sub">Земельный участок · контрольные точки территории</div>
+<h1>ПАСПОРТ УЧАСТКА · ИНСОЛЯЦИЯ И ПЛАНИРОВКА</h1>
+<div class="sub">Земельный участок · SunPlan3d</div>
+${planSection}
 <h2>1. Общие сведения</h2><table class="kv">
 <tr><td>Объект (адрес)</td><td>${esc(rp.addr)}</td></tr><tr><td>Заказчик</td><td>${esc(rp.client)}</td></tr>
 <tr><td>Исполнитель</td><td>${esc(rp.exec)}</td></tr><tr><td>Дата составления</td><td>${today}</td></tr>
@@ -209,8 +220,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
 <tr><td>Высота солнца в полдень</td><td>${d.noonAlt.toFixed(1)}°</td></tr>
 <tr><td>Затеняющие объекты</td><td>${buildings.length} зданий${(parseFloat(fence)||0)>0?', забор '+fence+' м':''}</td></tr></table>
 <h2>3. Методика</h2><p>Положение Солнца рассчитано по алгоритму Meeus/SunCalc. Для каждой контрольной точки на высоте 1,5 м с шагом 5 минут от восхода до захода проверяется прямой солнечный луч с учётом затенения зданиями (метод теневого полигона). Определяется макс. непрерывная продолжительность инсоляции.</p>
-<h2>4. Результаты</h2><table><tr><th>№</th><th>Коорд. E; N, м</th><th>Всего, ч</th><th>Непрерывно, ч</th><th>Соответствие ≥${d.z.hours} ч</th></tr>${rows}</table>
-<h2>5. Заключение</h2><div class="verdict">${verdict}</div>
+${bldSection}
+${setbackSection}
+${sunSection}
+${roseSection}
+<h2>Точки инсоляции территории</h2><table><tr><th>№</th><th>Коорд. E; N, м</th><th>Всего, ч</th><th>Непрерывно, ч</th><th>Соответствие ≥${d.z.hours} ч</th></tr>${rows}</table>
+<h2>Заключение</h2><div class="verdict">${verdict}</div>
 <div class="note">Расчёт носит модельный характер и не заменяет заключение аккредитованной организации и экспертизу проектной документации.</div>
 <scr${''}ipt>window.onload=()=>setTimeout(()=>window.print(),400)<\/scr${''}ipt></body></html>`;
     const w = window.open('', '_blank'); if (!w) { alert('Разрешите всплывающие окна'); return; } w.document.write(html); w.document.close();
@@ -245,7 +260,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
     pushAndSet(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
   const removeBuilding = i => pushAndSet(bs => bs.filter((_, k) => k !== i));
-  const copyBuilding = i => pushAndSet(bs => { const s = bs[i]; if (!s) return bs; const nb = { ...s, pts: (s.pts || []).map(p => [p[0] + 2, p[1] + 2]) }; delete nb.treeSeed; return [...bs, nb]; });
+  const copyBuilding = i => pushAndSet(bs => { const s = bs[i]; if (!s) return bs; let mnx = 1e9, mxx = -1e9; (s.pts || []).forEach(p => { mnx = Math.min(mnx, p[0]); mxx = Math.max(mxx, p[0]); }); const off = (mxx - mnx) + 2; const nb = { ...s, pts: (s.pts || []).map(p => [p[0] + off, p[1]]) }; delete nb.treeSeed; return [...bs, nb]; });   // копия вбок на ширину+2 → в пустую область
 
   const [y, mo, da] = date.split('-').map(Number);
   const utcMs = localToUTC(y, mo - 1, da, Math.floor(minutes / 60), minutes % 60, tz);
@@ -381,7 +396,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Dialog.Content maxWidth="440px">
               <Dialog.Title>Роза ветров</Dialog.Title>
               <Dialog.Description size="1" color="gray" mb="3">Откуда и как часто дует ветер по сезонам — под координаты вашего участка.</Dialog.Description>
-              {windOpen && <WindRose lat={lat} lon={lon} />}
+              {windOpen && <div id="windrose-cap"><WindRose lat={lat} lon={lon} /></div>}
               <Flex justify="end" mt="3"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
@@ -471,7 +486,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                   const isVeg = b.kind === 'tree' || b.kind === 'bush';
                   return (
                     <Flex key={i} justify="between" align="center" py="1" px="1" style={{ borderBottom: '1px solid var(--gray-a4)', borderRadius: 6, background: i === selBld ? 'var(--grass-a4)' : 'transparent' }}>
-                      <Text size="2">{b.name}{isVeg ? '' : ` · ${w.toFixed(1)}×${d.toFixed(1)} м`} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
+                      <Text size="2" onClick={() => setSelBld(i)} style={{ cursor: 'pointer', flex: 1 }} title="Выбрать на участке">{b.name}{isVeg ? '' : ` · ${w.toFixed(1)}×${d.toFixed(1)} м`} · h {b.height}{b.roofH ? '+' + b.roofH : ''} м</Text>
                       <Flex gap="1">
                         <IconButton size="1" variant="ghost" color="gray" title="Копировать" onClick={() => copyBuilding(i)}><CopyIcon /></IconButton>
                         <IconButton size="1" variant="ghost" color="red" title="Удалить" onClick={() => removeBuilding(i)}><TrashIcon /></IconButton>
@@ -498,7 +513,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <Flex direction="column" gap="2">
             <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
-            <SunPath year={y} mo={mo} da={da} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} poly={poly} />
+            <div id="sunpath-cap"><SunPath year={y} mo={mo} da={da} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} poly={poly} /></div>
             <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em' }}>ПОЛОЖЕНИЕ СЕЙЧАС</Text>
             <Stat k="Азимут" v={azDeg.toFixed(1) + '°'} />
             <Stat k="Высота" v={altDeg.toFixed(1) + '°'} />
@@ -515,7 +530,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Stat k="Макс. непрерывно" v={fmtHours(insol.cont)} />
             <Stat k={`Норма ≥ ${reqH} ч`} v={<Badge color={insol.cont >= reqH ? 'grass' : 'red'}>{insol.cont >= reqH ? 'выполнена' : 'не выполнена'}</Badge>} />
 
-            <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>КОНТРОЛЬНЫЕ ТОЧКИ</Text>
+            <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ТОЧКИ ИНСОЛЯЦИИ</Text>
             <Flex gap="4" align="center">
               <Text as="label" size="1" color="gray" style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
                 <input type="checkbox" checked={showPlot} onChange={e => setShowPlot(e.target.checked)} /> на участке
