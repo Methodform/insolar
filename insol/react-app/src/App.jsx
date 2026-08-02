@@ -758,9 +758,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
               readOnly={!pro}
               onChange={e => { const v = e.target.value; if (!v) return; const [d, t] = v.split('T'); setDate(d); if (t) { const [hh, mm] = t.split(':').map(Number); setPlaying(false); setMinutes((hh || 0) * 60 + (mm || 0)); } }}
               onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }}
-              style={{ width: 'fit-content', cursor: pro ? 'auto' : 'pointer' }}>
-              <TextField.Slot><CalendarIcon /></TextField.Slot>
-            </TextField.Root>
+              style={{ width: 'fit-content', cursor: pro ? 'auto' : 'pointer' }} />
             <Box style={{ flex: 1 }}>
               <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
             </Box>
