@@ -28,8 +28,9 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, relief = false, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, embed = false, onClose }) {
   const box = useRef(null);
+  const labRef = useRef(null);   // HTML-оверлей для цифр размеров (всегда поверх и лицом к камере)
   const map = useRef(null);
   const t3 = useRef({});
   const live = useRef((buildings || []).map(b => ({ ...b, pts: (b.pts || []).map(p => p.slice()) })));
@@ -103,14 +104,6 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
 
   const hhmm = m => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
 
-  // 3D-рельеф: поднимаем землю карты + строим ловец теней по форме DEM (тени падают на рельеф)
-  useEffect(() => {
-    const run = () => { const s = t3.current; if (s && s.applyTerrain) s.applyTerrain(relief); };
-    const m = map.current;
-    if (t3.current && t3.current.applyTerrain) run();
-    else if (m) m.once('idle', run);                // ждём готовности 3D-слоя
-  }, [relief]);
-
   useEffect(() => {
     if (ring.length < 3 || !isFinite(lat) || !isFinite(lon)) { setErr('Сначала постройте участок (≥ 3 точек «широта долгота»).'); return; }
     const coords = ring.concat([ring[0]]);
@@ -132,7 +125,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const firstSym = (m.getStyle().layers || []).find(l => l.type === 'symbol');
         if (!m.getLayer('hillshade')) m.addLayer({
           id: 'hillshade', type: 'hillshade', source: 'dem',
-          layout: { visibility: 'none' },            // включается вместе с 3D-рельефом
+          layout: { visibility: 'visible' },         // отмывка рельефа всегда включена
           paint: {
             'hillshade-exaggeration': 0.45,
             'hillshade-shadow-color': '#5b5546',
@@ -211,7 +204,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           .multiply(new THREE.Matrix4().makeScale(S, -S, S)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
         s.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
         if (s.comets && s.comets.length) s.comets.forEach(updateComet);   // анимация «комет» ветра
-        s.renderer.resetState(); s.renderer.render(s.scene, s.camera); m.triggerRepaint();
+        s.renderer.resetState(); s.renderer.render(s.scene, s.camera); updateLabels(); m.triggerRepaint();
       }
     };
 
@@ -285,6 +278,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function buildDims() {
       const s = t3.current, g = s.dimsGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } }
+      s.plotLabels = [];
       if (ring.length < 2) return;
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       let cx = 0, cy = 0; loc.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= loc.length; cy /= loc.length;
@@ -296,8 +290,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }
         const A2 = [A[0] + nx * off, A[1] + ny * off], B2 = [B[0] + nx * off, B[1] + ny * off];
         seg(A2, B2); seg(A, A2); seg(B, B2);                    // размерная линия + выносные засечки
-        const lab = makeFlatLabel(fmtM(len), 2.2, (B[0] - A[0]) / len, (B[1] - A[1]) / len);   // чёрные цифры в плоскости земли, вдоль ребра
-        lab.position.set((A2[0] + B2[0]) / 2 + nx * 1.1, 0.09, -((A2[1] + B2[1]) / 2 + ny * 1.1)); g.add(lab);
+        s.plotLabels.push({ pos: [(A2[0] + B2[0]) / 2 + nx * 1.2, 0.2, -((A2[1] + B2[1]) / 2 + ny * 1.2)], text: fmtM(len) });   // число — в HTML-оверлей
       }
     }
 
@@ -323,6 +316,18 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       return out;
     }
     function ringArea(p) { let a = 0; for (let i = 0; i < p.length; i++) { const j = (i + 1) % p.length; a += p[i][0] * p[j][1] - p[j][0] * p[i][1]; } return a / 2; }
+    // сплошная «лента»-контур заданной толщины (WebGL игнорит linewidth — рисуем полигоном)
+    function ringRibbon(points, w, colorHex, y) {
+      const hw = w / 2, pos = [], N = points.length;
+      for (let i = 0; i < N; i++) {
+        const A = points[i], B = points[(i + 1) % N]; let dx = B[0] - A[0], dy = B[1] - A[1]; const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+        const px = -dy * hw, py = dx * hw, V = p => pos.push(p[0], y, -p[1]);
+        V([A[0] + px, A[1] + py]); V([A[0] - px, A[1] - py]); V([B[0] + px, B[1] + py]);
+        V([B[0] + px, B[1] + py]); V([A[0] - px, A[1] - py]); V([B[0] - px, B[1] - py]);
+      }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ color: colorHex, side: THREE.DoubleSide }));
+    }
     // нормативные отступы от границы (СП 30-102-99 / ПЗЗ) — разные расстояния, разный цвет
     const SETBACKS = [
       { d: 1, color: 0x2b7bff },   // баня, хозпостройки, беседка, навес — 1 м (синий)
@@ -340,10 +345,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         if (ins.some(p => !isFinite(p[0]) || !isFinite(p[1]))) return;
         const A1 = ringArea(ins);
         if (Math.sign(A1) !== Math.sign(A0) || Math.abs(A1) < 1) return;   // отступ больше половины участка → контур схлопнулся, пропускаем
-        const pts3 = ins.map(p => new THREE.Vector3(p[0], 0.06, -p[1])); pts3.push(pts3[0].clone());
-        const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts3),
-          new THREE.LineBasicMaterial({ color: sp.color, linewidth: 2 }));   // непрерывная линия 2px
-        g.add(line);
+        g.add(ringRibbon(ins, 0.16, sp.color, 0.06));   // сплошная лента ~2px, непрерывная
       });
     }
 
@@ -366,6 +368,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function rebuildObjects() {
       const s = t3.current, group = s.objGroup; if (!group) return;
       while (group.children.length) { const c = group.children.pop(); if (c.geometry) c.geometry.dispose(); }
+      s.objLabels = [];
       const C = mapBldColor();                        // цвет как у зданий карты
       const _cc = new THREE.Color(C);
       const roofC = new THREE.Color(Math.min(1, _cc.r * 1.2), Math.min(1, _cc.g * 1.2), Math.min(1, _cc.b * 1.2)).getHex();   // крыша на 20% светлее стен
@@ -410,14 +413,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
           if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : roofC); group.add(roof); } }
         }
-        // подпись габаритов над строением: ширина×длина · высота
+        // подпись габаритов над строением: ширина×длина · высота → HTML-оверлей (виден с любого ракурса, поверх всего)
         { const fn = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
           let u2 = [1, 0]; if (pts.length >= 4) { const dx = pts[1][0] - pts[0][0], dy = pts[1][1] - pts[0][1], L = Math.hypot(dx, dy) || 1; u2 = [dx / L, dy / L]; }
           const v2 = [-u2[1], u2[0]]; let du = 0, dv = 0;
           pts.forEach(p => { du = Math.max(du, Math.abs((p[0] - cx) * u2[0] + (p[1] - cy) * u2[1])); dv = Math.max(dv, Math.abs((p[0] - cx) * v2[0] + (p[1] - cy) * v2[1])); });
           const rh2 = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-          const lab = makeLabel(`${fn(du * 2)}×${fn(dv * 2)} · h${fn(H)} м`, 2.0);
-          lab.position.set(cx, H + (openKind ? 0 : rh2) + 2.2, -cy); group.add(lab); }
+          s.objLabels.push({ pos: [cx, H + (openKind ? 0 : rh2) + 2.2, -cy], text: `${fn(du * 2)}×${fn(dv * 2)} · h${fn(H)} м` }); }
       });
       if (map.current) map.current.triggerRepaint();
     }
@@ -574,6 +576,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const cv = m.getCanvas();
       return [(v.x / v.w * 0.5 + 0.5) * cv.clientWidth, (1 - (v.y / v.w * 0.5 + 0.5)) * cv.clientHeight];
     }
+    // HTML-оверлей цифр размеров: проецируем 3D-точку в экран, всегда поверх и лицом к камере
+    function updateLabels() {
+      const host = labRef.current; if (!host) return;
+      const s = t3.current, labs = (s.plotLabels || []).concat(s.objLabels || []);
+      while (host.children.length < labs.length) { const d = document.createElement('div'); d.style.cssText = 'position:absolute;transform:translate(-50%,-50%);font:14px sans-serif;color:#000;white-space:nowrap;text-shadow:0 0 2px #fff,0 0 3px #fff,0 0 3px #fff'; host.appendChild(d); }
+      while (host.children.length > labs.length) host.removeChild(host.lastChild);
+      for (let i = 0; i < labs.length; i++) { const el = host.children[i], sc = toScreen(labs[i].pos); if (!sc) { el.style.display = 'none'; continue; } el.style.display = ''; if (el.textContent !== labs[i].text) el.textContent = labs[i].text; el.style.left = sc[0] + 'px'; el.style.top = sc[1] + 'px'; }
+    }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
     // масштаб гизмо от зума карты (постоянный экранный размер элементов); 1 при zoom 18.5
     function gizScale() { const z = map.current ? map.current.getZoom() : 18.5; return Math.max(0.4, Math.min(3, Math.pow(2, 18.5 - z))); }
@@ -710,6 +720,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   if (embed) return (
     <div style={{ position: 'absolute', inset: 0 }}>
       <div ref={box} style={{ position: 'absolute', inset: 0 }} />
+      <div ref={labRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 3, overflow: 'hidden' }} />
       <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', background: skyVeil(sunAlt), transition: 'background .35s', zIndex: 1 }} />
       {sunAlt <= 0 && <div style={{ position: 'absolute', left: '50%', top: 14, transform: 'translateX(-50%)', pointerEvents: 'none', zIndex: 2, color: '#dfe6f2', background: 'rgba(10,20,46,.55)', border: '1px solid #2a3550', borderRadius: 999, padding: '4px 12px', fontSize: 12 }}>🌙 Ночь · солнце ниже горизонта</div>}
       {err && <div style={{ position: 'fixed', top: 60, right: 12, zIndex: 40, padding: '6px 10px', background: 'rgba(22,27,24,.94)', color: '#ff8a80', borderRadius: 10, fontSize: 12 }}>{err}</div>}

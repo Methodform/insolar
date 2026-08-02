@@ -110,7 +110,6 @@ export default function App() {
   const [anStats, setAnStats] = useState(null);
   const [showPlot, setShowPlot] = useState(true);
   const [showWin, setShowWin] = useState(true);
-  const [relief, setRelief] = useState(false);      // рельеф = отмывка (hillshade), тени остаются корректны
   const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767px)').matches);
@@ -293,13 +292,12 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={setBuildings} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
-          relief={relief} embed />
+          embed />
 
         {/* header */}
         <Flex align="center" gap="3" px="4" py="2" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 30,
           background: 'var(--color-panel-solid)', borderBottom: '1px solid var(--gray-a4)' }}>
-          <Heading size="4"><Flex align="center" gap="1"><SunIcon width="20" height="20" /> Инсоляр</Flex></Heading>
-          {!mobile && <Text size="2" color="gray">React + Radix · моделирование солнца</Text>}
+          <Heading size="4"><Flex align="center" gap="1"><SunIcon width="20" height="20" /> SunPlan3d</Flex></Heading>
           <Box style={{ flex: 1 }} />
           {!mobile && <>
           <Dialog.Root>
@@ -398,13 +396,6 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
                 </Select.Content>
               </Select.Root>
               {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
-            </Box>
-            <Box>
-              <Flex align="center" justify="between">
-                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>РЕЛЬЕФ</Text>
-                <Switch checked={relief} onCheckedChange={setRelief} />
-              </Flex>
-              <Text size="1" color="gray" mt="1" style={{ display: 'block' }}>Отмывка по открытому DEM ~30 м: общий склон, ориентировочно. Тени остаются корректными.</Text>
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ОТСТУПЫ ОТ ГРАНИЦ</Text>
@@ -611,7 +602,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             <Text size="2" mt="2" style={{ display: 'block' }}>{user ? (user.name || user.login || 'Профиль') : 'Гость'}</Text>
             <Button mt="3" style={{ width: '100%' }} onClick={() => setAcctOpen(true)}><PersonIcon /> Личный кабинет</Button>
             <Button mt="2" variant="soft" color="grass" style={{ width: '100%' }} onClick={openPaywall}>{pro ? 'Управление подпиской' : 'Оформить Pro'}</Button>
-            <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>Инсоляр — планирование участка по солнцу: тени, инсоляция по СанПиН, расстановка построек и посадок. Расчёты носят модельный характер.</Text>
+            <Text size="1" color="gray" mt="3" style={{ display: 'block' }}>SunPlan3d — планирование участка по солнцу: тени, инсоляция по СанПиН, расстановка построек и посадок. Расчёты носят модельный характер.</Text>
           </Card>
         )}
 
@@ -634,7 +625,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
         <Dialog.Root open={paywall} onOpenChange={setPaywall}>
           <Dialog.Content maxWidth="820px">
             <Dialog.Title>Ваш участок — под рукой круглый год</Dialog.Title>
-            <Dialog.Description size="2" color="gray" mb="4">Планируйте сколько угодно: постройки, посадки, пересадки, разные сезоны и годы. Инсоляр считает солнце и тени вживую, а проект остаётся вашим.</Dialog.Description>
+            <Dialog.Description size="2" color="gray" mb="4">Планируйте сколько угодно: постройки, посадки, пересадки, разные сезоны и годы. SunPlan3d считает солнце и тени вживую, а проект остаётся вашим.</Dialog.Description>
             <Flex gap="3" wrap="wrap" direction={mobile ? 'column' : 'row'} align="stretch">
               {[
                 { key: 'free', name: 'Free', price: '0 ₽', sub: 'без регистрации', hero: false, badge: null,
@@ -669,7 +660,7 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
             </Flex>
             <Flex justify="between" align="center" mt="4" gap="3" wrap="wrap">
               <Text size="1" color="gray" style={{ flex: '1 1 300px' }}>
-                Инсоляр — не разовый отчёт, а инструмент, в который возвращаешься к каждому сезону и решению. PDF-паспорт входит во все платные тарифы. Когда подписка закончится, участок и проекты не пропадут — останутся для просмотра, а скачанные PDF навсегда ваши.
+                SunPlan3d — не разовый отчёт, а инструмент, в который возвращаешься к каждому сезону и решению. PDF-паспорт входит во все платные тарифы. Когда подписка закончится, участок и проекты не пропадут — останутся для просмотра, а скачанные PDF навсегда ваши.
               </Text>
               {pro
                 ? <Button variant="soft" color="gray" onClick={() => { applyPlan('free'); setPaywall(false); }}>Отключить Pro (демо)</Button>
