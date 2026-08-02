@@ -73,8 +73,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     // солнце освещает грани и даёт видимые тени на земле и зданиях; заполняющий свет держит теневые места не чёрными
     s.sun.intensity = alt > 0 ? (0.35 + 0.35 * Math.min(1, alt / 8)) : 0;   // 0.35..0.7 — видимые тени
     s.sun.castShadow = alt > 0;                        // ночью (солнце за горизонтом) — тени нет совсем
-    if (s.amb) s.amb.intensity = 0.5 + 0.1 * dayK;       // нейтральный заполняющий: стены светлые, тень не чёрная
-    if (s.hemi) s.hemi.intensity = 0.25 + 0.1 * dayK;
+    if (s.amb) s.amb.intensity = 0.6 + 0.1 * dayK;       // заполняющий поднят (~+15% яркости строений); тень не чёрная
+    if (s.hemi) s.hemi.intensity = 0.3 + 0.12 * dayK;
     if (map.current) map.current.triggerRepaint();
   }
   useEffect(() => { if (embed) setWindShow(!!windOn); }, [embed, windOn]);      // холст: ветер/инсоляция от панели
