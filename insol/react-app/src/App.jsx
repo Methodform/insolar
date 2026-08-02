@@ -313,14 +313,14 @@ td.ok{color:#1f7d38;font-weight:bold}td.no{color:#c0392b;font-weight:bold}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
           embed />
 
-        {/* кнопки скрытия боковых панелей (десктоп/узкие экраны) */}
+        {/* кнопки скрытия боковых панелей: на панели, а после скрытия — заметная кнопка у края (surface: рамка+фон) */}
         {!mobile && <>
-          <IconButton variant="soft" color="gray" onClick={() => setLeftOpen(v => !v)} title={leftOpen ? 'Скрыть левую панель' : 'Показать левую панель'}
-            style={{ position: 'absolute', top: 70, left: leftOpen ? 344 : 12, zIndex: 21, transition: 'left .2s' }}>
+          <IconButton variant="surface" color="gray" highContrast onClick={() => setLeftOpen(v => !v)} title={leftOpen ? 'Скрыть левую панель' : 'Показать левую панель'}
+            style={{ position: 'absolute', top: 72, left: leftOpen ? 300 : 8, zIndex: 22, background: 'var(--color-panel-solid)', boxShadow: '0 1px 4px var(--black-a5)', transition: 'left .2s' }}>
             {leftOpen ? <DoubleArrowLeftIcon /> : <DoubleArrowRightIcon />}
           </IconButton>
-          <IconButton variant="soft" color="gray" onClick={() => setRightOpen(v => !v)} title={rightOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
-            style={{ position: 'absolute', top: 70, right: rightOpen ? 324 : 12, zIndex: 21, transition: 'right .2s' }}>
+          <IconButton variant="surface" color="gray" highContrast onClick={() => setRightOpen(v => !v)} title={rightOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
+            style={{ position: 'absolute', top: 72, right: rightOpen ? 280 : 8, zIndex: 22, background: 'var(--color-panel-solid)', boxShadow: '0 1px 4px var(--black-a5)', transition: 'right .2s' }}>
             {rightOpen ? <DoubleArrowRightIcon /> : <DoubleArrowLeftIcon />}
           </IconButton>
         </>}
