@@ -58,7 +58,7 @@ function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked 
   return (
     <Popover.Root open={open} onOpenChange={o => { if (o && disabled) { onBlocked && onBlocked(); return; } setOpen(o); }}>
       <Popover.Trigger>
-        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: 190, justifyContent: 'center' }}>
           <CalendarIcon /> {label}
         </Button>
       </Popover.Trigger>

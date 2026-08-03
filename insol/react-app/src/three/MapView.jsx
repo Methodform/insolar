@@ -236,7 +236,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // мягкие тени без VSM light-bleeding
-        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, heatGroup, dimsGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildDims, buildGizmo, rebuildHeat,
+        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, heatGroup, dimsGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, _setbackOn: setbackOn, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildDims, buildGizmo, rebuildHeat,
           selectExt: idx => { if (idx !== selIdx.v && idx >= -1 && idx < live.current.length) select(idx); } };
         buildFence(fenceH); rebuildObjects(); buildSetback(); buildDims(); applySun();
       },
@@ -392,7 +392,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function buildSetback() {
       const s = t3.current, g = s.setbackGroup; if (!g) return;
       while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) c.material.dispose(); }
-      if (s._setbackOn === false || ring.length < 3) return;   // отступы скрыты
+      if (!s._setbackOn || ring.length < 3) return;   // отступы скрыты (в т.ч. при неинициализированном флаге)
       const loc = ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
       const A0 = ringArea(loc);
       SETBACKS.forEach(sp => {
@@ -847,7 +847,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     const plotLocRing = () => ring.map(([lo, la]) => [(lo - lon) * mLon, (la - lat) * M_LAT]);
     // держим строение внутри своей линии отступа: перенос упирается в неё, поворот/масштаб за границу — откат
     function clampSetback(idx, o, mode) {
-      if (t3.current._setbackOn === false) return;             // отступы выключены — без ограничения
+      if (!t3.current._setbackOn) return;             // отступы выключены — без ограничения
       const bb = live.current[idx], d = setbackFor(bb.kind || 'house');
       if (!(d > 0) || ring.length < 3) return;
       const poly = insetRing(plotLocRing(), d);
