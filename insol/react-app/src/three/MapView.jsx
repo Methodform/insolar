@@ -662,11 +662,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); geo.setIndex(idx);
         const mesh = new THREE.Mesh(geo, surfMat()); mesh.renderOrder = 6; g.add(mesh);
       };
+      const mid = (a, c) => [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2], dd = (a, c) => Math.hypot(a[0] - c[0], a[1] - c[1]);
       live.current.forEach(b => {
         const kind = b.kind || 'house'; if (kind === 'tree' || kind === 'bush' || kind === 'bed') return;
         const pts = b.pts; if (!pts || pts.length < 3) return; const H = b.height || 3;
+        const openKind = kind === 'gazebo' || kind === 'canopy' || kind === 'tent';   // открытые: стен нет, крыша-плита
+        const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
         let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
-        for (let e = 0; e < pts.length; e++) {                     // СТЕНЫ
+        if (!openKind) for (let e = 0; e < pts.length; e++) {      // СТЕНЫ
           const A = pts[e], B = pts[(e + 1) % pts.length], dxl = B[0] - A[0], dyl = B[1] - A[1], L = Math.hypot(dxl, dyl); if (L < 0.4) continue;
           let nxl = dyl, nyl = -dxl; const nl = Math.hypot(nxl, nyl) || 1; nxl /= nl; nyl /= nl;
           const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nxl + (my - cy) * nyl < 0) { nxl = -nxl; nyl = -nyl; }
@@ -674,10 +677,24 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           grid(Math.round(L / 1.5), Math.round(H / 1.5),
             (u, v) => { const px = A[0] + dxl * u + nxl * 0.05, py = A[1] + dyl * u + nyl * 0.05; return [px, v * H, -py]; }, () => nrm);
         }
-        if (pts.length === 4) {                                    // КРЫША (плоская аппроксимация на высоте здания)
-          const up = new THREE.Vector3(0, 1, 0), ry = H + (b.roofH || 0) + 0.06;   // над коньком → крыша-«шапка» видна, не тонет в объёме крыши
-          const eU = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]), eV = Math.hypot(pts[3][0] - pts[0][0], pts[3][1] - pts[0][1]);
-          grid(Math.round(eU / 1.5), Math.round(eV / 1.5), (u, v) => {
+        if (!openKind && pts.length === 4 && rh > 0) {             // ДВУСКАТНАЯ КРЫША — по фактической геометрии скатов
+          let alongA; if (b.roofAlong != null) alongA = b.roofAlong;
+          else alongA = (dd(pts[0], pts[1]) + dd(pts[2], pts[3])) >= (dd(pts[1], pts[2]) + dd(pts[3], pts[0]));
+          let slopes;
+          if (alongA) { const R1 = mid(pts[1], pts[2]), R2 = mid(pts[3], pts[0]); slopes = [[pts[0], pts[1], R1, R2], [pts[2], pts[3], R2, R1]]; }
+          else { const R1 = mid(pts[0], pts[1]), R2 = mid(pts[2], pts[3]); slopes = [[pts[1], pts[2], R2, R1], [pts[3], pts[0], R1, R2]]; }
+          const top = H + rh;
+          slopes.forEach(q => {                                    // q0,q1 — карниз (H); q2,q3 — конёк (top)
+            const P = (u, v) => { const ax = q[0][0] + (q[1][0] - q[0][0]) * u, ay = q[0][1] + (q[1][1] - q[0][1]) * u, bx = q[3][0] + (q[2][0] - q[3][0]) * u, by = q[3][1] + (q[2][1] - q[3][1]) * u; return [ax + (bx - ax) * v, H + (top - H) * v, -(ay + (by - ay) * v)]; };
+            const p00 = P(0, 0), p10 = P(1, 0), p01 = P(0, 1);
+            const nrm = new THREE.Vector3().crossVectors(new THREE.Vector3(p10[0] - p00[0], p10[1] - p00[1], p10[2] - p00[2]), new THREE.Vector3(p01[0] - p00[0], p01[1] - p00[1], p01[2] - p00[2])).normalize();
+            if (nrm.y < 0) nrm.multiplyScalar(-1);
+            grid(Math.round(dd(q[0], q[1]) / 1.5), Math.round(Math.hypot(dd(q[0], q[3]), rh) / 1.5),
+              (u, v) => { const p = P(u, v); return [p[0] + nrm.x * 0.05, p[1] + nrm.y * 0.05, p[2] + nrm.z * 0.05]; }, () => nrm);
+          });
+        } else if (pts.length === 4) {                             // ПЛОСКАЯ крыша (навес/беседка-плита или плоская кровля)
+          const up = new THREE.Vector3(0, 1, 0), ry = (openKind ? H + 0.18 : H) + 0.05;
+          grid(Math.round(dd(pts[0], pts[1]) / 1.5), Math.round(dd(pts[0], pts[3]) / 1.5), (u, v) => {
             const a = pts[0], b2 = pts[1], c2 = pts[2], d = pts[3];
             const x0 = a[0] + (b2[0] - a[0]) * u, y0 = a[1] + (b2[1] - a[1]) * u, x1 = d[0] + (c2[0] - d[0]) * u, y1 = d[1] + (c2[1] - d[1]) * u;
             return [x0 + (x1 - x0) * v, ry, -(y0 + (y1 - y0) * v)];
