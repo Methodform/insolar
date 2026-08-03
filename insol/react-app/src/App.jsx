@@ -821,16 +821,19 @@ ${roseSection}
                 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
                 const hasDay = rise != null && set != null && set > rise;
                 return <>
-                  <Box style={{ position: 'relative', height: 7, borderRadius: 4, background: '#243049', overflow: 'hidden', marginBottom: 3 }}>
-                    {hasDay && <Box style={{ position: 'absolute', top: 0, bottom: 0, left: pct(rise) + '%', width: (pct(set) - pct(rise)) + '%', background: 'linear-gradient(90deg,#f7a83e,#ffe6a3,#ffd24d,#ffe6a3,#f7a83e)' }} />}
-                  </Box>
-                  <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
-                  <Flex justify="between" style={{ marginTop: 2 }}>
+                  <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
+                  <Flex justify="between" style={{ marginBottom: 3 }}>
                     {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => <Text key={h} color="gray" style={{ fontSize: 10 }}>{h}</Text>)}
                   </Flex>
-                  <Flex justify="center" style={{ marginTop: 1 }}>
+                  <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, overflow: 'hidden', background: '#c9ccd2' }}>
+                      {hasDay && <Box style={{ position: 'absolute', top: 0, bottom: 0, left: pct(rise) + '%', width: (pct(set) - pct(rise)) + '%', background: 'linear-gradient(90deg,#f7a83e,#ffcf6a,#f7a83e)' }} />}
+                    </Box>
+                    <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
+                  </Box>
+                  <Flex justify="center" style={{ marginTop: 3 }}>
                     {hasDay
-                      ? <Text color="gray" style={{ fontSize: 11 }}><span style={{ color: '#f7a83e', fontWeight: 600 }}>☀ восход {hhmm(rise)}</span> · <span style={{ color: '#d98324', fontWeight: 600 }}>закат {hhmm(set)}</span> · световой день {fmtHours(dayLen)}</Text>
+                      ? <Text color="gray" style={{ fontSize: 11 }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>☀ восход {hhmm(rise)}</span> · <span style={{ color: '#e08a1e', fontWeight: 600 }}>закат {hhmm(set)}</span> · световой день {fmtHours(dayLen)}</Text>
                       : <Text color="gray" style={{ fontSize: 11 }}>{times.polarDay ? 'полярный день — солнце не заходит' : 'полярная ночь — солнце не восходит'}</Text>}
                   </Flex>
                 </>;
