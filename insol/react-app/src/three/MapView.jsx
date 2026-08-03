@@ -588,10 +588,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const rc = new THREE.Raycaster();
       // часы солнца на площадке со стеновой нормалью: учитываем только солнце «в лицо» стене и без затенения
       const hoursN = (origin, nrm) => { let lit = 0; steps.forEach(v => { if (v.dot(nrm) <= 0) return; rc.set(origin.clone().addScaledVector(v, 0.3), v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; }); return lit * stepMin / 60; };
-      if (walls) live.current.forEach(b => { const H = b.height || 3, kind = b.kind || 'house'; if (!(H > 1) || !b.pts || b.pts.length < 3 || kind === 'tree' || kind === 'bush') return;
-        const pts = b.pts; let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
+      const wallDots = (pts, H) => {                               // точки инсоляции по фасадам строения
+        let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
         const hStep = Math.max(1, H / 3);
-        for (let i = 0; i < pts.length; i++) {                     // точки по каждой стене-фасаду
+        for (let i = 0; i < pts.length; i++) {
           const A = pts[i], B = pts[(i + 1) % pts.length];
           let dx = B[0] - A[0], dy = B[1] - A[1]; const L = Math.hypot(dx, dy); if (L < 0.6) continue; dx /= L; dy /= L;
           let nx = dy, ny = -dx; const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
@@ -606,7 +606,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
             }
           }
         }
-      });
+      };
+      const plotL = ring.length >= 3 ? plotLocRing() : null;
+      if (walls) {
+        live.current.forEach(b => { const H = b.height || 3, kind = b.kind || 'house'; if (!(H > 1) || !b.pts || b.pts.length < 3 || kind === 'tree' || kind === 'bush') return; wallDots(b.pts, H); });
+        // здания, которые строит карта и стоят на участке — инсоляцию считаем и на них
+        if (plotL) (s.neighborData || []).forEach(nb => { const pts = nb.pts; if (!pts || pts.length < 3) return; let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length; if (pointInPoly([cx, cy], plotL)) wallDots(pts, nb.height || 6); });
+      }
       m.triggerRepaint();
     }
 
@@ -663,20 +669,29 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const mesh = new THREE.Mesh(geo, surfMat()); mesh.renderOrder = 6; g.add(mesh);
       };
       const mid = (a, c) => [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2], dd = (a, c) => Math.hypot(a[0] - c[0], a[1] - c[1]);
+      const wallHeat = (pts, H) => {                               // стены произвольного контура
+        let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
+        for (let e = 0; e < pts.length; e++) {
+          const A = pts[e], B = pts[(e + 1) % pts.length], dxl = B[0] - A[0], dyl = B[1] - A[1], L = Math.hypot(dxl, dyl); if (L < 0.4) continue;
+          let nxl = dyl, nyl = -dxl; const nl = Math.hypot(nxl, nyl) || 1; nxl /= nl; nyl /= nl;
+          const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nxl + (my - cy) * nyl < 0) { nxl = -nxl; nyl = -nyl; }
+          const nrm = new THREE.Vector3(nxl, 0, -nyl);
+          grid(Math.round(L / 1.5), Math.round(H / 1.5), (u, v) => { const px = A[0] + dxl * u + nxl * 0.05, py = A[1] + dyl * u + nyl * 0.05; return [px, v * H, -py]; }, () => nrm);
+        }
+      };
+      const flatRoofPoly = (pts, ry) => {                          // плоская крыша произвольного контура (для зданий карты)
+        const up = new THREE.Vector3(0, 1, 0), shape = new THREE.Shape(); pts.forEach((p, i) => i ? shape.lineTo(p[0], p[1]) : shape.moveTo(p[0], p[1])); shape.closePath();
+        const sg = new THREE.ShapeGeometry(shape), pos = sg.attributes.position, n = pos.count, P = new Float32Array(n * 3), C = new Float32Array(n * 3);
+        for (let i = 0; i < n; i++) { const px = pos.getX(i), py = pos.getY(i); P[i * 3] = px; P[i * 3 + 1] = ry; P[i * 3 + 2] = -py; const c = col(frac(px, ry, -py, up)); C[i * 3] = c[0]; C[i * 3 + 1] = c[1]; C[i * 3 + 2] = c[2]; }
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(P, 3)); geo.setAttribute('color', new THREE.BufferAttribute(C, 3)); if (sg.index) geo.setIndex(sg.index.clone()); sg.dispose();
+        const mesh = new THREE.Mesh(geo, surfMat()); mesh.renderOrder = 6; g.add(mesh);
+      };
       live.current.forEach(b => {
         const kind = b.kind || 'house'; if (kind === 'tree' || kind === 'bush' || kind === 'bed') return;
         const pts = b.pts; if (!pts || pts.length < 3) return; const H = b.height || 3;
         const openKind = kind === 'gazebo' || kind === 'canopy' || kind === 'tent';   // открытые: стен нет, крыша-плита
         const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-        let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
-        if (!openKind) for (let e = 0; e < pts.length; e++) {      // СТЕНЫ
-          const A = pts[e], B = pts[(e + 1) % pts.length], dxl = B[0] - A[0], dyl = B[1] - A[1], L = Math.hypot(dxl, dyl); if (L < 0.4) continue;
-          let nxl = dyl, nyl = -dxl; const nl = Math.hypot(nxl, nyl) || 1; nxl /= nl; nyl /= nl;
-          const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nxl + (my - cy) * nyl < 0) { nxl = -nxl; nyl = -nyl; }
-          const nrm = new THREE.Vector3(nxl, 0, -nyl);
-          grid(Math.round(L / 1.5), Math.round(H / 1.5),
-            (u, v) => { const px = A[0] + dxl * u + nxl * 0.05, py = A[1] + dyl * u + nyl * 0.05; return [px, v * H, -py]; }, () => nrm);
-        }
+        if (!openKind) wallHeat(pts, H);                          // СТЕНЫ
         if (!openKind && pts.length === 4 && rh > 0) {             // ДВУСКАТНАЯ КРЫША — по фактической геометрии скатов
           let alongA; if (b.roofAlong != null) alongA = b.roofAlong;
           else alongA = (dd(pts[0], pts[1]) + dd(pts[2], pts[3])) >= (dd(pts[1], pts[2]) + dd(pts[3], pts[0]));
@@ -700,6 +715,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
             return [x0 + (x1 - x0) * v, ry, -(y0 + (y1 - y0) * v)];
           }, () => up);
         }
+      });
+      // здания, которые строит карта и стоят на участке — теплокарту проецируем и на них (стены + плоская крыша)
+      const plotL = ring.length >= 3 ? plotLocRing() : null;
+      if (plotL) (s.neighborData || []).forEach(nb => {
+        const pts = nb.pts; if (!pts || pts.length < 3) return;
+        let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
+        if (!pointInPoly([cx, cy], plotL)) return;
+        const H = nb.height || 6; wallHeat(pts, H); flatRoofPoly(pts, H + 0.05);
       });
     }
 
@@ -730,6 +753,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       });
       s.neighborData = nd;
       if (s._w && s._w.show) rebuildWind(s._w.show, s._w.wDeg, s._w.fh);   // соседи влияют на ветер
+      if (s._i && s._i.show) rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req, s._i.walls);   // инсоляция — на зданиях карты
+      if (s._h && s._h.show) rebuildHeat(s._h.show, s._h.y, s._h.mo, s._h.da, s._h.fh);                              // теплокарта — на зданиях карты
       m.triggerRepaint();
     }
 

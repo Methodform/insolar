@@ -875,20 +875,25 @@ ${roseSection}
                 const hasDay = rise != null && set != null && set > rise;
                 return <>
                   <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
-                  <Flex justify="between" style={{ marginBottom: 3 }}>
+                  <Flex justify="between" style={{ marginBottom: 2 }}>
                     {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => <Text key={h} color="gray" style={{ fontSize: 10 }}>{h}</Text>)}
                   </Flex>
+                  {hasDay
+                    ? <Box style={{ position: 'relative', height: 22, marginBottom: 1 }}>
+                        {[['восход', rise], ['закат', set]].map(([lbl, mn], k) => (
+                          <Box key={k} style={{ position: 'absolute', left: pct(mn) + '%', transform: 'translateX(-50%)', textAlign: 'center', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
+                            <span style={{ fontSize: 9, color: '#e08a1e', fontWeight: 600, display: 'block' }}>{lbl}</span>
+                            <span style={{ fontSize: 10, color: 'var(--gray-11)', display: 'block' }}>{hhmm(mn)}</span>
+                          </Box>
+                        ))}
+                      </Box>
+                    : <Text color="gray" align="center" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>{times.polarDay ? 'полярный день' : 'полярная ночь'}</Text>}
                   <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, overflow: 'hidden', background: '#c9ccd2' }}>
                       {hasDay && <Box style={{ position: 'absolute', top: 0, bottom: 0, left: pct(rise) + '%', width: (pct(set) - pct(rise)) + '%', background: 'linear-gradient(90deg,#f7a83e,#ffcf6a,#f7a83e)' }} />}
                     </Box>
                     <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
                   </Box>
-                  <Flex justify="center" style={{ marginTop: 3 }}>
-                    {hasDay
-                      ? <Text color="gray" style={{ fontSize: 11 }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>☀ восход {hhmm(rise)}</span> · <span style={{ color: '#e08a1e', fontWeight: 600 }}>закат {hhmm(set)}</span> · световой день {fmtHours(dayLen)}</Text>
-                      : <Text color="gray" style={{ fontSize: 11 }}>{times.polarDay ? 'полярный день — солнце не заходит' : 'полярная ночь — солнце не восходит'}</Text>}
-                  </Flex>
                 </>;
               })()}
             </Box>
