@@ -148,9 +148,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         m.jumpTo(cam); m.triggerRepaint();   // вернуть камеру как была
         resolve(url);
       };
-      m.once('idle', grab);        // ждём загрузку тайлов на новом зуме + полный кадр
       m.triggerRepaint();
-      setTimeout(grab, 1500);      // страховка, если idle не пришёл
+      requestAnimationFrame(() => requestAnimationFrame(grab));   // 2 кадра на отрисовку нового ракурса (быстро, пока вкладка активна)
+      m.once('idle', grab);                                       // либо как только карта догрузилась
+      setTimeout(grab, 900);                                      // страховка
     });
 
     m.on('load', () => {

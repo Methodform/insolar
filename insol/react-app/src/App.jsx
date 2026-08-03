@@ -242,18 +242,20 @@ export default function App() {
   }
   async function openReport() {
     if (!poly) { alert('Сначала постройте участок'); return; }
+    // 1) СНАЧАЛА снимаем участок — пока вкладка приложения активна. В фоне (после открытия новой вкладки)
+    //    браузер тормозит рендер карты, и все 4 ракурса выходят одинаковыми.
+    const shots = [];
+    if (typeof window !== 'undefined' && window.__spShot) {
+      for (const bng of [45, 135, 225, 315]) { const u = await window.__spShot({ bearing: bng, pitch: 55 }); if (u) shots.push(u); }
+    }
+    // 2) теперь открываем вкладку отчёта (ещё в пределах пользовательского клика)
     const w = window.open('', '_blank'); if (!w) { alert('Разрешите всплывающие окна'); return; }
-    w.document.write('<!doctype html><meta charset="utf-8"><title>Отчёт</title><body style="font-family:sans-serif;padding:48px;color:#555;font-size:16px">Готовлю отчёт и снимки участка со всех сторон…</body>');
+    w.document.write('<!doctype html><meta charset="utf-8"><title>Отчёт</title><body style="font-family:sans-serif;padding:48px;color:#555;font-size:16px">Готовлю отчёт…</body>');
     const d = reportData(poly, buildings, lat, lon, tz, y);
     const esc = s => (s || '—').replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
     const rows = d.rows.map(r => `<tr><td>${r.i}</td><td>${r.e}; ${r.n}</td><td>${r.sun.toFixed(1)}</td><td>${r.cont.toFixed(1)}</td><td class="${r.ok ? 'ok' : 'no'}">${r.ok ? 'соответствует' : 'не соответствует'}</td></tr>`).join('');
     const verdict = d.okc === d.n ? `Все ${d.n} точек инсоляции обеспечены нормируемой инсоляцией (≥ ${d.z.hours} ч). Требования выполняются.` : `Норму (≥ ${d.z.hours} ч) обеспечивают ${d.okc} из ${d.n} точек (${Math.round(d.okc / d.n * 100)} %).`;
     const today = new Date().toLocaleDateString('ru-RU');
-    // доп. материалы отчёта: 4 снимка участка (с 4 углов), список зданий, отступы, диаграммы
-    const shots = [];
-    if (typeof window !== 'undefined' && window.__spShot) {
-      for (const bng of [45, 135, 225, 315]) { const u = await window.__spShot({ bearing: bng, pitch: 55 }); if (u) shots.push(u); }
-    }
     const bRows = buildings.map(b => { const p = b.pts || []; const w = p.length >= 2 ? Math.hypot(p[1][0] - p[0][0], p[1][1] - p[0][1]) : 0; const dd = p.length >= 3 ? Math.hypot(p[2][0] - p[1][0], p[2][1] - p[1][1]) : 0; const veg = b.kind === 'tree' || b.kind === 'bush'; return `<tr><td>${esc(b.name)}</td><td>${veg ? '—' : w.toFixed(1) + '×' + dd.toFixed(1)}</td><td>${veg ? '—' : (b.height + (b.roofH ? '+' + b.roofH : ''))}</td></tr>`; }).join('');
     const sunEl = document.getElementById('sunpath-cap');
     const sunSvg = sunEl ? sunEl.innerHTML : '';
@@ -885,16 +887,6 @@ ${roseSection}
                   <Flex justify="between" style={{ marginBottom: 2 }}>
                     {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => <Text key={h} color="gray" style={{ fontSize: 10 }}>{h}</Text>)}
                   </Flex>
-                  {hasDay
-                    ? <Box style={{ position: 'relative', height: 22, marginBottom: 1 }}>
-                        {[['восход', rise], ['закат', set]].map(([lbl, mn], k) => (
-                          <Box key={k} style={{ position: 'absolute', left: pct(mn) + '%', transform: 'translateX(-50%)', textAlign: 'center', lineHeight: 1.05, whiteSpace: 'nowrap' }}>
-                            <span style={{ fontSize: 9, color: '#e08a1e', fontWeight: 600, display: 'block' }}>{lbl}</span>
-                            <span style={{ fontSize: 10, color: 'var(--gray-11)', display: 'block' }}>{hhmm(mn)}</span>
-                          </Box>
-                        ))}
-                      </Box>
-                    : <Text color="gray" align="center" style={{ fontSize: 11, display: 'block', marginBottom: 2 }}>{times.polarDay ? 'полярный день' : 'полярная ночь'}</Text>}
                   <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, overflow: 'hidden', background: '#c9ccd2' }}>
                       {hasDay && <Box style={{ position: 'absolute', top: 0, bottom: 0, left: pct(rise) + '%', width: (pct(set) - pct(rise)) + '%', background: 'linear-gradient(90deg,#f7a83e,#ffcf6a,#f7a83e)' }} />}
