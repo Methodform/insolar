@@ -617,24 +617,73 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (!show || ring.length < 3) { m.triggerRepaint(); return; }
       const plotLocal = plotLocRing();
       const out = computeSunHeatmap({ buildings: live.current, fenceH: fh || 0, plotLocal, lat, lon, tz, y, mo, da, res: 256, stepMin: 15 });
-      if (!out || !out.vp) { m.triggerRepaint(); return; }
-      const { frac, res, vp } = out;
-      const rgba = new Uint8Array(res * res * 4);
-      for (let i = 0; i < frac.length; i++) {
-        const hex = thermalColor(frac[i]);
-        rgba[i * 4] = parseInt(hex.slice(1, 3), 16); rgba[i * 4 + 1] = parseInt(hex.slice(3, 5), 16); rgba[i * 4 + 2] = parseInt(hex.slice(5, 7), 16); rgba[i * 4 + 3] = 158;
+      if (out && out.vp) {                                         // земля — GPU-теплокарта
+        const { frac, res, vp } = out;
+        const rgba = new Uint8Array(res * res * 4);
+        for (let i = 0; i < frac.length; i++) {
+          const hex = thermalColor(frac[i]);
+          rgba[i * 4] = parseInt(hex.slice(1, 3), 16); rgba[i * 4 + 1] = parseInt(hex.slice(3, 5), 16); rgba[i * 4 + 2] = parseInt(hex.slice(5, 7), 16); rgba[i * 4 + 3] = 158;
+        }
+        const tex = new THREE.DataTexture(rgba, res, res, THREE.RGBAFormat); tex.needsUpdate = true; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.flipY = false;
+        const shape = new THREE.Shape(); shape.moveTo(plotLocal[0][0], plotLocal[0][1]);
+        for (let i = 1; i < plotLocal.length; i++) shape.lineTo(plotLocal[i][0], plotLocal[i][1]); shape.closePath();
+        const sg = new THREE.ShapeGeometry(shape); const pos = sg.attributes.position, n = pos.count;
+        const wp = new Float32Array(n * 3), uv = new Float32Array(n * 2), vpm = new THREE.Matrix4().fromArray(vp), v = new THREE.Vector3();
+        for (let i = 0; i < n; i++) { const px = pos.getX(i), py = pos.getY(i), X = px, Z = -py; wp[i * 3] = X; wp[i * 3 + 1] = 0.08; wp[i * 3 + 2] = Z; v.set(X, 0, Z).applyMatrix4(vpm); uv[i * 2] = v.x * 0.5 + 0.5; uv[i * 2 + 1] = v.y * 0.5 + 0.5; }
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(wp, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); if (sg.index) geo.setIndex(sg.index.clone());
+        sg.dispose();
+        const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide })); mesh.renderOrder = 5; g.add(mesh);
       }
-      const tex = new THREE.DataTexture(rgba, res, res, THREE.RGBAFormat); tex.needsUpdate = true; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.flipY = false;
-      // земля = контур участка; UV каждой вершины проецируем той же VP-матрицей, что использовал расчёт
-      const shape = new THREE.Shape(); shape.moveTo(plotLocal[0][0], plotLocal[0][1]);
-      for (let i = 1; i < plotLocal.length; i++) shape.lineTo(plotLocal[i][0], plotLocal[i][1]); shape.closePath();
-      const sg = new THREE.ShapeGeometry(shape); const pos = sg.attributes.position, n = pos.count;
-      const wp = new Float32Array(n * 3), uv = new Float32Array(n * 2), vpm = new THREE.Matrix4().fromArray(vp), v = new THREE.Vector3();
-      for (let i = 0; i < n; i++) { const px = pos.getX(i), py = pos.getY(i), X = px, Z = -py; wp[i * 3] = X; wp[i * 3 + 1] = 0.08; wp[i * 3 + 2] = Z; v.set(X, 0, Z).applyMatrix4(vpm); uv[i * 2] = v.x * 0.5 + 0.5; uv[i * 2 + 1] = v.y * 0.5 + 0.5; }
-      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(wp, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); if (sg.index) geo.setIndex(sg.index.clone());
-      sg.dispose();
-      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide })); mesh.renderOrder = 5; g.add(mesh);
+      buildHeatSurfaces(y, mo, da);                                // стены и крыши зданий — запекаем часы солнца в вершинные цвета
       m.triggerRepaint();
+    }
+
+    // часы солнца на поверхностях строений (стены + крыша): CPU-рейкастинг по шагам солнца, цвет — тепловая шкала
+    function buildHeatSurfaces(y, mo, da) {
+      const s = t3.current, g = s.heatGroup; if (!g) return;
+      const steps = [], stepMin = 20;
+      for (let mm = 0; mm < 1440; mm += stepMin) {
+        const utc = localToUTC(y, mo - 1, da, Math.floor(mm / 60), mm % 60, tz);
+        const pos = sunPosition(utc, lat, lon); if (pos.altitude <= 0.03) continue;
+        const az = compassAz(pos.azimuth) * Math.PI / 180, ca = Math.cos(pos.altitude);
+        steps.push(new THREE.Vector3(ca * Math.sin(az), Math.sin(pos.altitude), -ca * Math.cos(az)));
+      }
+      const N = steps.length; if (!N) return;
+      const occ = []; s.objGroup.traverse(o => { if (o.isMesh) occ.push(o); }); s.neigh.traverse(o => { if (o.isMesh) occ.push(o); }); s.fenceGroup.traverse(o => { if (o.isMesh) occ.push(o); });
+      const rc = new THREE.Raycaster(), tmp = new THREE.Vector3();
+      const frac = (ox, oy, oz, nrm) => { let lit = 0; for (let i = 0; i < N; i++) { const v = steps[i]; if (v.dot(nrm) <= 0.02) continue; tmp.set(ox + v.x * 0.12, oy + v.y * 0.12, oz + v.z * 0.12); rc.set(tmp, v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; } return lit / N; };
+      const col = f => { const hex = thermalColor(f); return [parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255]; };
+      const surfMat = () => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
+      const grid = (nu, nv, posFn, nrmFn) => {
+        nu = Math.max(1, nu); nv = Math.max(1, nv); const P = [], C = [], idx = [];
+        for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const p = posFn(i / nu, j / nv); P.push(p[0], p[1], p[2]); const c = col(frac(p[0], p[1], p[2], nrmFn(i / nu, j / nv))); C.push(c[0], c[1], c[2]); }
+        const w = nu + 1;
+        for (let j = 0; j < nv; j++) for (let i = 0; i < nu; i++) { const a = j * w + i, b = a + 1, d = a + w, e = d + 1; idx.push(a, d, b, b, d, e); }
+        const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.Float32BufferAttribute(P, 3)); geo.setAttribute('color', new THREE.Float32BufferAttribute(C, 3)); geo.setIndex(idx);
+        const mesh = new THREE.Mesh(geo, surfMat()); mesh.renderOrder = 6; g.add(mesh);
+      };
+      live.current.forEach(b => {
+        const kind = b.kind || 'house'; if (kind === 'tree' || kind === 'bush' || kind === 'bed') return;
+        const pts = b.pts; if (!pts || pts.length < 3) return; const H = b.height || 3;
+        let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
+        for (let e = 0; e < pts.length; e++) {                     // СТЕНЫ
+          const A = pts[e], B = pts[(e + 1) % pts.length], dxl = B[0] - A[0], dyl = B[1] - A[1], L = Math.hypot(dxl, dyl); if (L < 0.4) continue;
+          let nxl = dyl, nyl = -dxl; const nl = Math.hypot(nxl, nyl) || 1; nxl /= nl; nyl /= nl;
+          const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2; if ((mx - cx) * nxl + (my - cy) * nyl < 0) { nxl = -nxl; nyl = -nyl; }
+          const nrm = new THREE.Vector3(nxl, 0, -nyl);
+          grid(Math.round(L / 1.5), Math.round(H / 1.5),
+            (u, v) => { const px = A[0] + dxl * u + nxl * 0.05, py = A[1] + dyl * u + nyl * 0.05; return [px, v * H, -py]; }, () => nrm);
+        }
+        if (pts.length === 4) {                                    // КРЫША (плоская аппроксимация на высоте здания)
+          const up = new THREE.Vector3(0, 1, 0), ry = H + (b.roofH || 0) + 0.06;   // над коньком → крыша-«шапка» видна, не тонет в объёме крыши
+          const eU = Math.hypot(pts[1][0] - pts[0][0], pts[1][1] - pts[0][1]), eV = Math.hypot(pts[3][0] - pts[0][0], pts[3][1] - pts[0][1]);
+          grid(Math.round(eU / 1.5), Math.round(eV / 1.5), (u, v) => {
+            const a = pts[0], b2 = pts[1], c2 = pts[2], d = pts[3];
+            const x0 = a[0] + (b2[0] - a[0]) * u, y0 = a[1] + (b2[1] - a[1]) * u, x1 = d[0] + (c2[0] - d[0]) * u, y1 = d[1] + (c2[1] - d[1]) * u;
+            return [x0 + (x1 - x0) * v, ry, -(y0 + (y1 - y0) * v)];
+          }, () => up);
+        }
+      });
     }
 
     // здания карты → невидимые тене-отбрасыватели (+ данные для ветра)
