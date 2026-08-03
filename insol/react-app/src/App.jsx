@@ -5,7 +5,7 @@ import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHor
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon,
   DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
-import { thermalColor } from './engine/thermal.js';
+import { thermalColor, sunHoursColor } from './engine/thermal.js';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
@@ -545,9 +545,7 @@ ${roseSection}
                 <Switch checked={showHeat} onCheckedChange={v => { if (pro) setShowHeat(v); else openPaywall(); }} />
               </Flex>
               {showHeat && <>
-                <Flex align="center" gap="2" mt="1" style={{ height: 12, borderRadius: 6, overflow: 'hidden' }}>
-                  {Array.from({ length: 21 }, (_, i) => <span key={i} style={{ flex: 1, alignSelf: 'stretch', background: thermalColor(i / 20) }} />)}
-                </Flex>
+                <Box mt="1" style={{ height: 12, borderRadius: 6, background: `linear-gradient(90deg, ${sunHoursColor(0)}, ${sunHoursColor(0.5)}, ${sunHoursColor(1)})` }} />
                 <Flex justify="between"><Text size="1" color="gray">мало солнца</Text><Text size="1" color="gray">весь день</Text></Flex>
                 <Text size="1" color="gray">Учитывает тень от зданий, деревьев и забора на выбранную дату.</Text>
               </>}
