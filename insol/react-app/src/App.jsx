@@ -521,36 +521,41 @@ ${roseSection}
               </Flex>
             </Box>
             <Box>
-              <Flex align="center" justify="between">
-                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ОТСТУПЫ ОТ ГРАНИЦ</Text>
-                <Switch checked={showSetback} onCheckedChange={setShowSetback} />
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА</Text>
+              <Flex direction="column" gap="2" mt="2">
+                <Box>
+                  <Flex align="center" justify="between">
+                    <Text size="2">Отступы от границ</Text>
+                    <Switch checked={showSetback} onCheckedChange={setShowSetback} />
+                  </Flex>
+                  {showSetback && <Flex direction="column" gap="1" mt="1">
+                    <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#2b7bff', display: 'inline-block' }} /><Text size="1" color="gray">1 м — баня, хозпостройки, беседка, навес</Text></Flex>
+                    <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#f5a623', display: 'inline-block' }} /><Text size="1" color="gray">3 м — жилой / садовый дом</Text></Flex>
+                    <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">4 м — постройка для скота / птицы</Text></Flex>
+                  </Flex>}
+                </Box>
+                <Box>
+                  <Flex align="center" justify="between">
+                    <Text size="2">Точки инсоляции</Text>
+                    <Switch checked={showPlot || showWin} onCheckedChange={v => { setShowPlot(v); setShowWin(v); }} />
+                  </Flex>
+                  {(showPlot || showWin) && <Flex gap="3" align="center" mt="1">
+                    <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
+                    <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
+                  </Flex>}
+                </Box>
+                <Box>
+                  <Flex align="center" justify="between">
+                    <Text size="2">Часы солнца</Text>
+                    <Switch checked={showHeat} onCheckedChange={v => { if (pro) setShowHeat(v); else openPaywall(); }} />
+                  </Flex>
+                  {showHeat && <>
+                    <Box mt="1" style={{ height: 12, borderRadius: 6, background: `linear-gradient(90deg, ${sunHoursColor(0)}80, ${sunHoursColor(0.5)}80, ${sunHoursColor(1)}80)` }} />
+                    <Flex justify="between"><Text size="1" color="gray">мало солнца</Text><Text size="1" color="gray">много солнца</Text></Flex>
+                    <Text size="1" color="gray">Учитывает тень от зданий, деревьев и забора на выбранную дату.</Text>
+                  </>}
+                </Box>
               </Flex>
-              {showSetback && <Flex direction="column" gap="1" mt="1">
-                <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#2b7bff', display: 'inline-block' }} /><Text size="1" color="gray">1 м — баня, хозпостройки, беседка, навес</Text></Flex>
-                <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#f5a623', display: 'inline-block' }} /><Text size="1" color="gray">3 м — жилой / садовый дом</Text></Flex>
-                <Flex align="center" gap="2"><span style={{ width: 12, height: 3, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">4 м — постройка для скота / птицы</Text></Flex>
-              </Flex>}
-            </Box>
-            <Box>
-              <Flex align="center" justify="between">
-                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ТОЧКИ ИНСОЛЯЦИИ</Text>
-                <Switch checked={showPlot || showWin} onCheckedChange={v => { setShowPlot(v); setShowWin(v); }} />
-              </Flex>
-              {(showPlot || showWin) && <Flex gap="3" align="center" mt="1">
-                <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
-                <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
-              </Flex>}
-            </Box>
-            <Box>
-              <Flex align="center" justify="between">
-                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЧАСЫ СОЛНЦА (ТЕПЛОКАРТА)</Text>
-                <Switch checked={showHeat} onCheckedChange={v => { if (pro) setShowHeat(v); else openPaywall(); }} />
-              </Flex>
-              {showHeat && <>
-                <Box mt="1" style={{ height: 12, borderRadius: 6, background: `linear-gradient(90deg, ${sunHoursColor(0)}80, ${sunHoursColor(0.5)}80, ${sunHoursColor(1)}80)` }} />
-                <Flex justify="between"><Text size="1" color="gray">мало солнца</Text><Text size="1" color="gray">много солнца</Text></Flex>
-                <Text size="1" color="gray">Учитывает тень от зданий, деревьев и забора на выбранную дату.</Text>
-              </>}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
