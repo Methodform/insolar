@@ -545,8 +545,8 @@ ${roseSection}
                 <Switch checked={showHeat} onCheckedChange={v => { if (pro) setShowHeat(v); else openPaywall(); }} />
               </Flex>
               {showHeat && <>
-                <Box mt="1" style={{ height: 12, borderRadius: 6, background: `linear-gradient(90deg, ${sunHoursColor(0)}, ${sunHoursColor(0.5)}, ${sunHoursColor(1)})` }} />
-                <Flex justify="between"><Text size="1" color="gray">мало солнца</Text><Text size="1" color="gray">весь день</Text></Flex>
+                <Box mt="1" style={{ height: 12, borderRadius: 6, background: `linear-gradient(90deg, ${sunHoursColor(0)}80, ${sunHoursColor(0.5)}80, ${sunHoursColor(1)}80)` }} />
+                <Flex justify="between"><Text size="1" color="gray">мало солнца</Text><Text size="1" color="gray">много солнца</Text></Flex>
                 <Text size="1" color="gray">Учитывает тень от зданий, деревьев и забора на выбранную дату.</Text>
               </>}
             </Box>

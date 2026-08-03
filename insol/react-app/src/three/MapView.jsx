@@ -622,7 +622,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const rgba = new Uint8Array(res * res * 4);
         for (let i = 0; i < frac.length; i++) {
           const hex = sunHoursColor(frac[i]);
-          rgba[i * 4] = parseInt(hex.slice(1, 3), 16); rgba[i * 4 + 1] = parseInt(hex.slice(3, 5), 16); rgba[i * 4 + 2] = parseInt(hex.slice(5, 7), 16); rgba[i * 4 + 3] = 158;
+          rgba[i * 4] = parseInt(hex.slice(1, 3), 16); rgba[i * 4 + 1] = parseInt(hex.slice(3, 5), 16); rgba[i * 4 + 2] = parseInt(hex.slice(5, 7), 16); rgba[i * 4 + 3] = 128;
         }
         const tex = new THREE.DataTexture(rgba, res, res, THREE.RGBAFormat); tex.needsUpdate = true; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.flipY = false;
         const shape = new THREE.Shape(); shape.moveTo(plotLocal[0][0], plotLocal[0][1]);
@@ -653,7 +653,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const rc = new THREE.Raycaster(), tmp = new THREE.Vector3();
       const frac = (ox, oy, oz, nrm) => { let lit = 0; for (let i = 0; i < N; i++) { const v = steps[i]; if (v.dot(nrm) <= 0.02) continue; tmp.set(ox + v.x * 0.12, oy + v.y * 0.12, oz + v.z * 0.12); rc.set(tmp, v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; } return lit / N; };
       const col = f => { const hex = sunHoursColor(f); return [parseInt(hex.slice(1, 3), 16) / 255, parseInt(hex.slice(3, 5), 16) / 255, parseInt(hex.slice(5, 7), 16) / 255]; };
-      const surfMat = () => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.72, depthWrite: false, side: THREE.DoubleSide });
+      const surfMat = () => new THREE.MeshBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.5, depthWrite: false, side: THREE.DoubleSide });
       const grid = (nu, nv, posFn, nrmFn) => {
         nu = Math.max(1, nu); nv = Math.max(1, nv); const P = [], C = [], idx = [];
         for (let j = 0; j <= nv; j++) for (let i = 0; i <= nu; i++) { const p = posFn(i / nu, j / nv); P.push(p[0], p[1], p[2]); const c = col(frac(p[0], p[1], p[2], nrmFn(i / nu, j / nv))); C.push(c[0], c[1], c[2]); }

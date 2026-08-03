@@ -13,9 +13,9 @@ export function thermalColor(t) {
   return THERMAL[THERMAL.length - 1][1];
 }
 
-// Шкала «часы солнца» (как ShadeMap): непрерывный градиент красный → зелёный → синий.
-// t=0 — мало солнца (красный), t=1 — весь день (синий).
-const SUN_STOPS = [[0, '#e23b2e'], [0.5, '#2ecc40'], [1, '#2f6fe0']];
+// Шкала «часы солнца»: непрерывный градиент синий → зелёный → красный.
+// t=0 — мало солнца (синий), t=0.5 — средне (зелёный), t=1 — много солнца (красный).
+const SUN_STOPS = [[0, '#0000ff'], [0.5, '#00ff00'], [1, '#ff0000']];
 export function sunHoursColor(t) {
   t = Math.max(0, Math.min(1, t));
   for (let i = 1; i < SUN_STOPS.length; i++) { if (t <= SUN_STOPS[i][0]) { const a = SUN_STOPS[i - 1], b = SUN_STOPS[i]; return lerpHex(a[1], b[1], (t - a[0]) / ((b[0] - a[0]) || 1)); } }
