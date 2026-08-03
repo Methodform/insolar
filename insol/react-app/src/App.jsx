@@ -1,10 +1,10 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Select,
-  Slider, Badge, Separator, IconButton, Dialog, Switch } from '@radix-ui/themes';
+  Slider, Badge, Separator, IconButton, Dialog, Switch, Popover } from '@radix-ui/themes';
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon,
-  DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon } from '@radix-ui/react-icons';
+  DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
 import { thermalColor } from './engine/thermal.js';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
@@ -36,6 +36,65 @@ const DEFAULT_POLY = `53.5859054 49.0883256
 53.5858383 49.0889893
 53.5856392 49.0889309
 53.5857069 49.0882681`;
+
+// Дата+время на Radix UI (Popover), открывается вверх — уместно для нижнего таймбара.
+const WD = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
+const MON_RU = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
+function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked }) {
+  const [open, setOpen] = useState(false);
+  const [y, m, d] = date.split('-').map(Number);
+  const [view, setView] = useState({ y, m: m - 1 });   // отображаемый месяц (0-based)
+  useEffect(() => { if (open) setView({ y, m: m - 1 }); }, [open]);   // при открытии — на месяц выбранной даты
+  const hh = Math.floor(minutes / 60), mm = minutes % 60;
+  const pad = n => String(n).padStart(2, '0');
+
+  const first = new Date(Date.UTC(view.y, view.m, 1));
+  const startWd = (first.getUTCDay() + 6) % 7;                 // Пн=0
+  const daysIn = new Date(Date.UTC(view.y, view.m + 1, 0)).getUTCDate();
+  const cells = []; for (let i = 0; i < startWd; i++) cells.push(null); for (let dd = 1; dd <= daysIn; dd++) cells.push(dd);
+  const shift = dm => setView(v => { const t = new Date(Date.UTC(v.y, v.m + dm, 1)); return { y: t.getUTCFullYear(), m: t.getUTCMonth() }; });
+
+  const label = `${pad(d)}.${pad(m)}.${y} · ${pad(hh)}:${pad(mm)}`;
+  return (
+    <Popover.Root open={open} onOpenChange={o => { if (o && disabled) { onBlocked && onBlocked(); return; } setOpen(o); }}>
+      <Popover.Trigger>
+        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
+          <CalendarIcon /> {label}
+        </Button>
+      </Popover.Trigger>
+      <Popover.Content side="top" align="start" sideOffset={8} style={{ width: 262 }}>
+        <Flex align="center" justify="between" mb="2">
+          <IconButton variant="soft" color="gray" size="1" onClick={() => shift(-1)}><ChevronLeftIcon /></IconButton>
+          <Text size="2" weight="medium">{MON_RU[view.m]} {view.y}</Text>
+          <IconButton variant="soft" color="gray" size="1" onClick={() => shift(1)}><ChevronRightIcon /></IconButton>
+        </Flex>
+        <Box style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 2 }}>
+          {WD.map(w => <Text key={w} size="1" color="gray" align="center" style={{ padding: '2px 0' }}>{w}</Text>)}
+          {cells.map((dd, i) => {
+            const sel = dd === d && view.m === m - 1 && view.y === y;
+            return <Box key={i} style={{ textAlign: 'center' }}>
+              {dd && <button onClick={() => { onDate(`${view.y}-${pad(view.m + 1)}-${pad(dd)}`); }}
+                style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: 'none', cursor: 'pointer', fontSize: 13,
+                  background: sel ? 'var(--grass-9)' : 'transparent', color: sel ? '#fff' : 'var(--gray-12)', fontWeight: sel ? 700 : 400 }}>{dd}</button>}
+            </Box>;
+          })}
+        </Box>
+        <Separator size="4" my="2" />
+        <Flex align="center" gap="2">
+          <Text size="1" color="gray">Время</Text>
+          <Select.Root value={String(hh)} onValueChange={v => onMinutes(Number(v) * 60 + mm)}>
+            <Select.Trigger />
+            <Select.Content position="popper">{Array.from({ length: 24 }, (_, i) => <Select.Item key={i} value={String(i)}>{pad(i)} ч</Select.Item>)}</Select.Content>
+          </Select.Root>
+          <Select.Root value={String(mm - mm % 5)} onValueChange={v => onMinutes(hh * 60 + Number(v))}>
+            <Select.Trigger />
+            <Select.Content position="popper">{Array.from({ length: 12 }, (_, i) => <Select.Item key={i} value={String(i * 5)}>{pad(i * 5)} мин</Select.Item>)}</Select.Content>
+          </Select.Root>
+        </Flex>
+      </Popover.Content>
+    </Popover.Root>
+  );
+}
 
 export default function App() {
   const [themeMode, setThemeMode] = useState('system');
@@ -806,12 +865,8 @@ ${roseSection}
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '3'}>
-            <TextField.Root type="datetime-local" size="2"
-              value={`${date}T${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`}
-              readOnly={!pro}
-              onChange={e => { const v = e.target.value; if (!v) return; const [d, t] = v.split('T'); setDate(d); if (t) { const [hh, mm] = t.split(':').map(Number); setPlaying(false); setMinutes((hh || 0) * 60 + (mm || 0)); } }}
-              onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }}
-              style={{ width: 'fit-content', cursor: pro ? 'auto' : 'pointer' }} />
+            <DateTimePicker date={date} minutes={minutes} disabled={!pro} onBlocked={openPaywall}
+              onDate={d => setDate(d)} onMinutes={mn => { setPlaying(false); setMinutes(mn); }} />
             <Box style={{ flex: 1 }}>
               {(() => {
                 const toMin = ms => { const d = new Date(ms + tz * 3600000); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
