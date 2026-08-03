@@ -117,7 +117,7 @@ export default function App() {
   const [structsOpen, setStructsOpen] = useState(true);   // сворачивание групп списка объектов
   const [greensOpen, setGreensOpen] = useState(true);
   const [showHeat, setShowHeat] = useState(false);        // GPU-теплокарта «часов солнца»
-  const [showSetback, setShowSetback] = useState(true);   // показ линий отступов + ограничение застройки
+  const [showSetback, setShowSetback] = useState(false);  // показ линий отступов + ограничение застройки (по умолч. выкл.)
   const [leftOpen, setLeftOpen] = useState(true);     // показ левой/правой панели (можно скрыть на узких экранах)
   const [rightOpen, setRightOpen] = useState(true);
   const histRef = useRef([]);                         // история для отмены (Ctrl/Cmd+Z)
@@ -191,8 +191,8 @@ export default function App() {
   const [anM2, setAnM2] = useState(9);
   const [anDiff, setAnDiff] = useState(false);
   const [anStats, setAnStats] = useState(null);
-  const [showPlot, setShowPlot] = useState(true);
-  const [showWin, setShowWin] = useState(true);
+  const [showPlot, setShowPlot] = useState(false);
+  const [showWin, setShowWin] = useState(false);
   const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767px)').matches);
@@ -507,16 +507,18 @@ ${roseSection}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗАБОР ПО ПЕРИМЕТРУ</Text>
-              <Select.Root value={fence} onValueChange={v => { if (v === 'custom' && !pro) { openPaywall(); return; } setFence(v); }}>
-                <Select.Trigger mt="1" style={{ width: '100%' }} />
-                <Select.Content>
-                  <Select.Item value="0">Нет</Select.Item>
-                  <Select.Item value="1.5">1.5 м (по нормам)</Select.Item>
-                  <Select.Item value="1.8">1.8 м</Select.Item>
-                  <Select.Item value="custom">Свой размер</Select.Item>
-                </Select.Content>
-              </Select.Root>
-              {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" mt="2" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="высота забора, м" />}
+              <Flex gap="2" mt="1" align="center">
+                <Select.Root value={fence} onValueChange={v => { if (v === 'custom' && !pro) { openPaywall(); return; } setFence(v); }}>
+                  <Select.Trigger style={{ flex: 1 }} />
+                  <Select.Content>
+                    <Select.Item value="0">Нет</Select.Item>
+                    <Select.Item value="1.5">1.5 м (по нормам)</Select.Item>
+                    <Select.Item value="1.8">1.8 м</Select.Item>
+                    <Select.Item value="custom">Свой размер</Select.Item>
+                  </Select.Content>
+                </Select.Root>
+                {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="выс., м" style={{ width: 100 }} />}
+              </Flex>
             </Box>
             <Box>
               <Flex align="center" justify="between">
