@@ -813,7 +813,28 @@ ${roseSection}
               onMouseDown={e => { if (!pro) { e.preventDefault(); openPaywall(); } }}
               style={{ width: 'fit-content', cursor: pro ? 'auto' : 'pointer' }} />
             <Box style={{ flex: 1 }}>
-              <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
+              {(() => {
+                const toMin = ms => { const d = new Date(ms + tz * 3600000); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
+                const rise = times.polarNight ? null : (times.polarDay ? 0 : toMin(times.rise));
+                const set = times.polarNight ? null : (times.polarDay ? 1440 : toMin(times.set));
+                const pct = m => Math.max(0, Math.min(100, m / 1440 * 100));
+                const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+                const hasDay = rise != null && set != null && set > rise;
+                return <>
+                  <Box style={{ position: 'relative', height: 7, borderRadius: 4, background: '#243049', overflow: 'hidden', marginBottom: 3 }}>
+                    {hasDay && <Box style={{ position: 'absolute', top: 0, bottom: 0, left: pct(rise) + '%', width: (pct(set) - pct(rise)) + '%', background: 'linear-gradient(90deg,#f7a83e,#ffe6a3,#ffd24d,#ffe6a3,#f7a83e)' }} />}
+                  </Box>
+                  <Slider value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
+                  <Flex justify="between" style={{ marginTop: 2 }}>
+                    {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => <Text key={h} color="gray" style={{ fontSize: 10 }}>{h}</Text>)}
+                  </Flex>
+                  <Flex justify="center" style={{ marginTop: 1 }}>
+                    {hasDay
+                      ? <Text color="gray" style={{ fontSize: 11 }}><span style={{ color: '#f7a83e', fontWeight: 600 }}>☀ восход {hhmm(rise)}</span> · <span style={{ color: '#d98324', fontWeight: 600 }}>закат {hhmm(set)}</span> · световой день {fmtHours(dayLen)}</Text>
+                      : <Text color="gray" style={{ fontSize: 11 }}>{times.polarDay ? 'полярный день — солнце не заходит' : 'полярная ночь — солнце не восходит'}</Text>}
+                  </Flex>
+                </>;
+              })()}
             </Box>
           </Flex>
         </Card>
