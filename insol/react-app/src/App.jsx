@@ -57,6 +57,7 @@ export default function App() {
   const [selBld, setSelBld] = useState(-1);           // индекс выделенного объекта (для подсветки в списке)
   const [structsOpen, setStructsOpen] = useState(true);   // сворачивание групп списка объектов
   const [greensOpen, setGreensOpen] = useState(true);
+  const [showHeat, setShowHeat] = useState(false);        // GPU-теплокарта «часов солнца»
   const [showSetback, setShowSetback] = useState(true);   // показ линий отступов + ограничение застройки
   const [leftOpen, setLeftOpen] = useState(true);     // показ левой/правой панели (можно скрыть на узких экранах)
   const [rightOpen, setRightOpen] = useState(true);
@@ -341,7 +342,7 @@ ${roseSection}
         <MapView key={`${lat.toFixed(5)},${lon.toFixed(5)}`} polyText={polyText} buildings={buildings} onBuildings={pushAndSet} onSelect={setSelBld} selectBld={selBld} lat={lat} lon={lon} tz={tz} fenceH={fenceH}
           date={date} minutes={minutes} windDeg={windDeg} windOn={pro && windFlow} windSpd={windSpd}
           insolOn={showPlot || showWin} insolWalls={showWin} plotMarkers={showPlot ? plotReport.rows : []} reqH={reqH}
-          setbackOn={showSetback} embed />
+          setbackOn={showSetback} heatOn={pro && showHeat} embed />
 
         {/* кнопки скрытия боковых панелей: на панели, а после скрытия — заметная кнопка у края (surface: рамка+фон) */}
         {!mobile && <>
@@ -478,6 +479,19 @@ ${roseSection}
                 <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
                 <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#c0392b', display: 'inline-block' }} /><Text size="1" color="gray">ниже нормы</Text></Flex>
               </Flex>}
+            </Box>
+            <Box>
+              <Flex align="center" justify="between">
+                <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЧАСЫ СОЛНЦА (ТЕПЛОКАРТА)</Text>
+                <Switch checked={showHeat} onCheckedChange={v => { if (pro) setShowHeat(v); else openPaywall(); }} />
+              </Flex>
+              {showHeat && <>
+                <Flex align="center" gap="2" mt="1" style={{ height: 12, borderRadius: 6, overflow: 'hidden' }}>
+                  {Array.from({ length: 21 }, (_, i) => <span key={i} style={{ flex: 1, alignSelf: 'stretch', background: thermalColor(i / 20) }} />)}
+                </Flex>
+                <Flex justify="between"><Text size="1" color="gray">мало солнца</Text><Text size="1" color="gray">весь день</Text></Flex>
+                <Text size="1" color="gray">Учитывает тень от зданий, деревьев и забора на выбранную дату.</Text>
+              </>}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>

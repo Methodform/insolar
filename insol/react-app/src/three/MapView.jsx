@@ -6,6 +6,8 @@ import { sunPosition, compassAz, localToUTC } from '../engine/astronomy.js';
 import { buildStreamlines, windSpeedField, windColor, COMET_K, updateComet } from '../engine/windviz.js';
 import { fetchWindRose, fetchWindNow, prevailingDir } from '../engine/wind.js';
 import { placeCopyPts } from '../engine/place.js';
+import { computeSunHeatmap } from '../engine/sunheatmap.js';
+import { thermalColor } from '../engine/thermal.js';
 
 const MONTHS = ['Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'];
 
@@ -29,7 +31,7 @@ function pointInPoly(p, poly) {
   return c;
 }
 
-export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, selectBld = null, windSpd = 3, setbackOn = true, embed = false, onClose }) {
+export default function MapView({ polyText, buildings = [], onBuildings, lat, lon, tz = 4, fenceH = 0, date, minutes = 720, windDeg = 315, windOn = false, insolOn = false, insolWalls = false, plotMarkers = [], reqH = 2.5, onSelect, selectBld = null, windSpd = 3, setbackOn = true, heatOn = false, embed = false, onClose }) {
   const box = useRef(null);
   const labRef = useRef(null);   // HTML-оверлей для цифр размеров (всегда поверх и лицом к камере)
   const map = useRef(null);
@@ -91,6 +93,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
   useEffect(() => { const s = t3.current; s._setbackOn = setbackOn; if (s.buildSetback) s.buildSetback(); if (map.current) map.current.triggerRepaint(); }, [setbackOn]);   // отступы вкл/выкл
   useEffect(() => { const s = t3.current; if (s.selectExt && selectBld != null) s.selectExt(selectBld); }, [selectBld]);   // выбор объекта из списка левой панели
   useEffect(() => { const s = t3.current; if (!s.rebuildInsol) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildInsol(insolShow, yy, mmo, dda, plotMarkers, reqH, insolWalls); }, [insolShow, dstr, plotMarkers, reqH, insolWalls]);   // от времени суток (mins) инсоляция точек не зависит — не пересчитываем на каждый тик
+  useEffect(() => { const s = t3.current; if (!s.rebuildHeat) return; const [yy, mmo, dda] = dstr.split('-').map(Number); s.rebuildHeat(heatOn, yy, mmo, dda, fenceH); }, [heatOn, dstr, fenceH]);   // теплокарта «часов солнца» (пересчёт по объектам — в эффекте buildings ниже)
   // синхронизация с панелью приложения: новые объекты и высота забора → пересобрать на карте
   useEffect(() => {
     const s = t3.current; if (!s.rebuildObjects) return;
@@ -98,6 +101,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     s.rebuildObjects(); if (s.buildGizmo) s.buildGizmo();
     if (s._w && s._w.show) s.rebuildWind(s._w.show, s._w.wDeg, s._w.fh, s._w.spd);
     if (s._i && s._i.show) s.rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req, s._i.walls);
+    if (s._h && s._h.show) s.rebuildHeat(s._h.show, s._h.y, s._h.mo, s._h.da, s._h.fh);
   }, [buildings]);
   useEffect(() => {
     const s = t3.current; if (!s.buildFence) return;
@@ -225,13 +229,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const windGroup = new THREE.Group(); scene.add(windGroup);
         const insolGroup = new THREE.Group(); scene.add(insolGroup);
         const setbackGroup = new THREE.Group(); scene.add(setbackGroup);
+        const heatGroup = new THREE.Group(); scene.add(heatGroup);
         const dimsGroup = new THREE.Group(); scene.add(dimsGroup);
         const casterMat = new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false });
         const catcher = new THREE.Mesh(new THREE.PlaneGeometry(700, 700), new THREE.ShadowMaterial({ opacity: 0.5 }));
         catcher.rotation.x = -Math.PI / 2; catcher.receiveShadow = true; scene.add(catcher);
         const renderer = new THREE.WebGLRenderer({ canvas: mp.getCanvas(), context: gl, antialias: true });
         renderer.autoClear = false; renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;   // мягкие тени без VSM light-bleeding
-        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, dimsGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildDims, buildGizmo,
+        t3.current = { scene, camera, renderer, sun, amb, hemi, sunSphere, objGroup, fenceGroup, neigh, windGroup, insolGroup, setbackGroup, heatGroup, dimsGroup, casterMat, neighborData: [], flatCatcher: catcher, terrainCatcher: null, applyTerrain, rebuildWind, rebuildInsol, rebuildObjects, buildFence, buildSetback, buildDims, buildGizmo, rebuildHeat,
           selectExt: idx => { if (idx !== selIdx.v && idx >= -1 && idx < live.current.length) select(idx); } };
         buildFence(fenceH); rebuildObjects(); buildSetback(); buildDims(); applySun();
       },
@@ -602,6 +607,33 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           }
         }
       });
+      m.triggerRepaint();
+    }
+
+    // GPU-теплокарта «часов солнца» по участку: считаем долю освещённого времени за день (учёт зданий/деревьев/забора)
+    function rebuildHeat(show, y, mo, da, fh) {
+      const s = t3.current; s._h = { show, y, mo, da, fh }; const g = s.heatGroup; if (!g) return;
+      while (g.children.length) { const c = g.children.pop(); if (c.geometry) c.geometry.dispose(); if (c.material) { if (c.material.map) c.material.map.dispose(); c.material.dispose(); } }
+      if (!show || ring.length < 3) { m.triggerRepaint(); return; }
+      const plotLocal = plotLocRing();
+      const out = computeSunHeatmap({ buildings: live.current, fenceH: fh || 0, plotLocal, lat, lon, tz, y, mo, da, res: 256, stepMin: 15 });
+      if (!out || !out.vp) { m.triggerRepaint(); return; }
+      const { frac, res, vp } = out;
+      const rgba = new Uint8Array(res * res * 4);
+      for (let i = 0; i < frac.length; i++) {
+        const hex = thermalColor(frac[i]);
+        rgba[i * 4] = parseInt(hex.slice(1, 3), 16); rgba[i * 4 + 1] = parseInt(hex.slice(3, 5), 16); rgba[i * 4 + 2] = parseInt(hex.slice(5, 7), 16); rgba[i * 4 + 3] = 158;
+      }
+      const tex = new THREE.DataTexture(rgba, res, res, THREE.RGBAFormat); tex.needsUpdate = true; tex.magFilter = THREE.LinearFilter; tex.minFilter = THREE.LinearFilter; tex.flipY = false;
+      // земля = контур участка; UV каждой вершины проецируем той же VP-матрицей, что использовал расчёт
+      const shape = new THREE.Shape(); shape.moveTo(plotLocal[0][0], plotLocal[0][1]);
+      for (let i = 1; i < plotLocal.length; i++) shape.lineTo(plotLocal[i][0], plotLocal[i][1]); shape.closePath();
+      const sg = new THREE.ShapeGeometry(shape); const pos = sg.attributes.position, n = pos.count;
+      const wp = new Float32Array(n * 3), uv = new Float32Array(n * 2), vpm = new THREE.Matrix4().fromArray(vp), v = new THREE.Vector3();
+      for (let i = 0; i < n; i++) { const px = pos.getX(i), py = pos.getY(i), X = px, Z = -py; wp[i * 3] = X; wp[i * 3 + 1] = 0.08; wp[i * 3 + 2] = Z; v.set(X, 0, Z).applyMatrix4(vpm); uv[i * 2] = v.x * 0.5 + 0.5; uv[i * 2 + 1] = v.y * 0.5 + 0.5; }
+      const geo = new THREE.BufferGeometry(); geo.setAttribute('position', new THREE.BufferAttribute(wp, 3)); geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2)); if (sg.index) geo.setIndex(sg.index.clone());
+      sg.dispose();
+      const mesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, side: THREE.DoubleSide })); mesh.renderOrder = 5; g.add(mesh);
       m.triggerRepaint();
     }
 
