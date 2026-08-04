@@ -828,10 +828,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, uCol, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
       const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, vCol, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
       // кубы масштаба — на фиксированном расстоянии от центра гизмо (не привязаны к граням объекта → не разъезжаются при зуме)
-      const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
+      const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); return mm; };
       const sOff = 2.2 * gz;
       const slPos = lp3(c[0] + u[0] * sOff, c[1] + u[1] * sOff), swPos = lp3(c[0] + v[0] * sOff, c[1] + v[1] * sOff);
-      cube(on('sl') ? GRN : 0xffffff, slPos); cube(on('sw') ? GRN : 0x00e6d0, swPos);
+      const slCube = cube(on('sl') ? GRN : 0xffffff, slPos), swCube = cube(on('sw') ? GRN : 0x00e6d0, swPos);
       // вертикальная ручка высоты — фиксированный экранный размер над центром гизмо
       const hCol = on('ty') ? GRN : 0x9b6bff;
       const har = arrow(new THREE.Vector3(0, 1, 0), 2.4 * gz, hCol, gz); har.position.set(c[0], Y, -c[1]); group.add(har);
@@ -847,7 +847,25 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         { mode: 'tz', pts: [lp3(c[0] + v[0] * aL, c[1] + v[1] * aL)] },
         { mode: 'rot', pts: ringPts },
       ] };
-      if (map.current) map.current.triggerRepaint();   // перерисовать (в т.ч. подсветку по наведению)
+      giz.colorables = [                                        // меши для подсветки по наведению (без пересборки)
+        { mode: 'rot', base: 0xffc400, meshes: [ring] },
+        { mode: 'tx', base: 0xff2222, meshes: ar1.children.slice() },
+        { mode: 'tz', base: 0x2b7bff, meshes: ar2.children.slice() },
+        { mode: 'sl', base: 0xffffff, meshes: [slCube] },
+        { mode: 'sw', base: 0x00e6d0, meshes: [swCube] },
+        { mode: 'ty', base: 0x9b6bff, meshes: har.children.concat([tyCube]) },
+      ];
+      if (map.current) map.current.triggerRepaint();
+    }
+    // лёгкая подсветка наведённой/активной ручки — только меняем цвет материалов, гизмо не пересобираем
+    function applyHover(mode) {
+      if (!giz || !giz.colorables) return;
+      giz.colorables.forEach(cc => {
+        const green = mode === cc.mode || (mode === 'move' && (cc.mode === 'tx' || cc.mode === 'tz'));
+        const hex = green ? 0x22c55e : cc.base;
+        cc.meshes.forEach(msh => { if (msh.material && msh.material.color) msh.material.color.setHex(hex); });
+      });
+      if (map.current) map.current.triggerRepaint();
     }
     function select(idx) { selIdx.v = idx; rebuildObjects(); buildGizmo(); if (onSelect) onSelect(idx); }
 
@@ -893,7 +911,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const px = e.point.x, py = e.point.y;
         const hm = selIdx.v >= 0 ? pickHandle(px, py) : null;
         m.getCanvas().style.cursor = hm ? 'grab' : (hitTest(toLocal(e.lngLat)) >= 0 ? 'grab' : '');
-        if (hm !== hoverMode) { hoverMode = hm; if (selIdx.v >= 0) buildGizmo(); }   // подсветка наведённой ручки
+        if (hm !== hoverMode) { hoverMode = hm; applyHover(hm); }   // подсветка наведённой ручки (без пересборки)
         return;
       }
       const lp = toLocal(e.lngLat), o = drag.orig;
