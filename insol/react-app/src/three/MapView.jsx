@@ -799,8 +799,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     function gizScale() { const z = map.current ? map.current.getZoom() : 18.5; const mpp = 156543.03392 * Math.cos((lat || 0) * Math.PI / 180) / Math.pow(2, z); return mpp * 19; }
     function arrow(dir, len, color, sc = 1) {
       const g = new THREE.Group();
-      const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * sc, 0.18 * sc, len, 10), gmat(color)); sh.position.y = len / 2; sh.renderOrder = 999;
-      const tp = new THREE.Mesh(new THREE.ConeGeometry(0.5 * sc, 1.1 * sc, 14), gmat(color)); tp.position.y = len + 0.55 * sc; tp.renderOrder = 999;
+      const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.06 * sc, 0.06 * sc, len, 10), gmat(color)); sh.position.y = len / 2; sh.renderOrder = 999;
+      const tp = new THREE.Mesh(new THREE.ConeGeometry(0.17 * sc, 0.37 * sc, 14), gmat(color)); tp.position.y = len + 0.185 * sc; tp.renderOrder = 999;
       g.add(sh, tp); g.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.clone().normalize()); return g;
     }
     function buildGizmo() {
@@ -813,23 +813,23 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       let hu = 1, hv = 1; pts.forEach(p => { hu = Math.max(hu, Math.abs((p[0] - c[0]) * u[0] + (p[1] - c[1]) * u[1])); hv = Math.max(hv, Math.abs((p[0] - c[0]) * v[0] + (p[1] - c[1]) * v[1])); });
       const group = new THREE.Group(); const Y = 0.4;
       const gz = gizScale();                                    // масштаб элементов по зуму (постоянный экранный размер)
-      const cs = 1.3 * gz;                                      // размер кубов масштаба
+      const cs = 0.44 * gz;                                     // размер кубов масштаба (÷3)
       const lp3 = (e2, n2, y = Y) => [e2, y, -n2];               // [восток,север] → локальные 3D
       // кольцо поворота — фиксированный экранный размер (не зависит от габаритов объекта)
       const Rr = 3.2 * gz;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.16 * gz, 8, 52), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.053 * gz, 8, 64), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
       // стрелки перемещения (красная вдоль длины, синяя поперёк)
       const aL = 4.2 * gz;
       const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, 0xff2222, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
       const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, 0x2b7bff, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
-      // кубы масштаба
+      // кубы масштаба — на фиксированном расстоянии от центра гизмо (не привязаны к граням объекта → не разъезжаются при зуме)
       const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
-      const slPos = lp3(c[0] + u[0] * (hu + cs), c[1] + u[1] * (hu + cs)), swPos = lp3(c[0] + v[0] * (hv + cs), c[1] + v[1] * (hv + cs));
+      const sOff = 2.2 * gz;
+      const slPos = lp3(c[0] + u[0] * sOff, c[1] + u[1] * sOff), swPos = lp3(c[0] + v[0] * sOff, c[1] + v[1] * sOff);
       cube(0xffffff, slPos); cube(0x00e6d0, swPos);
-      // вертикальная ручка высоты (над зданием)
-      const topY = (b.height || 3) + (b.roofH || 0) + 1;
-      const har = arrow(new THREE.Vector3(0, 1, 0), 2.4 * gz, 0x9b6bff, gz); har.position.set(c[0], topY, -c[1]); group.add(har);
-      const tyPos = [c[0], topY + 3 * gz, -c[1]];
+      // вертикальная ручка высоты — фиксированный экранный размер над центром гизмо
+      const har = arrow(new THREE.Vector3(0, 1, 0), 2.4 * gz, 0x9b6bff, gz); har.position.set(c[0], Y, -c[1]); group.add(har);
+      const tyPos = [c[0], Y + 3.0 * gz, -c[1]];
       const tyCube = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(0x9b6bff)); tyCube.position.set(tyPos[0], tyPos[1], tyPos[2]); tyCube.renderOrder = 999; group.add(tyCube);
       s.scene.add(group);
       // точки для попадания по экрану
