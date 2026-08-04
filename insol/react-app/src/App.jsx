@@ -60,11 +60,11 @@ function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked 
   return (
     <Popover.Root open={open} onOpenChange={o => { if (o && disabled) { onBlocked && onBlocked(); return; } setOpen(o); }}>
       <Popover.Trigger>
-        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: 140, justifyContent: 'center' }}>
+        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: 140, justifyContent: 'center', padding: 0 }}>
           <CalendarIcon /> {label}
         </Button>
       </Popover.Trigger>
-      <Popover.Content side="top" align="start" sideOffset={8} style={{ width: 262, padding: '12px 0' }}>
+      <Popover.Content side="top" align="start" sideOffset={8} style={{ width: 262 }}>
         <Flex align="center" justify="between" mb="2">
           <IconButton variant="soft" color="gray" size="1" onClick={() => shift(-1)}><ChevronLeftIcon /></IconButton>
           <Text size="2" weight="medium">{MON_RU[view.m]} {view.y}</Text>
