@@ -485,7 +485,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           bakeShade(walls, col);                                 // затенение граней как у карты
           // двускатная крыша на том же принципе затенения, что стены; высота конька 2 м
           const rh = b.roofH != null ? b.roofH : (kind === 'house' ? 2 : kind === 'bath' ? 1.4 : 0);
-          if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { bakeShade(roof, hl ? 0xa9c6f5 : roofC); group.add(roof); } }
+          if (pts.length === 4 && rh > 0) { const roof = gableRoof(pts, H, rh, roofMat, b); if (roof) { roof.traverse(o => { if (o.isMesh) bakeShade(o, hl ? 0xa9c6f5 : (o.userData.part === 'gable' ? col : roofC)); }); group.add(roof); } }
         }
         // подпись габаритов над строением: ширина×длина → HTML-оверлей (виден в живом виде; на скриншот не попадает)
         { const fn = x => (Math.round(x * 10) / 10).toString().replace('.', ',');
@@ -506,19 +506,23 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       let R1, R2, slopes, gables;
       if (alongA) { R1 = mid(pts[1], pts[2]); R2 = mid(pts[3], pts[0]); slopes = [[pts[0], pts[1], R1, R2], [pts[2], pts[3], R2, R1]]; gables = [[pts[1], pts[2], R1], [pts[3], pts[0], R2]]; }
       else { R1 = mid(pts[0], pts[1]); R2 = mid(pts[2], pts[3]); slopes = [[pts[1], pts[2], R2, R1], [pts[3], pts[0], R1, R2]]; gables = [[pts[0], pts[1], R1], [pts[2], pts[3], R2]]; }
-      const top = base + rh, pos = [], uv = [], isR = p => p === R1 || p === R2, RIB = 0.32;
-      const V = (p, u, v) => { pos.push(p[0], isR(p) ? top : base, -p[1]); uv.push(u, v); };
-      slopes.forEach(q => {                                   // q0,q1 — карниз; q2,q3 — конёк. UV: рёбра поперёк ширины, вдоль ската
-        const W = d(q[0], q[1]) / RIB;
-        V(q[0], 0, 0); V(q[1], W, 0); V(q[2], W, 1);
-        V(q[0], 0, 0); V(q[2], W, 1); V(q[3], 0, 1);
-      });
-      gables.forEach(g => { V(g[0], 0, 0); V(g[1], 0, 0); V(g[2], 0, 0); });   // фронтоны без рёбер
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-      geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-      geo.computeVertexNormals();
-      const mesh = new THREE.Mesh(geo, mat); mesh.castShadow = true; mesh.receiveShadow = true; return mesh;
+      const top = base + rh, isR = p => p === R1 || p === R2, RIB = 0.32;
+      // СКАТЫ (цвет кровли, с текстурой рёбер)
+      const sp = [], su = [], SV = (p, u, v) => { sp.push(p[0], isR(p) ? top : base, -p[1]); su.push(u, v); };
+      slopes.forEach(q => { const W = d(q[0], q[1]) / RIB; SV(q[0], 0, 0); SV(q[1], W, 0); SV(q[2], W, 1); SV(q[0], 0, 0); SV(q[2], W, 1); SV(q[3], 0, 1); });
+      const slopeGeo = new THREE.BufferGeometry();
+      slopeGeo.setAttribute('position', new THREE.Float32BufferAttribute(sp, 3));
+      slopeGeo.setAttribute('uv', new THREE.Float32BufferAttribute(su, 2));
+      slopeGeo.computeVertexNormals();
+      const slopeMesh = new THREE.Mesh(slopeGeo, mat); slopeMesh.castShadow = true; slopeMesh.receiveShadow = true; slopeMesh.userData.part = 'slope';
+      // ФРОНТОНЫ — вертикальные треугольники, красим как стены (отдельный меш, без текстуры кровли)
+      const gp = [], GV = p => gp.push(p[0], isR(p) ? top : base, -p[1]);
+      gables.forEach(g => { GV(g[0]); GV(g[1]); GV(g[2]); });
+      const gableGeo = new THREE.BufferGeometry();
+      gableGeo.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3));
+      gableGeo.computeVertexNormals();
+      const gableMesh = new THREE.Mesh(gableGeo, flatShadowMat({ side: THREE.DoubleSide })); gableMesh.castShadow = true; gableMesh.receiveShadow = true; gableMesh.userData.part = 'gable';
+      const grp = new THREE.Group(); grp.add(slopeMesh); grp.add(gableMesh); return grp;
     }
 
     // поток ветра (линии тока + зоны затишья/продувания) с учётом забора и соседей
