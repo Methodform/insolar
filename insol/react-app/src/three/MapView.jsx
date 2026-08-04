@@ -817,23 +817,26 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const lp3 = (e2, n2, y = Y) => [e2, y, -n2];               // [восток,север] → локальные 3D
       // кольцо поворота — фиксированный экранный размер (не зависит от габаритов объекта)
       const Rr = 2.24 * gz;
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.053 * gz, 8, 64), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
+      // активная (перетаскиваемая) или наведённая ручка — подсветка зелёным
+      const hi = (drag && drag.idx === i) ? drag.mode : hoverMode;
+      const GRN = 0x22c55e, on = k => hi === k;
+      const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.053 * gz, 8, 64), gmat(on('rot') ? GRN : 0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
       // стрелки перемещения (красная вдоль длины, синяя поперёк)
       const aL = 2.94 * gz;
-      const dm = (drag && drag.idx === i) ? drag.mode : null;   // активный режим переноса — подсветка зелёным
-      const uCol = (dm === 'tx' || dm === 'move') ? 0x22c55e : 0xff2222;
-      const vCol = (dm === 'tz' || dm === 'move') ? 0x22c55e : 0x2b7bff;
+      const uCol = (on('tx') || on('move')) ? GRN : 0xff2222;
+      const vCol = (on('tz') || on('move')) ? GRN : 0x2b7bff;
       const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, uCol, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
       const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, vCol, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
       // кубы масштаба — на фиксированном расстоянии от центра гизмо (не привязаны к граням объекта → не разъезжаются при зуме)
       const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
       const sOff = 2.2 * gz;
       const slPos = lp3(c[0] + u[0] * sOff, c[1] + u[1] * sOff), swPos = lp3(c[0] + v[0] * sOff, c[1] + v[1] * sOff);
-      cube(0xffffff, slPos); cube(0x00e6d0, swPos);
+      cube(on('sl') ? GRN : 0xffffff, slPos); cube(on('sw') ? GRN : 0x00e6d0, swPos);
       // вертикальная ручка высоты — фиксированный экранный размер над центром гизмо
-      const har = arrow(new THREE.Vector3(0, 1, 0), 2.4 * gz, 0x9b6bff, gz); har.position.set(c[0], Y, -c[1]); group.add(har);
+      const hCol = on('ty') ? GRN : 0x9b6bff;
+      const har = arrow(new THREE.Vector3(0, 1, 0), 2.4 * gz, hCol, gz); har.position.set(c[0], Y, -c[1]); group.add(har);
       const tyPos = [c[0], Y + 3.0 * gz, -c[1]];
-      const tyCube = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(0x9b6bff)); tyCube.position.set(tyPos[0], tyPos[1], tyPos[2]); tyCube.renderOrder = 999; group.add(tyCube);
+      const tyCube = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(hCol)); tyCube.position.set(tyPos[0], tyPos[1], tyPos[2]); tyCube.renderOrder = 999; group.add(tyCube);
       s.scene.add(group);
       // точки для попадания по экрану
       const ringPts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) ringPts.push(lp3(c[0] + Rr * Math.cos(a), c[1] + Rr * Math.sin(a)));
@@ -871,7 +874,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       } else { bb.pts = o.map(p => p.slice()); }
     }
 
-    let drag = null;
+    let drag = null, hoverMode = null;
     const onDown = e => {
       if (drag) return;                                       // уже тащим (страховка от синтетических событий)
       const px = e.point.x, py = e.point.y, lp = toLocal(e.lngLat);
@@ -885,7 +888,13 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       m.dragPan.disable(); m.getCanvas().style.cursor = 'grabbing'; e.preventDefault();
     };
     const onMove = e => {
-      if (!drag) { const px = e.point.x, py = e.point.y; m.getCanvas().style.cursor = (selIdx.v >= 0 && pickHandle(px, py)) ? 'grab' : (hitTest(toLocal(e.lngLat)) >= 0 ? 'grab' : ''); return; }
+      if (!drag) {
+        const px = e.point.x, py = e.point.y;
+        const hm = selIdx.v >= 0 ? pickHandle(px, py) : null;
+        m.getCanvas().style.cursor = hm ? 'grab' : (hitTest(toLocal(e.lngLat)) >= 0 ? 'grab' : '');
+        if (hm !== hoverMode) { hoverMode = hm; if (selIdx.v >= 0) buildGizmo(); }   // подсветка наведённой ручки
+        return;
+      }
       const lp = toLocal(e.lngLat), o = drag.orig;
       if (drag.mode === 'move') { const dx = lp[0] - drag.start[0], dy = lp[1] - drag.start[1]; live.current[drag.idx].pts = o.map(p => [p[0] + dx, p[1] + dy]); }
       else if (drag.mode === 'tx' || drag.mode === 'tz') { const ax = drag.mode === 'tx' ? drag.u : drag.v; const t = (lp[0] - drag.start[0]) * ax[0] + (lp[1] - drag.start[1]) * ax[1]; live.current[drag.idx].pts = o.map(p => [p[0] + ax[0] * t, p[1] + ax[1] * t]); }
