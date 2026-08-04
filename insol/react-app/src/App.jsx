@@ -861,10 +861,10 @@ ${roseSection}
                 const cur = Math.min(sunSet, Math.max(sunRise, minutes));
                 return <>
                   <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
-                  <Flex align="center" justify="between" style={{ marginBottom: 2 }}>
-                    <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Восход</span> {hhmm(sunRise)}</Text>
+                  <Flex align="center" justify={mobile ? 'center' : 'between'} style={{ marginBottom: 2 }}>
+                    {!mobile && <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Восход</span> {hhmm(sunRise)}</Text>}
                     <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}>{hhmm(cur)}</Text>
-                    <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Закат</span> {hhmm(sunSet)}</Text>
+                    {!mobile && <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Закат</span> {hhmm(sunSet)}</Text>}
                   </Flex>
                   <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#f7a83e,#ffe08a,#ffcf6a,#ffe08a,#f7a83e)' }} />
