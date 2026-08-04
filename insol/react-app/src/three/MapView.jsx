@@ -795,7 +795,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
     // масштаб гизмо от зума карты (постоянный экранный размер элементов); 1 при zoom 18.5
-    function gizScale() { const z = map.current ? map.current.getZoom() : 18.5; return Math.max(0.4, Math.min(3, Math.pow(2, 18.5 - z))); }
+    function gizScale() { const z = map.current ? map.current.getZoom() : 18.5; return Math.max(0.03, Math.min(60, Math.pow(2, 18.5 - z))); }   // постоянный экранный размер на всех зумах
     function arrow(dir, len, color, sc = 1) {
       const g = new THREE.Group();
       const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * sc, 0.18 * sc, len, 10), gmat(color)); sh.position.y = len / 2; sh.renderOrder = 999;
@@ -811,14 +811,14 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const v = [-u[1], u[0]];
       let hu = 1, hv = 1; pts.forEach(p => { hu = Math.max(hu, Math.abs((p[0] - c[0]) * u[0] + (p[1] - c[1]) * u[1])); hv = Math.max(hv, Math.abs((p[0] - c[0]) * v[0] + (p[1] - c[1]) * v[1])); });
       const group = new THREE.Group(); const Y = 0.4;
-      const gz = gizScale();                                    // масштаб элементов по зуму (постоянный экранный размер)
-      const cs = 1.3 * gz;                                      // размер кубов масштаба
+      const gz = gizScale() * 0.85;                             // компактнее на 15%
+      const cs = 1.2 * gz;                                      // размер кубов масштаба
       const lp3 = (e2, n2, y = Y) => [e2, y, -n2];               // [восток,север] → локальные 3D
-      // кольцо поворота
-      const Rr = ext + 1.7 * gz;
+      // кольцо поворота — компактное, постоянного экранного размера (не растёт с габаритами объекта)
+      const Rr = 2.8 * gz;
       const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.16 * gz, 8, 52), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
       // стрелки перемещения (красная вдоль длины, синяя поперёк)
-      const aL = ext + 2 * gz;
+      const aL = 3.7 * gz;
       const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, 0xff2222, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
       const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, 0x2b7bff, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
       // кубы масштаба
