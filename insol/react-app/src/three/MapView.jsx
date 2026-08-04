@@ -816,10 +816,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const cs = 0.44 * gz;                                     // размер кубов масштаба (÷3)
       const lp3 = (e2, n2, y = Y) => [e2, y, -n2];               // [восток,север] → локальные 3D
       // кольцо поворота — фиксированный экранный размер (не зависит от габаритов объекта)
-      const Rr = 3.2 * gz;
+      const Rr = 2.24 * gz;
       const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.053 * gz, 8, 64), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
       // стрелки перемещения (красная вдоль длины, синяя поперёк)
-      const aL = 4.2 * gz;
+      const aL = 2.94 * gz;
       const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, 0xff2222, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
       const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, 0x2b7bff, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
       // кубы масштаба — на фиксированном расстоянии от центра гизмо (не привязаны к граням объекта → не разъезжаются при зуме)
