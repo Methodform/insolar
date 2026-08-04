@@ -795,7 +795,8 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
     // масштаб гизмо от зума карты (постоянный экранный размер элементов); 1 при zoom 18.5
-    function gizScale() { const z = map.current ? map.current.getZoom() : 18.5; return Math.max(0.03, Math.min(60, Math.pow(2, 18.5 - z))); }   // фиксированный экранный размер на всех зумах
+    // экранный масштаб гизмо: метры-на-пиксель × k, чтобы весь виджет вписывался в ~160px на любом зуме
+    function gizScale() { const z = map.current ? map.current.getZoom() : 18.5; const mpp = 156543.03392 * Math.cos((lat || 0) * Math.PI / 180) / Math.pow(2, z); return mpp * 19; }
     function arrow(dir, len, color, sc = 1) {
       const g = new THREE.Group();
       const sh = new THREE.Mesh(new THREE.CylinderGeometry(0.18 * sc, 0.18 * sc, len, 10), gmat(color)); sh.position.y = len / 2; sh.renderOrder = 999;
