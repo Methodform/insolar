@@ -187,6 +187,8 @@ export default function App() {
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
   const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 1120px)').matches);
   useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(max-width: 1120px)'); const h = e => setMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
+  const [phone, setPhone] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 480px)').matches);   // ≤480 — полноэкранная «шторка»; 481–1120 — модалка
+  useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(max-width: 480px)'); const h = e => setPhone(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
   const [panel, setPanel] = useState(null);  // мобильная шторка: 'plot' | 'sun' | null
   const [plotMode, setPlotMode] = useState('points');
   const [cadCode, setCadCode] = useState('');
@@ -380,15 +382,18 @@ ${roseSection}
     </Flex>
   );
 
-  const sheetPos = { position: 'fixed', top: 52, left: 0, right: 0, bottom: 56, zIndex: 20, background: 'var(--color-panel-solid)', borderRadius: 0, boxShadow: 'none' };
+  const sheetPos = { position: 'fixed', top: 52, left: 0, right: 0, bottom: 56, zIndex: 24, background: 'var(--color-panel-solid)', borderRadius: 0, boxShadow: 'none' };
+  // 481–1120 px — центрированная модалка 340px с невидимым внутренним скроллом; ≤480 — полноэкранная шторка
+  const modalPos = { position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: 340, maxWidth: '92vw', maxHeight: '82vh', zIndex: 24, background: 'var(--color-panel-solid)', borderRadius: 14, boxShadow: '0 12px 48px rgba(0,0,0,.30)' };
+  const panelBase = phone ? sheetPos : modalPos;
   const leftCardStyle = mobile
-    ? { ...sheetPos, overflowY: 'auto', display: panel === 'plot' ? 'block' : 'none' }
+    ? { ...panelBase, overflowY: 'auto', scrollbarWidth: 'none', display: panel === 'plot' ? 'block' : 'none' }
     : { position: 'absolute', left: 16, top: 64, bottom: 20, width: 320, zIndex: 20, overflowY: 'auto', background: 'var(--color-panel-solid)', display: leftOpen ? 'block' : 'none' };
   const rightCardStyle = mobile
-    ? { ...sheetPos, display: panel === 'sun' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }
+    ? { ...panelBase, display: panel === 'sun' ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' }
     : { position: 'absolute', right: 16, top: 64, bottom: 20, width: 300, zIndex: 20, background: 'var(--color-panel-solid)', display: rightOpen ? 'flex' : 'none', flexDirection: 'column', overflow: 'hidden' };
-  const recCardStyle = { ...sheetPos, overflowY: 'auto', display: panel === 'rec' ? 'block' : 'none' };
-  const profCardStyle = { ...sheetPos, overflowY: 'auto', display: panel === 'profile' ? 'block' : 'none' };
+  const recCardStyle = { ...panelBase, overflowY: 'auto', scrollbarWidth: 'none', display: panel === 'rec' ? 'block' : 'none' };
+  const profCardStyle = { ...panelBase, overflowY: 'auto', scrollbarWidth: 'none', display: panel === 'profile' ? 'block' : 'none' };
   const timebarStyle = mobile
     ? { position: 'fixed', left: 8, right: 8, bottom: 62, zIndex: 20, background: 'var(--color-panel-solid)', display: panel ? 'none' : 'block' }
     : { position: 'absolute', left: leftOpen ? 360 : 12, right: rightOpen ? 340 : 12, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' };
@@ -877,6 +882,10 @@ ${roseSection}
             </Box>
           </Flex>
         </Card>
+
+        {/* затемнение позади модалки-панели (мобильные >480px) — клик закрывает */}
+        <style>{`.panel-card::-webkit-scrollbar{display:none}`}</style>
+        {mobile && !phone && panel && <Box onClick={() => setPanel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 23 }} />}
 
         {/* мобильная нижняя панель вкладок */}
         {mobile && (
