@@ -60,7 +60,7 @@ function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked 
   return (
     <Popover.Root open={open} onOpenChange={o => { if (o && disabled) { onBlocked && onBlocked(); return; } setOpen(o); }}>
       <Popover.Trigger>
-        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: 140, justifyContent: 'center', padding: 0 }}>
+        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: 116, justifyContent: 'center', padding: 0 }}>
           <CalendarIcon /> {label}
         </Button>
       </Popover.Trigger>
@@ -515,7 +515,7 @@ ${roseSection}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА</Text>
-              <Flex direction="column" gap="2" mt="2">
+              <Flex direction="column" gap="3" mt="2">
                 <Box>
                   <Flex align="center" justify="between">
                     <Text size="2">Отступы от границ</Text>
