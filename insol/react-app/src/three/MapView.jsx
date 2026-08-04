@@ -847,6 +847,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         { mode: 'tz', pts: [lp3(c[0] + v[0] * aL, c[1] + v[1] * aL)] },
         { mode: 'rot', pts: ringPts },
       ] };
+      if (map.current) map.current.triggerRepaint();   // перерисовать (в т.ч. подсветку по наведению)
     }
     function select(idx) { selIdx.v = idx; rebuildObjects(); buildGizmo(); if (onSelect) onSelect(idx); }
 
