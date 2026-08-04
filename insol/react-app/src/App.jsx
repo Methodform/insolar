@@ -189,6 +189,9 @@ export default function App() {
   useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(max-width: 1120px)'); const h = e => setMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
   const [phone, setPhone] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 480px)').matches);   // ≤480 — полноэкранная «шторка»; 481–1120 — модалка
   useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(max-width: 480px)'); const h = e => setPhone(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
+  const [welcome, setWelcome] = useState(false);   // подсказка по управлению (жесты) — на мобильных, один раз
+  useEffect(() => { try { if (mobile && !localStorage.getItem('sp_help_seen')) setWelcome(true); } catch (e) {} }, [mobile]);
+  const closeWelcome = () => { setWelcome(false); try { localStorage.setItem('sp_help_seen', '1'); } catch (e) {} };
   const [panel, setPanel] = useState(null);  // мобильная шторка: 'plot' | 'sun' | null
   const [plotMode, setPlotMode] = useState('points');
   const [cadCode, setCadCode] = useState('');
@@ -882,6 +885,27 @@ ${roseSection}
             </Box>
           </Flex>
         </Card>
+
+        {/* приветственная подсказка по управлению (мобильные, один раз) */}
+        <Dialog.Root open={welcome} onOpenChange={o => { if (!o) closeWelcome(); }}>
+          <Dialog.Content maxWidth="360px" style={{ overflow: 'hidden', padding: 0 }}>
+            <Box style={{ background: 'linear-gradient(180deg,#ffd24d,#ffe9b0 55%,transparent)', padding: '26px 24px 6px', textAlign: 'center', fontSize: 42 }}>☀️</Box>
+            <Box style={{ padding: '0 22px 22px', textAlign: 'center' }}>
+              <Dialog.Title style={{ marginBottom: 4 }}>Добро пожаловать!</Dialog.Title>
+              <Text size="2" color="gray" style={{ display: 'block', marginBottom: 16 }}>Смотрите солнце и тени в 3D на своём участке. Управление — жестами:</Text>
+              <Flex justify="between" gap="2" mb="4">
+                {[['👆', 'Один палец', 'двигать карту'], ['✌️', 'Два пальца', 'поворот и наклон'], ['🤏', 'Щипок', 'приблизить / отдалить']].map(([ic, t, d]) => (
+                  <Box key={t} style={{ flex: 1 }}>
+                    <div style={{ fontSize: 28, lineHeight: 1.1 }}>{ic}</div>
+                    <Text size="2" weight="bold" style={{ display: 'block' }}>{t}</Text>
+                    <Text size="1" color="gray" style={{ display: 'block' }}>{d}</Text>
+                  </Box>
+                ))}
+              </Flex>
+              <Button size="3" style={{ width: '100%' }} onClick={closeWelcome}>Понятно!</Button>
+            </Box>
+          </Dialog.Content>
+        </Dialog.Root>
 
         {/* затемнение позади модалки-панели (мобильные >480px) — клик закрывает */}
         <style>{`.panel-card::-webkit-scrollbar{display:none}`}</style>
