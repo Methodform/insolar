@@ -4,12 +4,13 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon,
-  DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon } from '@radix-ui/react-icons';
+  DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon, CounterClockwiseClockIcon } from '@radix-ui/react-icons';
 import { thermalColor, sunHoursColor } from './engine/thermal.js';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
+import WeatherWidget from './three/WeatherWidget.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow, meanDir } from './engine/wind.js';
 import { placeCopyPts } from './engine/place.js';
 import { windRoseReport } from './engine/windRoseSvg.js';
@@ -321,7 +322,7 @@ ${roseSection}
     const k = buildings.length; cx += ux * k * 2; cy += uy * k * 2;
     const hw = w / 2, hd = d / 2;
     const corners = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]].map(([ex, ey]) => [cx + ux * ex + vx * ey, cy + uy * ex + vy * ey]);
-    const roofByKind = { house: 2, bath: 2, gazebo: 1.6, canopy: 0.3, tree: 0, bush: 0, bed: 0 };  // дом: этаж 3 м + конёк 2 м
+    const roofByKind = { house: 2, bath: 2, gazebo: 1.6, canopy: 0.3, tree: 0, bush: 0, bed: 0, box: 0 };  // дом: этаж 3 м + конёк 2 м; куб — без крыши
     const roofH = roofByKind[kind] !== undefined ? roofByKind[kind] : 1.5;
     pushAndSet(bs => [...bs, { kind, pts: corners, height: h, roofH, name }]);
   }
@@ -403,11 +404,11 @@ ${roseSection}
         {/* кнопки скрытия боковых панелей: на панели, а после скрытия — заметная кнопка у края (surface: рамка+фон) */}
         {!mobile && <>
           <IconButton variant="surface" color="gray" highContrast onClick={() => setLeftOpen(v => !v)} title={leftOpen ? 'Скрыть левую панель' : 'Показать левую панель'}
-            style={{ position: 'absolute', top: 72, left: leftOpen ? 300 : 8, zIndex: 22, background: 'var(--color-panel-solid)', boxShadow: '0 1px 4px var(--black-a5)', transition: 'left .2s' }}>
+            style={{ position: 'absolute', top: 72, left: leftOpen ? 344 : 8, zIndex: 22, background: 'var(--color-panel-solid)', boxShadow: '0 1px 4px var(--black-a5)', transition: 'left .2s' }}>
             {leftOpen ? <DoubleArrowLeftIcon /> : <DoubleArrowRightIcon />}
           </IconButton>
           <IconButton variant="surface" color="gray" highContrast onClick={() => setRightOpen(v => !v)} title={rightOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
-            style={{ position: 'absolute', top: 72, right: rightOpen ? 280 : 8, zIndex: 22, background: 'var(--color-panel-solid)', boxShadow: '0 1px 4px var(--black-a5)', transition: 'right .2s' }}>
+            style={{ position: 'absolute', top: 72, right: rightOpen ? 324 : 8, zIndex: 22, background: 'var(--color-panel-solid)', boxShadow: '0 1px 4px var(--black-a5)', transition: 'right .2s' }}>
             {rightOpen ? <DoubleArrowRightIcon /> : <DoubleArrowLeftIcon />}
           </IconButton>
         </>}
@@ -496,7 +497,7 @@ ${roseSection}
                     <Select.Item value="custom">Свой размер</Select.Item>
                   </Select.Content>
                 </Select.Root>
-                {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="выс., м" style={{ width: 100 }} />}
+                {fence === 'custom' && pro && <TextField.Root type="number" step="0.1" value={fenceCustom} onChange={e => setFenceCustom(e.target.value)} placeholder="1,8" style={{ width: 74 }}><TextField.Slot side="right">м</TextField.Slot></TextField.Root>}
               </Flex>
             </Box>
             <Box>
@@ -547,6 +548,7 @@ ${roseSection}
                     <Select.Item value="bath|Баня 4×6|4,6,3">Баня 4×6 м</Select.Item>
                     <Select.Item value="gazebo|Беседка 3×4|3,4,2.4">Беседка 3×4 м</Select.Item>
                     <Select.Item value="canopy|Навес 3×5|3,5,2.4">Навес 3×5 м</Select.Item>
+                    <Select.Item value="box|Куб|2,2,2">Куб (регулируемый)</Select.Item>
                   </Select.Group>
                   <Select.Group>
                     <Select.Label>Озеленение</Select.Label>
@@ -615,7 +617,9 @@ ${roseSection}
         <Card size="2" className="panel-card" style={rightCardStyle}>
           <Box style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
           <Flex direction="column" gap="2">
-            <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
+            <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ПОГОДА НА ДАТУ</Text>
+            <WeatherWidget lat={lat} lon={lon} date={date} />
+            <Text size="1" color="gray" weight="medium" mt="2" style={{ letterSpacing: '.08em' }}>ДИАГРАММА ПУТИ СОЛНЦА</Text>
             <div id="sunpath-cap"><SunPath year={y} mo={mo} da={da} tz={tz} lat={lat} lon={lon} curAz={azDeg} curAlt={altDeg} poly={poly} /></div>
             <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em' }}>ПОЛОЖЕНИЕ СЕЙЧАС</Text>
             <Stat k="Азимут" v={azDeg.toFixed(1) + '°'} />
@@ -843,27 +847,28 @@ ${roseSection}
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '3'}>
+            <IconButton variant="soft" color="gray" title="Текущие дата и время"
+              onClick={() => { const loc = new Date(Date.now() + tz * 3600000); const p = n => String(n).padStart(2, '0'); setPlaying(false); setDate(`${loc.getUTCFullYear()}-${p(loc.getUTCMonth() + 1)}-${p(loc.getUTCDate())}`); setMinutes(loc.getUTCHours() * 60 + loc.getUTCMinutes()); }}>
+              <CounterClockwiseClockIcon />
+            </IconButton>
             <DateTimePicker date={date} minutes={minutes} disabled={false}
               onDate={d => setDate(d)} onMinutes={mn => { setPlaying(false); setMinutes(mn); }} />
-            <Box style={{ flex: 1 }}>
-              {(() => {
-                const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
-                const hasDay = sunRise != null && sunSet != null && sunSet > sunRise;
-                if (!hasDay) return <Text color="gray" align="center" style={{ fontSize: 12, display: 'block', padding: '6px 0' }}>{times.polarDay ? 'Полярный день — солнце не заходит' : 'Полярная ночь — солнце не восходит'}</Text>;
-                const cur = Math.min(sunSet, Math.max(sunRise, minutes));
-                return <>
-                  <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
-                  <Flex justify="between" style={{ marginBottom: 2 }}>
-                    <Text style={{ fontSize: 11 }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Восход</span> {hhmm(sunRise)}</Text>
-                    <Text style={{ fontSize: 11 }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Закат</span> {hhmm(sunSet)}</Text>
-                  </Flex>
-                  <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#f7a83e,#ffe08a,#ffcf6a,#ffe08a,#f7a83e)' }} />
-                    <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[cur]} min={sunRise} max={sunSet} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
-                  </Box>
-                </>;
-              })()}
-            </Box>
+            {(() => {
+              const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+              const hasDay = sunRise != null && sunSet != null && sunSet > sunRise;
+              if (!hasDay) return <Text color="gray" align="center" style={{ flex: 1, fontSize: 12 }}>{times.polarDay ? 'Полярный день — солнце не заходит' : 'Полярная ночь — солнце не восходит'}</Text>;
+              const cur = Math.min(sunSet, Math.max(sunRise, minutes));
+              return <>
+                <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
+                <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Восход</span> {hhmm(sunRise)}</Text>
+                <Box style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
+                  <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#f7a83e,#ffe08a,#ffcf6a,#ffe08a,#f7a83e)' }} />
+                  <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[cur]} min={sunRise} max={sunSet} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
+                  <Text style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: -16, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{hhmm(cur)}</Text>
+                </Box>
+                <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Закат</span> {hhmm(sunSet)}</Text>
+              </>;
+            })()}
           </Flex>
         </Card>
 

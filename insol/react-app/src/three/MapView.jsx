@@ -883,7 +883,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       else if (drag.mode === 'sl' || drag.mode === 'sw') { const ax = drag.mode === 'sl' ? drag.u : drag.v;
         const pS = (drag.start[0] - drag.c[0]) * ax[0] + (drag.start[1] - drag.c[1]) * ax[1], pN = (lp[0] - drag.c[0]) * ax[0] + (lp[1] - drag.c[1]) * ax[1];
         const f = Math.max(0.2, Math.min(6, pN / (Math.abs(pS) < 0.5 ? (pS < 0 ? -0.5 : 0.5) : pS))); live.current[drag.idx].pts = o.map(p => scaleAxis(p, drag.c, ax, f)); }
-      else if (drag.mode === 'ty') { const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, m.getZoom()); const dh = (drag.startY - e.point.y) * mpp; live.current[drag.idx].height = Math.max(2, Math.round((drag.origH + dh) * 10) / 10); }   // шаг высоты 0,1 м
+      else if (drag.mode === 'ty') { const mpp = 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, m.getZoom()); const dh = (drag.startY - e.point.y) * mpp; const _q = live.current[drag.idx].kind === 'box' ? 100 : 10; live.current[drag.idx].height = Math.max(live.current[drag.idx].kind === 'box' ? 0.1 : 2, Math.round((drag.origH + dh) * _q) / _q); }   // шаг 0,1 м; куб — 0,01 м
       if (drag.mode !== 'ty') clampSetback(drag.idx, o, drag.mode);   // не выпускаем за линию отступа
       rebuildObjects(); buildGizmo();
     };
