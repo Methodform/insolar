@@ -1,0 +1,4 @@
+# Замените на свой домен API. Caddy сам получит и продлит SSL (Let's Encrypt).
+api.sunplan3d.ru {
+    reverse_proxy api:8787
+}

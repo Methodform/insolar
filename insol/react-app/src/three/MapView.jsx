@@ -247,7 +247,9 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
           .multiply(new THREE.Matrix4().makeScale(S, -S, S)).multiply(new THREE.Matrix4().makeRotationX(Math.PI / 2));
         s.camera.projectionMatrix = new THREE.Matrix4().fromArray(matrix).multiply(l);
         if (s.comets && s.comets.length) s.comets.forEach(updateComet);   // анимация «комет» ветра
-        s.renderer.resetState(); s.renderer.render(s.scene, s.camera); updateLabels();
+        s.renderer.resetState();
+        s.renderer.setViewport(0, 0, gl.drawingBufferWidth, gl.drawingBufferHeight);   // синхрон с холстом карты → без смещения после ресайза
+        s.renderer.render(s.scene, s.camera); updateLabels();
         if (s.comets && s.comets.length) m.triggerRepaint();   // непрерывный кадр только пока идёт анимация ветра; иначе рисуем по запросу
       }
     };

@@ -11,6 +11,7 @@ import MapView from './three/MapView.jsx';
 import ZoneMap from './three/ZoneMap.jsx';
 import WindRose from './three/WindRose.jsx';
 import WeatherWidget from './three/WeatherWidget.jsx';
+import FeedbackWidget from './three/FeedbackWidget.jsx';
 import { fetchWindRose, prevailingDir, fetchWindNow, meanDir } from './engine/wind.js';
 import { placeCopyPts } from './engine/place.js';
 import { windRoseReport } from './engine/windRoseSvg.js';
@@ -184,8 +185,8 @@ export default function App() {
   const [showWin, setShowWin] = useState(false);
   const [plantMode, setPlantMode] = useState(null);
   const [rp, setRp] = useState({ addr: '', client: '', exec: '' });
-  const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 767px)').matches);
-  useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(max-width: 767px)'); const h = e => setMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
+  const [mobile, setMobile] = useState(() => typeof matchMedia !== 'undefined' && matchMedia('(max-width: 1120px)').matches);
+  useEffect(() => { if (typeof matchMedia === 'undefined') return; const mq = matchMedia('(max-width: 1120px)'); const h = e => setMobile(e.matches); mq.addEventListener('change', h); return () => mq.removeEventListener('change', h); }, []);
   const [panel, setPanel] = useState(null);  // мобильная шторка: 'plot' | 'sun' | null
   const [plotMode, setPlotMode] = useState('points');
   const [cadCode, setCadCode] = useState('');
@@ -446,6 +447,7 @@ ${roseSection}
             </Dialog.Content>
           </Dialog.Root>
           <Button variant="soft" color="gray" onClick={requirePro(() => setWindOpen(true))}>🌀{!mobile && ' Роза ветров'}</Button>
+          <FeedbackWidget plan={plan} mobile={mobile} />
           <Dialog.Root open={windOpen} onOpenChange={setWindOpen}>
             <Dialog.Content maxWidth="440px">
               <Dialog.Title>Роза ветров</Dialog.Title>
@@ -861,10 +863,10 @@ ${roseSection}
                 const cur = Math.min(sunSet, Math.max(sunRise, minutes));
                 return <>
                   <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
-                  <Flex align="center" justify={mobile ? 'center' : 'between'} style={{ marginBottom: 2 }}>
-                    {!mobile && <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Восход</span> {hhmm(sunRise)}</Text>}
+                  <Flex align="center" justify="between" style={{ marginBottom: 2 }}>
+                    <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Восход</span> {hhmm(sunRise)}</Text>
                     <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}>{hhmm(cur)}</Text>
-                    {!mobile && <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Закат</span> {hhmm(sunSet)}</Text>}
+                    <Text style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e' }}>Закат</span> {hhmm(sunSet)}</Text>
                   </Flex>
                   <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
                     <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#f7a83e,#ffe08a,#ffcf6a,#ffe08a,#f7a83e)' }} />
