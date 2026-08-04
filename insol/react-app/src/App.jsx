@@ -847,28 +847,32 @@ ${roseSection}
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '3'}>
+            <DateTimePicker date={date} minutes={minutes} disabled={false}
+              onDate={d => setDate(d)} onMinutes={mn => { setPlaying(false); setMinutes(mn); }} />
             <IconButton variant="soft" color="gray" title="Текущие дата и время"
               onClick={() => { const loc = new Date(Date.now() + tz * 3600000); const p = n => String(n).padStart(2, '0'); setPlaying(false); setDate(`${loc.getUTCFullYear()}-${p(loc.getUTCMonth() + 1)}-${p(loc.getUTCDate())}`); setMinutes(loc.getUTCHours() * 60 + loc.getUTCMinutes()); }}>
               <CounterClockwiseClockIcon />
             </IconButton>
-            <DateTimePicker date={date} minutes={minutes} disabled={false}
-              onDate={d => setDate(d)} onMinutes={mn => { setPlaying(false); setMinutes(mn); }} />
-            {(() => {
-              const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
-              const hasDay = sunRise != null && sunSet != null && sunSet > sunRise;
-              if (!hasDay) return <Text color="gray" align="center" style={{ flex: 1, fontSize: 12 }}>{times.polarDay ? 'Полярный день — солнце не заходит' : 'Полярная ночь — солнце не восходит'}</Text>;
-              const cur = Math.min(sunSet, Math.max(sunRise, minutes));
-              return <>
-                <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
-                <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Восход</span> {hhmm(sunRise)}</Text>
-                <Box style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
-                  <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#f7a83e,#ffe08a,#ffcf6a,#ffe08a,#f7a83e)' }} />
-                  <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[cur]} min={sunRise} max={sunSet} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
-                  <Text style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', top: -16, fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap', pointerEvents: 'none' }}>{hhmm(cur)}</Text>
-                </Box>
-                <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Закат</span> {hhmm(sunSet)}</Text>
-              </>;
-            })()}
+            <Box style={{ flex: 1 }}>
+              {(() => {
+                const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
+                const hasDay = sunRise != null && sunSet != null && sunSet > sunRise;
+                if (!hasDay) return <Text color="gray" align="center" style={{ fontSize: 12, display: 'block', padding: '6px 0' }}>{times.polarDay ? 'Полярный день — солнце не заходит' : 'Полярная ночь — солнце не восходит'}</Text>;
+                const cur = Math.min(sunSet, Math.max(sunRise, minutes));
+                return <>
+                  <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
+                  <Flex align="center" justify="between" style={{ marginBottom: 2 }}>
+                    <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Восход</span> {hhmm(sunRise)}</Text>
+                    <Text style={{ fontSize: 13, fontWeight: 700, whiteSpace: 'nowrap' }}>{hhmm(cur)}</Text>
+                    <Text style={{ fontSize: 11, whiteSpace: 'nowrap' }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Закат</span> {hhmm(sunSet)}</Text>
+                  </Flex>
+                  <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                    <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#f7a83e,#ffe08a,#ffcf6a,#ffe08a,#f7a83e)' }} />
+                    <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[cur]} min={sunRise} max={sunSet} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
+                  </Box>
+                </>;
+              })()}
+            </Box>
           </Flex>
         </Card>
 
