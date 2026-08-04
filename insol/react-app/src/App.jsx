@@ -64,7 +64,7 @@ function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked 
           <CalendarIcon /> {label}
         </Button>
       </Popover.Trigger>
-      <Popover.Content side="top" align="start" sideOffset={8} style={{ width: 262 }}>
+      <Popover.Content side="top" align="start" sideOffset={8} style={{ width: 262, padding: 12 }}>
         <Flex align="center" justify="between" mb="2">
           <IconButton variant="soft" color="gray" size="1" onClick={() => shift(-1)}><ChevronLeftIcon /></IconButton>
           <Text size="2" weight="medium">{MON_RU[view.m]} {view.y}</Text>
@@ -192,6 +192,9 @@ export default function App() {
   const [welcome, setWelcome] = useState(false);   // подсказка по управлению (жесты) — на мобильных, один раз
   useEffect(() => { try { if (mobile && !localStorage.getItem('sp_help_seen')) setWelcome(true); } catch (e) {} }, [mobile]);
   const closeWelcome = () => { setWelcome(false); try { localStorage.setItem('sp_help_seen', '1'); } catch (e) {} };
+  const [welcomeDesk, setWelcomeDesk] = useState(false);   // подсказка по управлению — десктоп, один раз
+  useEffect(() => { try { if (!mobile && !localStorage.getItem('sp_help_desk')) setWelcomeDesk(true); } catch (e) {} }, [mobile]);
+  const closeWelcomeDesk = () => { setWelcomeDesk(false); try { localStorage.setItem('sp_help_desk', '1'); } catch (e) {} };
   const [panel, setPanel] = useState(null);  // мобильная шторка: 'plot' | 'sun' | null
   const [plotMode, setPlotMode] = useState('points');
   const [cadCode, setCadCode] = useState('');
@@ -907,7 +910,41 @@ ${roseSection}
           </Dialog.Content>
         </Dialog.Root>
 
-        {/* затемнение позади модалки-панели (мобильные >480px) — клик закрывает */}
+        {/* приветственная подсказка по управлению (десктоп, один раз) */}
+        <Dialog.Root open={welcomeDesk} onOpenChange={o => { if (!o) closeWelcomeDesk(); }}>
+          <Dialog.Content maxWidth="460px" style={{ overflow: 'hidden', padding: 0 }}>
+            <Box style={{ background: 'linear-gradient(180deg,#ffd24d,#ffe9b0 55%,transparent)', padding: '24px 24px 6px', textAlign: 'center', fontSize: 42 }}>☀️</Box>
+            <Box style={{ padding: '0 24px 22px' }}>
+              <Dialog.Title align="center" style={{ marginBottom: 4 }}>Добро пожаловать!</Dialog.Title>
+              <Text size="2" color="gray" align="center" style={{ display: 'block', marginBottom: 16 }}>Смотрите солнце и тени в 3D на своём участке.</Text>
+
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em', display: 'block', marginBottom: 8 }}>КАРТА</Text>
+              <Flex justify="between" gap="2" mb="4" style={{ textAlign: 'center' }}>
+                {[['🖱️', 'ЛКМ', 'двигать карту'], ['🖱️', 'ПКМ / Ctrl', 'поворот и наклон'], ['🖲️', 'Колесо', 'приблизить / отдалить']].map(([ic, t, d]) => (
+                  <Box key={t} style={{ flex: 1 }}>
+                    <div style={{ fontSize: 26, lineHeight: 1.1 }}>{ic}</div>
+                    <Text size="2" weight="bold" style={{ display: 'block' }}>{t}</Text>
+                    <Text size="1" color="gray" style={{ display: 'block' }}>{d}</Text>
+                  </Box>
+                ))}
+              </Flex>
+
+              <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em', display: 'block', marginBottom: 8 }}>ОБЪЕКТЫ</Text>
+              <Flex direction="column" gap="1" mb="4">
+                {[['Клик', 'выбрать объект'], ['Стрелки / кольцо / кубы', 'двигать, повернуть, изменить размер'], ['Вертикальная ручка', 'высота'], ['Ctrl+C / Ctrl+V', 'копировать'], ['Ctrl+Z', 'отменить действие'], ['Delete', 'удалить']].map(([k, d]) => (
+                  <Flex key={k} align="center" justify="between" gap="3">
+                    <Text size="2" weight="bold" style={{ whiteSpace: 'nowrap' }}>{k}</Text>
+                    <Text size="1" color="gray" align="right">{d}</Text>
+                  </Flex>
+                ))}
+              </Flex>
+
+              <Button size="3" style={{ width: '100%' }} onClick={closeWelcomeDesk}>Понятно!</Button>
+            </Box>
+          </Dialog.Content>
+        </Dialog.Root>
+
+        {/* приветственная подсказка по управлению (мобильные, один раз) */}
         <style>{`.panel-card::-webkit-scrollbar{display:none}`}</style>
         {mobile && !phone && panel && <Box onClick={() => setPanel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 23 }} />}
 
