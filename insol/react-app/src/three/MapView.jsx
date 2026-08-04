@@ -841,10 +841,10 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       // точки для попадания по экрану
       const ringPts = []; for (let a = 0; a < Math.PI * 2; a += Math.PI / 8) ringPts.push(lp3(c[0] + Rr * Math.cos(a), c[1] + Rr * Math.sin(a)));
       giz = { group, c, u, v, handles: [
-        { mode: 'ty', pts: [tyPos] },
+        { mode: 'ty', pts: [tyPos, [c[0], Y + 2.4 * gz, -c[1]], [c[0], Y + 1.6 * gz, -c[1]]] },
         { mode: 'sl', pts: [slPos] }, { mode: 'sw', pts: [swPos] },
-        { mode: 'tx', pts: [lp3(c[0] + u[0] * aL, c[1] + u[1] * aL)] },
-        { mode: 'tz', pts: [lp3(c[0] + v[0] * aL, c[1] + v[1] * aL)] },
+        { mode: 'tx', pts: [0.4, 0.65, 0.85, 1].map(t => lp3(c[0] + u[0] * aL * t, c[1] + u[1] * aL * t)) },   // точки по всей длине стержня, не только кончик
+        { mode: 'tz', pts: [0.4, 0.65, 0.85, 1].map(t => lp3(c[0] + v[0] * aL * t, c[1] + v[1] * aL * t)) },
         { mode: 'rot', pts: ringPts },
       ] };
       giz.colorables = [                                        // меши для подсветки по наведению (без пересборки)
