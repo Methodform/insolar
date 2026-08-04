@@ -76,8 +76,9 @@ export function windRoseReport(data) {
   const seasonGrid = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4pt">${seasons}</div>`;
   const months = (data.months || []).map((m, i) => tile(m, MONTHS[i], 30)).join('');
   const monthGrid = `<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:4pt">${months}</div>`;
+  // страница 1 — год + сезоны; страница 2 (разрыв) — 12 месяцев
   return `${year}` +
     `<h3 style="font-size:11pt;margin:12pt 0 2pt;color:#222">Роза ветров по сезонам</h3>${seasonGrid}` +
-    `<h3 style="font-size:11pt;margin:14pt 0 2pt;color:#222">Роза ветров по месяцам</h3>${monthGrid}` +
-    `<div style="font-size:8.5pt;color:#888;margin-top:6pt">Под каждой розой: господствующее направление · его доля · средняя скорость. Цвет луча — средняя скорость (синий тихо → красный сильно).</div>`;
+    `<div style="font-size:8.5pt;color:#888;margin-top:6pt">Под каждой розой: господствующее направление · его доля · средняя скорость. Цвет луча — средняя скорость (синий тихо → красный сильно).</div>` +
+    `<div style="page-break-before:always"><h3 style="font-size:11pt;margin:0 0 2pt;color:#222">Роза ветров по месяцам</h3>${monthGrid}</div>`;
 }

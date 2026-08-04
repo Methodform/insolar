@@ -54,11 +54,11 @@ function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked 
   const cells = []; for (let i = 0; i < startWd; i++) cells.push(null); for (let dd = 1; dd <= daysIn; dd++) cells.push(dd);
   const shift = dm => setView(v => { const t = new Date(Date.UTC(v.y, v.m + dm, 1)); return { y: t.getUTCFullYear(), m: t.getUTCMonth() }; });
 
-  const label = `${pad(d)}.${pad(m)}.${y} · ${pad(hh)}:${pad(mm)}`;
+  const label = `${pad(d)}.${pad(m)}.${y}`;   // только дата — время ведёт ползунок, чтобы кнопка не дёргалась при перемотке
   return (
     <Popover.Root open={open} onOpenChange={o => { if (o && disabled) { onBlocked && onBlocked(); return; } setOpen(o); }}>
       <Popover.Trigger>
-        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: 190, justifyContent: 'center' }}>
+        <Button variant="surface" color="gray" size="2" style={{ cursor: 'pointer', whiteSpace: 'nowrap', width: 140, justifyContent: 'center' }}>
           <CalendarIcon /> {label}
         </Button>
       </Popover.Trigger>
@@ -79,18 +79,6 @@ function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked 
             </Box>;
           })}
         </Box>
-        <Separator size="4" my="2" />
-        <Flex align="center" gap="2">
-          <Text size="1" color="gray">Время</Text>
-          <Select.Root value={String(hh)} onValueChange={v => onMinutes(Number(v) * 60 + mm)}>
-            <Select.Trigger />
-            <Select.Content position="popper">{Array.from({ length: 24 }, (_, i) => <Select.Item key={i} value={String(i)}>{pad(i)} ч</Select.Item>)}</Select.Content>
-          </Select.Root>
-          <Select.Root value={String(mm - mm % 5)} onValueChange={v => onMinutes(hh * 60 + Number(v))}>
-            <Select.Trigger />
-            <Select.Content position="popper">{Array.from({ length: 12 }, (_, i) => <Select.Item key={i} value={String(i * 5)}>{pad(i * 5)} мин</Select.Item>)}</Select.Content>
-          </Select.Root>
-        </Flex>
       </Popover.Content>
     </Popover.Root>
   );
@@ -224,7 +212,7 @@ export default function App() {
   }
 
   function saveProject() {
-    const data = { v: 1, app: 'insolar', polyText, tz, fence, fenceCustom, buildings, date, minutes, report: rp };
+    const data = { v: 1, app: 'insolar', polyText, tz, fence, fenceCustom, buildings, report: rp };   // дату и время таймбара в проект не зашиваем
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'insolar-project.json';
     document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(a.href);
@@ -263,11 +251,13 @@ export default function App() {
     let roseSvg = '';
     try { const rose = await fetchWindRose(lat, lon); roseSvg = windRoseReport(rose); } catch (e) { roseSvg = ''; }
     const corLbl = ['северо-восток', 'юго-восток', 'юго-запад', 'северо-запад'];
-    const planSection = shots.length ? `<h2>План участка (вид с 4 сторон)</h2><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${shots.map((u, i) => `<div style="page-break-inside:avoid"><img src="${u}" style="width:100%;height:auto;max-height:82mm;border:1px solid #999;border-radius:4px"/><div style="font-size:9pt;color:#555;text-align:center;margin-top:2pt">Ракурс ${i + 1}${corLbl[i] ? ' · ' + corLbl[i] : ''}</div></div>`).join('')}</div>` : '';
+    const [dY, dM, dD] = date.split('-');
+    const dtStr = `${dD}.${dM}.${dY}, ${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;   // дата и время, показанные на снимках
+    const planSection = shots.length ? `<h2>План участка (вид с 4 сторон)</h2><div style="font-size:10.5pt;color:#333;margin:-2pt 0 5pt">Дата и время съёмки: <b>${dtStr}</b></div><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">${shots.map((u, i) => `<div style="page-break-inside:avoid"><img src="${u}" style="width:100%;height:auto;max-height:82mm;border:1px solid #999;border-radius:4px"/><div style="font-size:9pt;color:#555;text-align:center;margin-top:2pt">Ракурс ${i + 1}${corLbl[i] ? ' · ' + corLbl[i] : ''} · ${dtStr}</div></div>`).join('')}</div>` : '';
     const bldSection = buildings.length ? `<h2>Здания и объекты на участке</h2><table><tr><th>Объект</th><th>Ширина×Длина, м</th><th>Высота (+конёк), м</th></tr>${bRows}</table>` : '';
     const setbackSection = `<h2>Отступы от границ участка</h2><table><tr><th>Объект</th><th>Мин. отступ</th></tr><tr><td>Жилой / садовый дом</td><td>3 м</td></tr><tr><td>Гараж (окна к соседу)</td><td>2 м</td></tr><tr><td>Баня, хозпостройки (сарай, беседка, теплица, навес)</td><td>1 м</td></tr><tr><td>Постройка для скота / птицы</td><td>4 м</td></tr><tr><td>Деревья высокие / среднерослые / кустарник</td><td>3 / 2 / 1 м</td></tr></table><div class="note">СП 30-102-99 / ПЗЗ. От красной линии улицы — 5 м, от проездов — 3 м.</div>`;
     const sunSection = sunSvg ? `<h2>Диаграмма пути солнца</h2><div style="max-width:440px;margin:auto">${sunSvg}</div>` : '';
-    const roseSection = roseSvg ? `<h2>Роза ветров (год, сезоны, месяцы)</h2>${roseSvg}` : `<h2>Роза ветров</h2><p style="color:#777">Не удалось загрузить климат-данные ветра (проверьте интернет-соединение).</p>`;
+    const roseSection = roseSvg ? `<h2 style="page-break-before:always">Роза ветров (год, сезоны, месяцы)</h2>${roseSvg}` : `<h2>Роза ветров</h2><p style="color:#777">Не удалось загрузить климат-данные ветра (проверьте интернет-соединение).</p>`;
     const html = `<!DOCTYPE html><html lang="ru"><head><meta charset="utf-8"><title>Отчёт об инсоляции</title><style>
 @page{size:A4 portrait;margin:18mm 16mm}body{font-family:'Times New Roman',Georgia,serif;color:#111;font-size:12pt;line-height:1.45}
 img{max-width:100%;max-height:120mm;object-fit:contain}h2{page-break-after:avoid}table,img{page-break-inside:avoid}
@@ -346,6 +336,11 @@ ${roseSection}
   const altDeg = pos.altitude * 180 / Math.PI, azDeg = compassAz(pos.azimuth);
   const dayLen = times.polarDay ? 24 : times.polarNight ? 0 : (times.set - times.rise) / 3600000;
   const noonAlt = sunPosition(times.noon, lat, lon).altitude * 180 / Math.PI;
+  // границы светового дня в минутах (для таймбара — только день, без ночи)
+  const toDayMin = ms => { const dd = new Date(ms + tz * 3600000); return dd.getUTCHours() * 60 + dd.getUTCMinutes(); };
+  const sunRise = times.polarNight ? null : (times.polarDay ? 0 : toDayMin(times.rise));
+  const sunSet = times.polarNight ? null : (times.polarDay ? 1439 : toDayMin(times.set));
+  useEffect(() => { if (sunRise != null && sunSet != null && sunSet > sunRise) setMinutes(mn => Math.min(sunSet, Math.max(sunRise, mn))); }, [sunRise, sunSet]);   // держим ползунок в пределах светового дня
 
   const dayMs = localToUTC(y, mo - 1, da, 12, 0, tz);
   const insol = useMemo(() => insolationAt([0, 0], buildings, dayMs, lat, lon), [buildings, dayMs, lat, lon]);
@@ -449,24 +444,6 @@ ${roseSection}
               <Flex justify="end" mt="3"><Dialog.Close><Button>Понятно</Button></Dialog.Close></Flex>
             </Dialog.Content>
           </Dialog.Root>
-          <Dialog.Root>
-            <Dialog.Trigger><Button variant="soft" color="gray"><SewingPinFilledIcon />{!mobile && ' Зонирование'}</Button></Dialog.Trigger>
-            <Dialog.Content maxWidth="560px">
-              <Dialog.Title><Flex align="center" gap="2"><SewingPinFilledIcon /> Рекомендации по зонированию</Flex></Dialog.Title>
-              <Dialog.Description size="1" color="gray" mb="3">Ориентация по сторонам света: где разместить огород, посадки и зону отдыха.</Dialog.Description>
-              <ZoneMap poly={poly} />
-              <Box mt="3">
-                {[
-                  ['🥕 Огород / грядки — юг', 'Максимум света для светолюбивых культур.'],
-                  ['🌳 Высокие посадки — север / края', 'Чтобы не затеняли грядки и окна дома. Отступ от границы: высокие ≥ 3 м, среднерослые ≥ 2 м, кустарник ≥ 1 м.'],
-                  ['🌿 Газон / зона отдыха — центр', 'Универсальная буферная зона между постройками и посадками.'],
-                ].map(([t, d]) => (
-                  <Box key={t} mb="2"><Text size="2" weight="bold" style={{ display: 'block' }}>{t}</Text><Text size="1" color="gray">{d}</Text></Box>
-                ))}
-              </Box>
-              <Flex justify="end" mt="2"><Dialog.Close><Button variant="soft" color="gray">Закрыть</Button></Dialog.Close></Flex>
-            </Dialog.Content>
-          </Dialog.Root>
           <Button variant="soft" color="gray" onClick={requirePro(() => setWindOpen(true))}>🌀{!mobile && ' Роза ветров'}</Button>
           <Dialog.Root open={windOpen} onOpenChange={setWindOpen}>
             <Dialog.Content maxWidth="440px">
@@ -539,7 +516,7 @@ ${roseSection}
                 <Box>
                   <Flex align="center" justify="between">
                     <Text size="2">Точки инсоляции</Text>
-                    <Switch checked={showPlot || showWin} onCheckedChange={v => { setShowPlot(v); setShowWin(v); }} />
+                    <Switch checked={showPlot || showWin} onCheckedChange={v => { if (!pro) { openPaywall(); return; } setShowPlot(v); setShowWin(v); }} />
                   </Flex>
                   {(showPlot || showWin) && <Flex gap="3" align="center" mt="1">
                     <Flex align="center" gap="1"><span style={{ width: 10, height: 10, borderRadius: 5, background: '#1f9d45', display: 'inline-block' }} /><Text size="1" color="gray">норма</Text></Flex>
@@ -580,7 +557,7 @@ ${roseSection}
                 </Select.Content>
               </Select.Root>
               <Flex gap="2" mt="2">
-                <Button onClick={requirePro(addPreset)} style={{ flex: 1 }}><PlusIcon /> Добавить объект</Button>
+                <Button onClick={addPreset} style={{ flex: 1 }}><PlusIcon /> Добавить объект</Button>
               </Flex>
               {(() => {
                 const isGreen = k => k === 'tree' || k === 'bush' || k === 'bed';
@@ -762,20 +739,14 @@ ${roseSection}
             <Flex gap="3" wrap="wrap" direction={mobile ? 'column' : 'row'} align="stretch">
               {[
                 { key: 'free', name: 'Free', price: '0 ₽', sub: 'без регистрации', hero: false, badge: null,
-                  feats: ['Участок по кадастру или точкам', 'Один дом из каталога', 'Забор по СНиП 1,5 м', 'Тени на один весенний день', 'Памятка по отступам'],
+                  feats: ['3D-участок и тени в реальном времени', 'Движение солнца и любая дата', 'Добавляйте дома, постройки, посадки', 'Вердикт по инсоляции центра', '1 участок · только текущая сессия'],
                   cta: pro ? null : 'Текущий план' },
-                { key: 'promo', name: 'Pro · месяц', price: '990 ₽', sub: 'физлицо · в месяц', hero: false, badge: null,
-                  feats: ['Всё из Free', 'До 3 участков', 'Расстановка зданий и сооружений', 'Любая дата и движение солнца весь год', 'Поток ветра и забор любой высоты', 'Соседние дома с карты', 'Инсоляция по всему участку', 'PDF с розой ветров'],
-                  cta: 'Оформить Pro' },
-                { key: 'proseason', name: 'Pro · 6 месяцев', price: '1 990 ₽', sub: 'сезон · ≈ 332 ₽/мес', hero: true, badge: 'Популярный',
-                  feats: ['Всё из Pro', 'До 3 участков', 'Весь сезон: стройка и посадки', 'Сезонные сценарии и напоминания', 'Сохранённые проекты и сравнение A/B', 'Инсоляция и ветер круглый год'],
+                { key: 'promo', name: 'Pro · месяц', price: '990 ₽', sub: '≈ 990 ₽/мес', hero: false, badge: null,
+                  feats: ['Всё из Free', 'Сохранение и возврат к своим участкам', 'Слои: часы солнца, роза ветров, инсоляция по всему участку', 'Кадастр: участок и соседние дома', 'Забор любой высоты · до 3 участков', 'PDF-паспорт'],
+                  cta: 'Оформить на месяц' },
+                { key: 'proseason', name: 'Pro · 6 месяцев', price: '1 990 ₽', sub: '≈ 332 ₽/мес — выгоднее в 3 раза', hero: true, badge: 'Выгодно · −66%',
+                  feats: ['Всё из Pro-месяца', 'Весь сезон стройки и посадок', 'Сезонные сценарии: зима vs лето', 'Сохранённые проекты и сравнение A/B', 'Один платёж — планируете полгода'],
                   cta: 'Взять на сезон' },
-                { key: 'proyear', name: 'Pro · год', price: '2 990 ₽', sub: 'физлицо · ≈ 249 ₽/мес', hero: false, badge: null,
-                  feats: ['Всё из Pro', 'До 3 участков', 'Для тех, кто строит долго', 'Участок эволюционирует вместе с вами'],
-                  cta: 'Планировать год' },
-                { key: 'b2b', name: 'B2B · профи и риелторам', price: '8 990 ₽', sub: 'в год · до 20 участков', hero: false, badge: 'Бизнес',
-                  feats: ['Всё из Pro, до 20 участков', 'PDF-паспорт с вашим брендом', 'Ссылки-презентации для клиентов', 'Риелтор, проектировщик, ландшафтник', 'Приоритетная поддержка'],
-                  cta: 'Подключить B2B' },
               ].map(t => (
                 <Box key={t.key} style={{ flex: '1 1 180px', border: t.hero ? '2px solid var(--grass-8)' : '1px solid var(--gray-a5)', borderRadius: 12, padding: 16, background: t.hero ? 'var(--grass-a2)' : 'transparent', position: 'relative' }}>
                   {t.badge && <Badge color="grass" style={{ position: 'absolute', top: -10, left: 14 }}>{t.badge}</Badge>}
@@ -793,7 +764,7 @@ ${roseSection}
             </Flex>
             <Flex justify="between" align="center" mt="4" gap="3" wrap="wrap">
               <Text size="1" color="gray" style={{ flex: '1 1 300px' }}>
-                SunPlan3d — не разовый отчёт, а инструмент, в который возвращаешься к каждому сезону и решению. PDF-паспорт входит во все платные тарифы. Когда подписка закончится, участок и проекты не пропадут — останутся для просмотра, а скачанные PDF навсегда ваши.
+                SunPlan3d — живой инструмент, к которому возвращаешься к каждому сезону и решению: подвинул постройку, посадил дерево, проверил тень и инсоляцию. Free — попробовать вживую; Pro — сохранять участки и включать все слои анализа круглый год. PDF-паспорт входит в Pro как бонус.
               </Text>
               {pro
                 ? <Button variant="soft" color="gray" onClick={() => { applyPlan('free'); setPaywall(false); }}>Отключить Pro (демо)</Button>
@@ -872,26 +843,23 @@ ${roseSection}
         {/* timebar */}
         <Card size="2" className="panel-card" style={timebarStyle}>
           <Flex align="center" gap={mobile ? '2' : '3'}>
-            <DateTimePicker date={date} minutes={minutes} disabled={!pro} onBlocked={openPaywall}
+            <DateTimePicker date={date} minutes={minutes} disabled={false}
               onDate={d => setDate(d)} onMinutes={mn => { setPlaying(false); setMinutes(mn); }} />
             <Box style={{ flex: 1 }}>
               {(() => {
-                const toMin = ms => { const d = new Date(ms + tz * 3600000); return d.getUTCHours() * 60 + d.getUTCMinutes(); };
-                const rise = times.polarNight ? null : (times.polarDay ? 0 : toMin(times.rise));
-                const set = times.polarNight ? null : (times.polarDay ? 1440 : toMin(times.set));
-                const pct = m => Math.max(0, Math.min(100, m / 1440 * 100));
                 const hhmm = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(Math.round(m % 60)).padStart(2, '0')}`;
-                const hasDay = rise != null && set != null && set > rise;
+                const hasDay = sunRise != null && sunSet != null && sunSet > sunRise;
+                if (!hasDay) return <Text color="gray" align="center" style={{ fontSize: 12, display: 'block', padding: '6px 0' }}>{times.polarDay ? 'Полярный день — солнце не заходит' : 'Полярная ночь — солнце не восходит'}</Text>;
+                const cur = Math.min(sunSet, Math.max(sunRise, minutes));
                 return <>
                   <style>{`.tb-slider .rt-SliderTrack,.tb-slider .rt-SliderRange{background:transparent!important}`}</style>
                   <Flex justify="between" style={{ marginBottom: 2 }}>
-                    {[0, 3, 6, 9, 12, 15, 18, 21, 24].map(h => <Text key={h} color="gray" style={{ fontSize: 10 }}>{h}</Text>)}
+                    <Text style={{ fontSize: 11 }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Восход</span> {hhmm(sunRise)}</Text>
+                    <Text style={{ fontSize: 11 }}><span style={{ color: '#e08a1e', fontWeight: 600 }}>Закат</span> {hhmm(sunSet)}</Text>
                   </Flex>
                   <Box style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-                    <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, overflow: 'hidden', background: '#c9ccd2' }}>
-                      {hasDay && <Box style={{ position: 'absolute', top: 0, bottom: 0, left: pct(rise) + '%', width: (pct(set) - pct(rise)) + '%', background: 'linear-gradient(90deg,#f7a83e,#ffcf6a,#f7a83e)' }} />}
-                    </Box>
-                    <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[minutes]} min={0} max={1439} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
+                    <Box style={{ position: 'absolute', left: 0, right: 0, top: '50%', transform: 'translateY(-50%)', height: 8, borderRadius: 4, background: 'linear-gradient(90deg,#f7a83e,#ffe08a,#ffcf6a,#ffe08a,#f7a83e)' }} />
+                    <Slider className="tb-slider" style={{ flex: 1, position: 'relative' }} value={[cur]} min={sunRise} max={sunSet} step={1} onValueChange={([v]) => { setPlaying(false); setMinutes(v); }} />
                   </Box>
                 </>;
               })()}
