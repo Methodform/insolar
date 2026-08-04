@@ -515,7 +515,7 @@ ${roseSection}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>АНАЛИЗ УЧАСТКА</Text>
-              <Flex direction="column" gap="3" mt="2">
+              <Flex direction="column" mt="2" style={{ gap: 14 }}>
                 <Box>
                   <Flex align="center" justify="between">
                     <Text size="2">Отступы от границ</Text>
