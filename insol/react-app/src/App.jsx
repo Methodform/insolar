@@ -64,7 +64,7 @@ function DateTimePicker({ date, minutes, onDate, onMinutes, disabled, onBlocked 
           <CalendarIcon /> {label}
         </Button>
       </Popover.Trigger>
-      <Popover.Content side="top" align="start" sideOffset={8} style={{ width: 262, padding: 12 }}>
+      <Popover.Content side="top" align="start" sideOffset={8} style={{ width: 262, padding: '12px 0' }}>
         <Flex align="center" justify="between" mb="2">
           <IconButton variant="soft" color="gray" size="1" onClick={() => shift(-1)}><ChevronLeftIcon /></IconButton>
           <Text size="2" weight="medium">{MON_RU[view.m]} {view.y}</Text>
@@ -544,7 +544,7 @@ ${roseSection}
                   </Flex>
                   {showHeat && <>
                     <Box mt="1" style={{ height: 12, borderRadius: 6, background: `linear-gradient(90deg, ${sunHoursColor(0)}80, ${sunHoursColor(0.5)}80, ${sunHoursColor(1)}80)` }} />
-                    <Flex justify="between"><Text size="1" color="gray">мало солнца</Text><Text size="1" color="gray">много солнца</Text></Flex>
+                    <Flex justify="between"><Text size="1" color="gray">Мало</Text><Text size="1" color="gray">Много</Text></Flex>
                     <Text size="1" color="gray">Учитывает тень от зданий, деревьев и забора на выбранную дату.</Text>
                   </>}
                 </Box>
