@@ -820,8 +820,11 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const ring = new THREE.Mesh(new THREE.TorusGeometry(Rr, 0.053 * gz, 8, 64), gmat(0xffc400)); ring.position.set(c[0], Y, -c[1]); ring.rotation.x = Math.PI / 2; ring.renderOrder = 998; group.add(ring);
       // стрелки перемещения (красная вдоль длины, синяя поперёк)
       const aL = 2.94 * gz;
-      const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, 0xff2222, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
-      const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, 0x2b7bff, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
+      const dm = (drag && drag.idx === i) ? drag.mode : null;   // активный режим переноса — подсветка зелёным
+      const uCol = (dm === 'tx' || dm === 'move') ? 0x22c55e : 0xff2222;
+      const vCol = (dm === 'tz' || dm === 'move') ? 0x22c55e : 0x2b7bff;
+      const ar1 = arrow(new THREE.Vector3(u[0], 0, -u[1]), aL, uCol, gz); ar1.position.set(c[0], Y, -c[1]); group.add(ar1);
+      const ar2 = arrow(new THREE.Vector3(v[0], 0, -v[1]), aL, vCol, gz); ar2.position.set(c[0], Y, -c[1]); group.add(ar2);
       // кубы масштаба — на фиксированном расстоянии от центра гизмо (не привязаны к граням объекта → не разъезжаются при зуме)
       const cube = (col, pos) => { const mm = new THREE.Mesh(new THREE.BoxGeometry(cs, cs, cs), gmat(col)); mm.position.set(pos[0], Y, pos[2]); mm.renderOrder = 999; group.add(mm); };
       const sOff = 2.2 * gz;
