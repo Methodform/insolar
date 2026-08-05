@@ -791,6 +791,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const lab = L => { const p = toScreen(L.pos); if (p) out += `<text x="${p[0].toFixed(1)}" y="${p[1].toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="sans-serif" font-size="14" fill="#3a3a3a" paint-order="stroke" stroke="#fff" stroke-width="3" stroke-linejoin="round">${esc(L.text)}</text>`; };
       (s.dimLabels || []).forEach(lab);    // размеры участка — тот же стиль
       (s.objLabels || []).forEach(lab);    // габариты объектов
+      if (s.rotLabel) lab(s.rotLabel);     // угол поворота при вращении — тот же стиль, что габариты
       svg.innerHTML = out;
     }
     function gmat(color) { return new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true }); }
@@ -917,7 +918,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const lp = toLocal(e.lngLat), o = drag.orig;
       if (drag.mode === 'move') { const dx = lp[0] - drag.start[0], dy = lp[1] - drag.start[1]; live.current[drag.idx].pts = o.map(p => [p[0] + dx, p[1] + dy]); }
       else if (drag.mode === 'tx' || drag.mode === 'tz') { const ax = drag.mode === 'tx' ? drag.u : drag.v; const t = (lp[0] - drag.start[0]) * ax[0] + (lp[1] - drag.start[1]) * ax[1]; live.current[drag.idx].pts = o.map(p => [p[0] + ax[0] * t, p[1] + ax[1] * t]); }
-      else if (drag.mode === 'rot') { const a = Math.atan2(lp[1] - drag.c[1], lp[0] - drag.c[0]) - Math.atan2(drag.start[1] - drag.c[1], drag.start[0] - drag.c[0]); live.current[drag.idx].pts = rotatePts(o, drag.c, a); }
+      else if (drag.mode === 'rot') { const a = Math.atan2(lp[1] - drag.c[1], lp[0] - drag.c[0]) - Math.atan2(drag.start[1] - drag.c[1], drag.start[0] - drag.c[0]); live.current[drag.idx].pts = rotatePts(o, drag.c, a); let dg = ((a * 180 / Math.PI) % 360 + 360) % 360; if (dg > 180) dg -= 360; t3.current.rotLabel = { pos: [drag.c[0], 0.6, -drag.c[1]], text: `${Math.round(dg)}°` }; }
       else if (drag.mode === 'sl' || drag.mode === 'sw') { const ax = drag.mode === 'sl' ? drag.u : drag.v;
         const pS = (drag.start[0] - drag.c[0]) * ax[0] + (drag.start[1] - drag.c[1]) * ax[1], pN = (lp[0] - drag.c[0]) * ax[0] + (lp[1] - drag.c[1]) * ax[1];
         const f = Math.max(0.2, Math.min(6, pN / (Math.abs(pS) < 0.5 ? (pS < 0 ? -0.5 : 0.5) : pS))); live.current[drag.idx].pts = o.map(p => scaleAxis(p, drag.c, ax, f)); }
@@ -934,7 +935,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
         const use = Math.abs(a - snap) < 5 * Math.PI / 180 ? snap : a;   // ближе 5° к 90° → прилипаем, иначе свободный угол
         live.current[drag.idx].pts = rotatePts(o, c, use); clampSetback(drag.idx, o, 'rot'); rebuildObjects();
       }
-      drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); buildGizmo();
+      t3.current.rotLabel = null; drag = null; m.dragPan.enable(); m.getCanvas().style.cursor = ''; commit(); buildGizmo();
       const s = t3.current;                                   // объекты сдвинулись → пересчёт ветра/инсоляции
       if (s._w && s._w.show) rebuildWind(s._w.show, s._w.wDeg, s._w.fh);
       if (s._i && s._i.show) rebuildInsol(s._i.show, s._i.y, s._i.mo, s._i.da, s._i.plotMk, s._i.req, s._i.walls);

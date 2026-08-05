@@ -120,8 +120,8 @@ export default function App() {
       const k = (e.key || '').toLowerCase();
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && (k === 'z' || k === 'я')) { undoBuildings(); e.preventDefault(); }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);   // capture — чтобы отмену не перехватывали слои Radix/карты
+    return () => window.removeEventListener('keydown', onKey, true);
   }, []);
   const [preset, setPreset] = useState('house|Дом 12×8|12,8,3');
   const [pro, setPro] = useState(() => { try { return (localStorage.getItem('insolar_plan') || 'free') !== 'free'; } catch (e) { return false; } });
