@@ -316,8 +316,8 @@ ${roseSection}
     loadNow(); const id = setInterval(loadNow, 10 * 60 * 1000); return () => clearInterval(id);
   }, [pro, windFlow, windMode, lat, lon]);
 
-  function addPreset() {
-    const [kind, name, dims] = preset.split('|');
+  function addPreset(presetStr) {
+    const [kind, name, dims] = (presetStr || preset).split('|');
     const [w, d, h] = dims.split(',').map(Number);
     const base = poly && poly.length >= 3 ? poly : [[-12, -12], [12, -12], [12, 12], [-12, 12]];
     // ориентация вдоль самой длинной стороны участка
@@ -552,8 +552,8 @@ ${roseSection}
             </Box>
             <Box>
               <Text size="1" color="gray" weight="medium" style={{ letterSpacing: '.08em' }}>ЗДАНИЯ НА УЧАСТКЕ</Text>
-              <Select.Root value={preset} onValueChange={setPreset}>
-                <Select.Trigger mt="1" style={{ width: '100%' }} />
+              <Select.Root value="" onValueChange={v => { if (v) addPreset(v); }}>
+                <Select.Trigger mt="1" placeholder="Добавить объект…" style={{ width: '100%' }} />
                 <Select.Content>
                   <Select.Group>
                     <Select.Label>Постройки</Select.Label>
@@ -571,9 +571,6 @@ ${roseSection}
                   </Select.Group>
                 </Select.Content>
               </Select.Root>
-              <Flex gap="2" mt="2">
-                <Button onClick={addPreset} style={{ flex: 1 }}><PlusIcon /> Добавить объект</Button>
-              </Flex>
               {(() => {
                 const isGreen = k => k === 'tree' || k === 'bush' || k === 'bed';
                 const row = (b, i) => {
