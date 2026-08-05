@@ -595,16 +595,16 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       const rc = new THREE.Raycaster();
       // часы солнца на площадке со стеновой нормалью: учитываем только солнце «в лицо» стене и без затенения
       const hoursN = (origin, nrm) => { let lit = 0; steps.forEach(v => { if (v.dot(nrm) <= 0) return; rc.set(origin.clone().addScaledVector(v, 0.3), v); rc.near = 0; rc.far = SUN_DIST; if (!rc.intersectObjects(occ, true).length) lit++; }); return lit * stepMin / 60; };
-      const wallDots = (pts, H) => {                               // точки инсоляции по фасадам строения — шаг 1 м
+      const wallDots = (pts, H) => {                               // точки инсоляции по фасадам строения — шаг 3 м
         let cx = 0, cy = 0; pts.forEach(p => { cx += p[0]; cy += p[1]; }); cx /= pts.length; cy /= pts.length;
-        const hStep = 1;
+        const hStep = 3;
         for (let i = 0; i < pts.length; i++) {
           const A = pts[i], B = pts[(i + 1) % pts.length];
           let dx = B[0] - A[0], dy = B[1] - A[1]; const L = Math.hypot(dx, dy); if (L < 0.6) continue; dx /= L; dy /= L;
           let nx = dy, ny = -dx; const mx = (A[0] + B[0]) / 2, my = (A[1] + B[1]) / 2;
           if ((mx - cx) * nx + (my - cy) * ny < 0) { nx = -nx; ny = -ny; }   // нормаль наружу
           const nrm = new THREE.Vector3(nx, 0, -ny);
-          const nAlong = Math.max(1, Math.round(L));   // шаг ~1 м вдоль стены
+          const nAlong = Math.max(1, Math.round(L / 3));   // шаг ~3 м вдоль стены
           for (let a = 0; a < nAlong; a++) {
             const t = (a + 0.5) / nAlong, ex = A[0] + dx * L * t, ny2 = A[1] + dy * L * t;
             for (let hy = hStep * 0.6; hy < H; hy += hStep) {
