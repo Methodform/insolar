@@ -4,7 +4,7 @@ import { Theme, Flex, Box, Card, Heading, Text, Button, TextField, TextArea, Sel
 import { SunIcon, MoonIcon, PlayIcon, PauseIcon, PlusIcon, Pencil1Icon, RulerHorizontalIcon,
   TrashIcon, CheckIcon, LockOpen1Icon, LayersIcon, SewingPinFilledIcon, PersonIcon, HomeIcon,
   FileTextIcon, DownloadIcon, UploadIcon, ResetIcon, CopyIcon, CalendarIcon,
-  DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon, CounterClockwiseClockIcon } from '@radix-ui/react-icons';
+  DoubleArrowLeftIcon, DoubleArrowRightIcon, ChevronDownIcon, ChevronRightIcon, ChevronLeftIcon, CounterClockwiseClockIcon } from './icons.jsx';
 import { thermalColor, sunHoursColor } from './engine/thermal.js';
 import SunPath from './three/SunPath.jsx';
 import MapView from './three/MapView.jsx';
