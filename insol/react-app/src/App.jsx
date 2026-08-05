@@ -942,7 +942,7 @@ ${roseSection}
         </Dialog.Root>
 
         {/* приветственная подсказка по управлению (мобильные, один раз) */}
-        <style>{`.panel-card::-webkit-scrollbar{display:none}`}</style>
+        <style>{`.panel-card::-webkit-scrollbar{display:none} button svg{stroke:currentColor;stroke-width:1;stroke-linejoin:round;stroke-linecap:round}`}</style>
         {mobile && !phone && panel && <Box onClick={() => setPanel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 23 }} />}
 
         {/* мобильная нижняя панель вкладок */}
