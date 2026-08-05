@@ -9,8 +9,9 @@ import {
   ChevronDoubleLeftIcon as HDDL, ChevronDoubleRightIcon as HDDR, ChevronDownIcon as HCDown,
   ChevronRightIcon as HCRight, ChevronLeftIcon as HCLeft, ClockIcon as HClock,
 } from '@heroicons/react/24/solid';
+import { DocumentDuplicateIcon as HCopyMini } from '@heroicons/react/20/solid';
 
-const mk = Comp => function Icon(props) { return <Comp width={16} height={16} {...props} />; };
+const mk = Comp => function Icon({ style, ...p }) { return <Comp width={16} height={16} style={{ color: '#C1C1C1', ...style }} {...p} />; };
 
 export const SunIcon = mk(HSun);
 export const MoonIcon = mk(HMoon);
@@ -30,10 +31,10 @@ export const FileTextIcon = mk(HDoc);
 export const DownloadIcon = mk(HDown);
 export const UploadIcon = mk(HUp);
 export const ResetIcon = mk(HReset);
-export const CopyIcon = mk(HCopy);
+export const CopyIcon = mk(HCopyMini);
 export const CalendarIcon = mk(HCal);
-export const DoubleArrowLeftIcon = mk(HDDL);
-export const DoubleArrowRightIcon = mk(HDDR);
+export const DoubleArrowLeftIcon = mk(HCLeft);
+export const DoubleArrowRightIcon = mk(HCRight);
 export const ChevronDownIcon = mk(HCDown);
 export const ChevronRightIcon = mk(HCRight);
 export const ChevronLeftIcon = mk(HCLeft);
