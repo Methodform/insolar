@@ -650,9 +650,10 @@ ${roseSection}
             <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em', display: 'block' }}>ТОЧКИ ИНСОЛЯЦИИ</Text>
             <Stat k="Соответствуют норме" v={`${plotReport.okc} из ${plotReport.n}`} color={plotReport.okc === plotReport.n ? 'var(--grass-11)' : 'var(--amber-11)'} />
 
-            {(buildings.length > 0) && <>
+            {(buildings.length > 0 || fenceH > 0) && <>
               <Text size="1" color="gray" weight="medium" mt="3" style={{ letterSpacing: '.08em' }}>ДЛИНА ТЕНИ (СЕЙЧАС)</Text>
               <Stat k="Тень падает на" v={altDeg > 0 ? `${azToCardinal(shadowAz)} (${shadowAz.toFixed(0)}°)` : 'солнца нет'} />
+              {altDeg > 0 && fenceH > 0 && <Stat k={`Забор ${fenceH} м`} v={fmtLen(shadowLen(fenceH, altDeg))} />}
               {altDeg > 0 && buildings.map((b, i) => (
                 <Stat key={i} k={b.name} v={fmtLen(shadowLen(b.height + (b.roofH || 0), altDeg))} />
               ))}
@@ -942,7 +943,7 @@ ${roseSection}
         </Dialog.Root>
 
         {/* приветственная подсказка по управлению (мобильные, один раз) */}
-        <style>{`.panel-card::-webkit-scrollbar{display:none} button svg{stroke:currentColor;stroke-width:1;stroke-linejoin:round;stroke-linecap:round}`}</style>
+        <style>{`.panel-card::-webkit-scrollbar{display:none}`}</style>
         {mobile && !phone && panel && <Box onClick={() => setPanel(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.35)', zIndex: 23 }} />}
 
         {/* мобильная нижняя панель вкладок */}
