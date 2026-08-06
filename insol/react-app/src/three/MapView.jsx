@@ -774,6 +774,23 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
     const hitTest = lp => live.current.findIndex(b => b.pts && b.pts.length >= 3 && pointInPoly(lp, b.pts));
     const commit = () => onBuildings && onBuildings(live.current.map(b => ({ ...b, pts: b.pts.map(p => p.slice()) })));
 
+    // выбор по всей видимой площади объекта: силуэт (контур снизу+сверху) на экране, а не только по земле
+    function hitTestScreen(px, py) {
+      const inPoly = (pt, poly) => { let c = false; for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) { const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1]; if (((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / ((yj - yi) || 1e-9) + xi)) c = !c; } return c; };
+      const hull = ps => { ps = ps.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]); const n = ps.length; if (n < 3) return ps; const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]); const lo = []; for (const p of ps) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); } const up = []; for (let i = n - 1; i >= 0; i--) { const p = ps[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); } lo.pop(); up.pop(); return lo.concat(up); };
+      let best = -1, bestD = Infinity;
+      live.current.forEach((b, idx) => {
+        if (!b.pts || b.pts.length < 3) return;
+        const kind = b.kind || 'house', H = (kind === 'tree' || kind === 'bush') ? (b.height || 5) : (b.height || 3) + (b.roofH || 0);
+        const pj = []; let cx = 0, cy = 0;
+        b.pts.forEach(p => { cx += p[0]; cy += p[1]; const s0 = toScreen([p[0], 0.05, -p[1]]); if (s0) pj.push(s0); const s1 = toScreen([p[0], H, -p[1]]); if (s1) pj.push(s1); });
+        if (pj.length < 3 || !inPoly([px, py], hull(pj))) return;
+        cx /= b.pts.length; cy /= b.pts.length; const cs = toScreen([cx, H, -cy]); const d = cs ? Math.hypot(cs[0] - px, cs[1] - py) : 0;
+        if (d < bestD) { bestD = d; best = idx; }
+      });
+      return best;
+    }
+
     let giz = null;      // { group, handles:[{mode, pts:[[x,y,z]...]}], c, u, v }
     // локальная точка [x,y,z] → экранные CSS-пиксели (через матрицу камеры карты)
     function toScreen(P) {
@@ -901,7 +918,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (selIdx.v >= 0) { const mode = pickHandle(px, py); if (mode) {
         const b = live.current[selIdx.v]; drag = { idx: selIdx.v, mode, start: lp, orig: b.pts.map(p => p.slice()), c: giz.c, u: giz.u, v: giz.v, startY: py, origH: b.height || 3 };
         m.dragPan.disable(); m.getCanvas().style.cursor = mode === 'ty' ? 'ns-resize' : 'grabbing'; e.preventDefault(); return; } }
-      const idx = hitTest(lp);
+      let idx = hitTest(lp); if (idx < 0) idx = hitTestScreen(px, py);   // по земле, иначе по видимому силуэту объекта
       if (idx < 0) { if (selIdx.v >= 0) select(-1); return; }
       if (idx !== selIdx.v) select(idx);
       drag = { idx, mode: 'move', start: lp, orig: live.current[idx].pts.map(p => p.slice()) };
@@ -911,7 +928,7 @@ export default function MapView({ polyText, buildings = [], onBuildings, lat, lo
       if (!drag) {
         const px = e.point.x, py = e.point.y;
         const hm = selIdx.v >= 0 ? pickHandle(px, py) : null;
-        m.getCanvas().style.cursor = hm ? 'grab' : (hitTest(toLocal(e.lngLat)) >= 0 ? 'grab' : '');
+        m.getCanvas().style.cursor = hm ? 'grab' : ((hitTest(toLocal(e.lngLat)) >= 0 || hitTestScreen(px, py) >= 0) ? 'grab' : '');
         if (hm !== hoverMode) { hoverMode = hm; applyHover(hm); }   // подсветка наведённой ручки (без пересборки)
         return;
       }

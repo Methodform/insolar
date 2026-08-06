@@ -402,7 +402,7 @@ ${roseSection}
   const profCardStyle = { ...panelBase, overflowY: 'auto', scrollbarWidth: 'none', display: panel === 'profile' ? 'block' : 'none' };
   const timebarStyle = mobile
     ? { position: 'fixed', left: 8, right: 8, bottom: 62, zIndex: 20, background: 'var(--color-panel-solid)', display: panel ? 'none' : 'block' }
-    : { position: 'absolute', left: leftOpen ? 360 : 12, right: rightOpen ? 340 : 12, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' };
+    : { position: 'absolute', left: 360, right: 340, bottom: 20, zIndex: 20, background: 'var(--color-panel-solid)' };   // ширина таймбара не меняется при скрытии панелей
 
   return (
     <Theme appearance={appearance} accentColor="grass" grayColor="sage" radius="large" panelBackground="solid">
